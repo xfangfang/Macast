@@ -1,12 +1,26 @@
 # dlna-media-render
+
 using mpv as DLNA media render runing on *unix platform
 
-## usage
+![demo](demo.png)
 
-pip install charrypy lxml
+## Install
 
-python main.py
+### 1. install mpv in your computer
 
+### 2. install python dependency
+
+```shell
+pip install cherrypy lxml
+```
+
+
+
+## Usage
+
+```shell
+python3 main.py
+```
 
 ## Relevant links
 
