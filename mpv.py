@@ -188,6 +188,7 @@ class Render():
         self.running = False
         self.stateChangeEvent.set()
         self.stateSetEvent.set()
+        self.eventThread.join()
 
     def event(self):
         interval = 1
@@ -314,6 +315,7 @@ class MPVRender(Render):
         self.pause = False # changed with pause action
         self.playing = False # changed with start and stop
         self.willStop = False # if this is True that mpv will stop after 0.2s
+        self.ipc_running = False
 
     def RenderingControl_SetVolume(self, data):
         volume = data['DesiredVolume']
@@ -470,15 +472,20 @@ class MPVRender(Render):
         try:
             self.ipcSock.sendall(msg.encode())
         except Exception as e:
+            logger.error('sendCommand: '+str(e))
             pass
 
     # start ipc thread (communicate with mpv)
     def startIPC(self):
-        while self.running:
+        if self.ipc_running:
+            logger.error("mpv ipc is already runing")
+            return
+        self.ipc_running = True
+        while self.ipc_running:
             self.ipcSock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.ipcSock.connect(self.mpv_sock)
             self.setObserve()
-            while self.running:
+            while self.ipc_running:
                 res = self.ipcSock.recv(1048576)
                 try:
                     msgs = res.decode().strip().split('\n')
@@ -527,4 +534,9 @@ class MPVRender(Render):
 
     def stop(self):
         super(MPVRender, self).stop()
+        logger.error("stoping mpv")
         self.sendCommand(['quit'])
+        self.mpvThread.join()
+        self.ipc_running = False
+        logger.error("stoping mpv ipc")
+        self.ipcThread.join()

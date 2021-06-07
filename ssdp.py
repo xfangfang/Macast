@@ -46,6 +46,7 @@ class SSDPServer:
 
     def stop(self):
         self.running = False
+        self.ssdpThread.join()
 
     def run(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
