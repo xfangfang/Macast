@@ -13,11 +13,11 @@ import copy
 from enum import Enum
 
 
-from utils import loadXML, XMLPath, NAME, VERSION
+from utils import loadXML, XMLPath, NAME, Setting, SYSTEM, SYSTEM_VERSION
 from lxml import etree as ET
 
 logger = logging.getLogger("Render")
-logger.setLevel(logging.ERROR)
+logger.setLevel(logging.DEBUG)
 
 class ObserveProperty(Enum):
     volume = 1
@@ -108,6 +108,7 @@ class Render():
         self.setState('AbsoluteCounterPosition', 2147483647)
 
     def addSubcribe(self, url):
+        logger.error("APPEND SUBSCRIBE: " + url)
         client = ObserveClient(url)
         self.eventSubcribes[client.sid] = client
         return {
@@ -159,7 +160,7 @@ class Render():
                         "NT": "upnp:event",
                         "NTS": "upnp:propchange",
                         "Content-Type": 'text/xml; charset="utf-8"',
-                        "SERVER": "UPnP/1.0  {}/{}".format(NAME, VERSION),
+                        "SERVER": "{}/{} UPnP/1.0 Macast/{}".format(SYSTEM, SYSTEM_VERSION, Setting.getVersion()),
                         "SID": client.sid,
                         "SEQ": client.seq,
                         "TIMEOUT": "Second-{}".format(client.timeout)
