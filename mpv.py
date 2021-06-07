@@ -129,16 +129,13 @@ class Render():
         return 412
 
     def sendEventCallback(self, host, path, headers, data):
-        # state = ['<{} val="{}"/>'.format(i, data[i].value) for i in data]
-        # data = self.event_response.format(''.join(state)).encode()
-
         root = copy.deepcopy(self.event_response)
         for i in data:
             p = ET.SubElement(root[0][0][0][0], i)
-            p.set('val', data[i].value)
+            p.set('val', str(data[i].value))
         data = ET.tostring(root, encoding="UTF-8", xml_declaration=True)
 
-        logger.debug("EVENT DATA: "+data.decode())
+        # logger.debug("EVENT DATA: "+data.decode())
         conn = http.client.HTTPConnection(host, timeout = 1)
         conn.request("NOTIFY", path, data, headers)
         conn.close()
@@ -172,9 +169,10 @@ class Render():
                 logger.error("send event error: "+str(e))
                 client.error = client.error + 1
                 if client.error > 10:
+                    logger.debug("remove "+ client.sid)
                     removeList.append(client.sid)
-        for client in removeList:
-            self.resmoveSubcribe(client.sid)
+        for sid in removeList:
+            self.removeSubcribe(sid)
 
     def start(self):
         if not self.running:
@@ -365,6 +363,7 @@ class MPVRender(Render):
         return {}
 
     def AVTransport_Seek(self, data):
+        logger.error("SEEK-----------------------")
         target = data['Target']
         self.sendCommand(['seek', target.value, 'absolute'])
         self.setState('RelativeTimePosition', target.value)
