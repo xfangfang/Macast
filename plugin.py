@@ -68,13 +68,19 @@ class SSDPPlugin(plugins.SimplePlugin):
         for type in self.devices:
             self.ssdp.unregister('uuid:{}{}'.format(Setting.getUSN(), type))
 
+    def updateIP(self):
+        self.unregister()
+        self.register()
+
     def start(self):
         logger.info('starting SSDPPlugin')
         self.register()
         self.ssdp.start()
         self.bus.subscribe('ssdp_notify', self.notify)
+        self.bus.subscribe('ssdp_updateip', self.updateIP)
 
     def stop(self):
         logger.info('Stoping SSDPPlugin')
-        self.bus.subscribe('ssdp_notify', self.notify)
+        self.bus.unsubscribe('ssdp_notify', self.notify)
+        self.bus.unsubscribe('ssdp_updateip', self.updateIP)
         self.ssdp.stop()
