@@ -1,4 +1,4 @@
-# dlna-media-render
+# Macast
 
 [Chinese README](https://github.com/xfangfang/Macast/blob/main/README_ZH.md)
 
