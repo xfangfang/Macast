@@ -1,6 +1,6 @@
 # dlna-media-render
 
-using mpv as DLNA media render runing on *unix platform
+using mpv as DLNA media render runing on MacOS
 
 ![demo](demo.png)
 

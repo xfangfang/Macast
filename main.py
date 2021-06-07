@@ -1,8 +1,12 @@
 # Copyright (c) 2021 by xfangfang. All Rights Reserved.
 
+import os
 import re
+import time
+import rumps
 import cherrypy
 import logging
+import threading
 from cherrypy.process.plugins import Monitor
 
 from utils import loadXML, XMLPath, PORT, NAME, Setting, SYSTEM, SYSTEM_VERSION
@@ -69,8 +73,7 @@ def notify():
         cherrypy.engine.publish('ssdp_updateip')
     cherrypy.engine.publish('ssdp_notify')
 
-if __name__ == '__main__':
-
+def startCherrypy():
     Setting.load()
     SSDPPlugin(cherrypy.engine).subscribe()
     MPVPlugin(cherrypy.engine).subscribe()
@@ -92,6 +95,23 @@ if __name__ == '__main__':
             ],
         }
       }
+    cherrypy.quickstart(DLNAHandler(), '/', config = cherrypy_config)
 
-    server = DLNAHandler()
-    cherrypy.quickstart(server, '/', config = cherrypy_config)
+class Macast(rumps.App):
+    def __init__(self):
+        super(Macast, self).__init__("Macast", "📺", quit_button=None)
+        self.thread = threading.Thread(target=startCherrypy, args=())
+        self.thread.start()
+        # rumps.debug_mode(True)
+
+    @rumps.clicked('退出')
+    def clean_up_before_quit(self, _):
+        while cherrypy.engine.state != cherrypy.engine.states.STARTED:
+            time.sleep(0.5)
+        cherrypy.engine.exit()
+        self.thread.join()
+        rumps.quit_application()
+
+if __name__ == '__main__':
+    Macast().run()
+    # startCherrypy()
