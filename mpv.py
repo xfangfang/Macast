@@ -497,25 +497,24 @@ class MPVRender(Render):
                     pass
             self.ipcSock.close()
             time.sleep(2)
+            logger.error("mpv ipc stopped")
 
     # start mpv thread
     def startMPV(self):
         while self.running:
             self.setState('TransportState', 'STOPPED')
-            # mpv = XMLPath.BASE_PATH.value + "/bin/MacOS/mpv"
-            mpv = "mpv"
-            logger.debug("using: " + mpv)
+            mpv = XMLPath.BASE_PATH.value + "/bin/MacOS/mpv"
+            logger.debug(mpv)
             self.proc = subprocess.run(
                 [mpv, '--input-ipc-server={}'.format(self.mpv_sock),
                 '--pause', '--idle=yes', '--image-display-duration=inf',
-                '--autofit=20%', '--geometry=2%:5%',
-                '--ontop', '--hwdec=yes', '--really-quiet',
-                #lua support
-                # '--script-opts=osc-timetotal=yes,osc-layout=bottombar,osc-title=${title},osc-showwindowed=no,osc-seekbarstyle=bar,osc-visibility=auto'
-                #macos only
-                # '--macos-app-activation-policy=prohibited',
-                # '--macos-force-dedicated-gpu=yes',
-                # '--ontop-level=system',
+                '--autofit=20%', '--geometry=98%:5%',
+                '--ontop', '--ontop-level=system', # macos only
+                '--hwdec=yes', '--macos-force-dedicated-gpu=yes', # macos only
+                '--macos-app-activation-policy=accessory', # macos only
+                '--on-all-workspaces', #macos and x11 only
+                '--script-opts=osc-timetotal=yes,osc-layout=bottombar,osc-title=${title},osc-showwindowed=no,osc-seekbarstyle=bar,osc-visibility=auto'
+                '--really-quiet',
                 ],
                 stdout = subprocess.DEVNULL,
                 stderr = subprocess.DEVNULL,
