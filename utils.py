@@ -34,12 +34,13 @@ class Setting:
     @staticmethod
     def load():
         logger.error("Load Setting")
-        if not os.path.exists(Setting.setting_path):
-            Setting.setting = {}
-        with open(Setting.setting_path, "r") as f:
-            Setting.setting = json.load(fp=f)
         with open('.version', 'r') as f:
             Setting.version = f.read().strip()
+        if not os.path.exists(Setting.setting_path):
+            Setting.setting = {}
+            return
+        with open(Setting.setting_path, "r") as f:
+            Setting.setting = json.load(fp=f)
 
     @staticmethod
     def getVersion():
