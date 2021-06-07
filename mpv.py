@@ -470,9 +470,10 @@ class MPVRender(Render):
         msg = json.dumps(data) + '\n'
         try:
             self.ipcSock.sendall(msg.encode())
+            return True
         except Exception as e:
             logger.error('sendCommand: '+str(e))
-            pass
+            return False
 
     # start ipc thread (communicate with mpv)
     def startIPC(self):
@@ -482,8 +483,13 @@ class MPVRender(Render):
         self.ipc_running = True
         while self.ipc_running:
             self.ipcSock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.ipcSock.connect(self.mpv_sock)
-            self.setObserve()
+            try:
+                self.ipcSock.connect(self.mpv_sock)
+                self.setObserve()
+            except Exception as e:
+                logger.error("mpv ipc socket reconnecting")
+                time.sleep(2)
+                continue
             while self.ipc_running:
                 res = self.ipcSock.recv(1048576)
                 try:
@@ -497,7 +503,7 @@ class MPVRender(Render):
                     pass
             self.ipcSock.close()
             time.sleep(2)
-            logger.error("mpv ipc stopped")
+            logger.error("mpv ipc stopp")
 
     # start mpv thread
     def startMPV(self):
@@ -533,7 +539,9 @@ class MPVRender(Render):
     def stop(self):
         super(MPVRender, self).stop()
         logger.error("stoping mpv")
-        self.sendCommand(['quit'])
+        while self.sendCommand(['quit']) is not True:
+            logger.error("cannot send command quit to mpv")
+            time.sleep(2)
         self.mpvThread.join()
         self.ipc_running = False
         logger.error("stoping mpv ipc")
