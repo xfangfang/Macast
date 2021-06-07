@@ -1,26 +1,54 @@
 # dlna-media-render
 
+[Chinese README](https://github.com/xfangfang/Macast/blob/main/README_ZH.md)
+
 using mpv as DLNA media render runing on MacOS
 
 ![demo](demo.png)
 
 ## Install
 
-### 1. install mpv in your computer
+Download link:  [Macast](https://github.com/xfangfang/Macast/releases/latest)
 
-### 2. install python dependency
+
+## usage
+
+After opening this app, a small TV icon will appear in the status bar, and you can  push video from DLNA client from the same LAN to your computer.
+
+`⚠️ The "~/Library/Application\ Support/Macast" directory will be created to save the configuration information of the application`
+
+
+## development
+
+### debug
 
 ```shell
-pip install cherrypy lxml
+pip install -r requirements.txt
+python Macast.py
 ```
+`⚠️ MPV starts slowly the first time you run Macast.py, it needs to wait for a while`
 
+### package
 
-
-## Usage
+##### 1. download mpv
 
 ```shell
-python3 main.py
+wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
+mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
 ```
+
+##### 2. build
+
+```shell
+pip install py2app
+pip install setuptools==44.0.0 # try this if you cannot run Macast.app
+python setup.py py2app
+cp -R bin dist/Macast.app/Contents/Resources/
+open dist
+```
+
+`⚠️ After packing, you can find the compiled content in the dist directory`
+
 
 ## Relevant links
 
