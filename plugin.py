@@ -5,10 +5,10 @@ import logging
 
 from ssdp import SSDPServer
 from mpv import MPVRender, Render
-from utils import USN, LOCAL_IP, PORT
+from utils import PORT, Setting
 
 logger = logging.getLogger("PLUGIN")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 class RenderPlugin(plugins.SimplePlugin):
@@ -43,29 +43,30 @@ class SSDPPlugin(plugins.SimplePlugin):
         super(SSDPPlugin, self).__init__(bus)
         self.ssdp = SSDPServer()
         self.devices = [
-            'upnp:rootdevice',
+            '::upnp:rootdevice',
             '',
-            'urn:schemas-upnp-org:device:MediaRenderer:1',
-            'urn:schemas-upnp-org:service:RenderingControl:1',
-            'urn:schemas-upnp-org:service:ConnectionManager:1',
-            'urn:schemas-upnp-org:service:AVTransport:1'
+            '::urn:schemas-upnp-org:device:MediaRenderer:1',
+            '::urn:schemas-upnp-org:service:RenderingControl:1',
+            '::urn:schemas-upnp-org:service:ConnectionManager:1',
+            '::urn:schemas-upnp-org:service:AVTransport:1'
         ]
         logger.info('Initializing SSDPPlugin')
 
     def notify(self):
         for type in self.devices:
-            self.ssdp.do_notify('uuid:{}::{}'.format(USN, type))
+            self.ssdp.do_notify('uuid:{}{}'.format(Setting.getUSN(), type))
 
     def register(self):
+        ip = Setting.getIP()
         for type in self.devices:
             self.ssdp.register('local',
-                'uuid:{}::{}'.format(USN, type),
+                'uuid:{}{}'.format(Setting.getUSN(), type),
                 type,
-                'http://{}:{}/description.xml'.format(LOCAL_IP, PORT))
+                'http://{}:{}/description.xml'.format(ip, PORT))
 
     def unregister(self):
         for type in self.devices:
-            self.ssdp.unregister('uuid:{}::{}'.format(USN, type))
+            self.ssdp.unregister('uuid:{}{}'.format(Setting.getUSN(), type))
 
     def start(self):
         logger.info('starting SSDPPlugin')

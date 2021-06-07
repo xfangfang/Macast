@@ -5,7 +5,7 @@ import cherrypy
 import logging
 from cherrypy.process.plugins import Monitor
 
-from utils import loadXML, XMLPath, USN, PORT, NAME, VERSION
+from utils import loadXML, XMLPath, PORT, NAME, Setting, SYSTEM, SYSTEM_VERSION
 from plugin import SSDPPlugin, MPVPlugin
 
 
@@ -19,11 +19,11 @@ class DLNAHandler:
             friendly_name = NAME,
             manufacturer = "xfangfang",
             manufacturer_url = "https://github.com/xfangfang",
-            model_description = "Media Renderer",
+            model_description = "Media Renderer on your MAC",
             model_name = NAME,
-            model_number = VERSION,
             model_url = "https://xfangfang.github.io/dlna-media-render",
-            uuid = USN).encode()
+            model_number = Setting.getVersion(),
+            uuid = Setting.getUSN()).encode()
 
     def GET(self, param = None):
         if param == 'description.xml':
@@ -64,13 +64,17 @@ class DLNAHandler:
                 if res != 200: raise cherrypy.HTTPError(status=res)
         return b''
 
+def notify():
+    if Setting.isIPChanged():
+        cherrypy.engine.publish('ssdp_updateip')
+    cherrypy.engine.publish('ssdp_notify')
 
 if __name__ == '__main__':
 
+    Setting.load()
     SSDPPlugin(cherrypy.engine).subscribe()
     MPVPlugin(cherrypy.engine).subscribe()
-    Monitor(cherrypy.engine, lambda: cherrypy.engine.publish('ssdp_notify'), 3).subscribe()
-
+    Monitor(cherrypy.engine, notify, 3).subscribe()
     cherrypy_config = {
         'global':{
             'server.socket_host' : '0.0.0.0',
@@ -84,7 +88,7 @@ if __name__ == '__main__':
             'tools.response_headers.on': True,
             'tools.response_headers.headers': [
                 ('Content-Type', 'text/xml; charset="utf-8"'),
-                ('Server', 'UPnP/1.0  DLNADOC/1.50 {}/{}'.format(NAME, VERSION))
+                ('Server', '{}/{} UPnP/1.0 Macast/{}'.format(SYSTEM, SYSTEM_VERSION, Setting.getVersion()))
             ],
         }
       }
