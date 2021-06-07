@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 
 bin
+mpv-latest.tar.gz
