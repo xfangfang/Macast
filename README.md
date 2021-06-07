@@ -20,6 +20,13 @@ After opening this app, a small TV icon will appear in the status bar, and you c
 
 ## development
 
+### download mpv
+
+```shell
+wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
+mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
+```
+
 ### debug
 
 ```shell
@@ -29,15 +36,6 @@ python Macast.py
 `⚠️ MPV starts slowly the first time you run Macast.py, it needs to wait for a while`
 
 ### package
-
-##### 1. download mpv
-
-```shell
-wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
-mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
-```
-
-##### 2. build
 
 ```shell
 pip install py2app

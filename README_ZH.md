@@ -19,24 +19,23 @@
 
 ## 开发
 
-### 调试
-
-```shell
-pip install -r requirements.txt
-python Macast.py
-```
-`注意：第一次运行时mpv启动较慢需要等待片刻`
-
-### 打包
-
-##### 1. 下载mpv
+### 下载mpv
 
 ```shell
 wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
 mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
 ```
 
-##### 2. 编译
+### 调试
+
+```shell
+pip install -r requirements.txt
+python Macast.py
+```
+
+`注意：第一次运行时mpv启动较慢需要等待片刻`
+
+### 打包
 
 ```shell
 pip install py2app
