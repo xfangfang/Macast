@@ -1,7 +1,7 @@
 ---
 name: Questions
 about: 'Something wrong with .. or I don''t know why ... '
-title: "[Question]"
+title: "[Question] Type your title here"
 labels: question
 assignees: ''
 
