@@ -1,0 +1,84 @@
+# Copyright (c) 2021 by xfangfang. All Rights Reserved.
+
+
+name: Build Macast
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+    inputs:
+      ssh:
+        description: 'SSH connection to Actions'
+        required: false
+        default: 'false'
+      release:
+        description: 'Push a new release'
+        required: false
+        default: 'false'
+
+env:
+  REPO_URL: https://github.com/xfangfang/Macast
+  REPO_BRANCH: main
+
+jobs:
+  build:
+    runs-on: macos-10.15
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        repository: 'xfangfang/Macast'
+
+    - name: debug
+      run: |
+        ls -lah
+        pwd
+
+    - name: Build
+      id: compile
+      run: |
+        pip3 install -r requirements.txt
+        pip3 install py2app
+        # pip3 install setuptools==44.0.0
+        wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
+        mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
+        python3 setup.py py2app
+        cp -R bin dist/Macast.app/Contents/Resources/
+        export VERSION=`cat .version`
+        echo "DIST=Macast_v$VERSION.zip" >> $GITHUB_ENV
+        echo "VERSION=v$VERSION" >> $GITHUB_ENV
+        cd dist && zip -r Macast_v${VERSION}.zip Macast.app
+        echo "::set-output name=status::success"
+
+    - name: Upload dist
+      uses: actions/upload-artifact@v2
+      if: steps.compile.outputs.status == 'success'
+      with:
+        name: ${{ env.DIST }}
+        path: dist/${{ env.DIST }}
+
+    - name: Generate release tag
+      id: tag
+      run: |
+        echo "::set-output name=release_tag::Macast_${VERSION}"
+        touch release.txt
+        echo "auto compile" >> release.txt
+        echo "::set-output name=status::success"
+
+    - name: Upload Macast to release
+      uses: softprops/action-gh-release@v1
+      if: github.event.inputs.release == 'true' && github.event.inputs.release  != 'false' && steps.tag.outputs.status == 'success' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: release.txt
+        files: dist/${{ env.DIST }}
+        
+    - name: SSH connection to Actions
+      uses: P3TERX/ssh2actions@v1.0.0
+      if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
+      env:
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
