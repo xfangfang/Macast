@@ -6,6 +6,8 @@ import uuid
 import json
 import logging
 import platform
+import locale
+import subprocess
 from enum import Enum
 
 logger = logging.getLogger("Utils")
@@ -71,6 +73,14 @@ class Setting:
             s.close()
         Setting.last_ip = ip
         return ip
+
+    @staticmethod
+    def getLocale():
+        lang = 'en_US'
+        if SYSTEM == 'Darwin':
+            res = subprocess.getstatusoutput("osascript -e 'user locale of (get system info)'")
+            if res[0] == 0: lang = res[1]
+        return lang
 
 class XMLPath(Enum):
     BASE_PATH = os.getcwd() #os.path.abspath(os.path.dirname(__file__))
