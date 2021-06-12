@@ -1,0 +1,22 @@
+# Macast Language File.
+# Copyright (C) 2021 Macast
+# xfangfang <github.com/xfangfang>, 2021.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"POT-Creation-Date: 2021-06-12 04:08+0800\n"
+"PO-Revision-Date: 2021-06-12 04:23+0800\n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: pygettext.py 1.5\n"
+"X-Generator: Poedit 3.0\n"
+"Last-Translator: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"Language: zh_CN\n"
+
+#: Macast.py:109
+msgid "quit"
+msgstr "退出"

@@ -4,17 +4,28 @@ import os
 import re
 import time
 import rumps
+import gettext
 import cherrypy
 import logging
 import threading
 from cherrypy.process.plugins import Monitor
-
 from utils import loadXML, XMLPath, PORT, NAME, Setting, SYSTEM, SYSTEM_VERSION
 from plugin import SSDPPlugin, MPVPlugin
 
 
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
+
+try:
+    locale = Setting.getLocale()
+    lang = gettext.translation('macast', localedir='i18n', languages=[locale])
+    lang.install()
+    logger.error("Loading Language: {}".format(locale))
+except Exception as e:
+    _ = gettext.gettext
+    logger.error("Loading Default Language en_US")
+
+
 
 @cherrypy.expose
 class DLNAHandler:
@@ -104,7 +115,7 @@ class Macast(rumps.App):
         self.thread.start()
         # rumps.debug_mode(True)
 
-    @rumps.clicked('退出')
+    @rumps.clicked(_('quit'))
     def clean_up_before_quit(self, _):
         while cherrypy.engine.state != cherrypy.engine.states.STARTED:
             time.sleep(0.5)
