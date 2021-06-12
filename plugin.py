@@ -43,30 +43,30 @@ class SSDPPlugin(plugins.SimplePlugin):
         super(SSDPPlugin, self).__init__(bus)
         self.ssdp = SSDPServer()
         self.devices = [
-            '::upnp:rootdevice',
-            '',
-            '::urn:schemas-upnp-org:device:MediaRenderer:1',
-            '::urn:schemas-upnp-org:service:RenderingControl:1',
-            '::urn:schemas-upnp-org:service:ConnectionManager:1',
-            '::urn:schemas-upnp-org:service:AVTransport:1'
+            'uuid:{}::upnp:rootdevice'.format(Setting.getUSN()),
+            'uuid:{}'.format(Setting.getUSN()),
+            'uuid:{}::urn:schemas-upnp-org:device:MediaRenderer:1'.format(Setting.getUSN()),
+            'uuid:{}::urn:schemas-upnp-org:service:RenderingControl:1'.format(Setting.getUSN()),
+            'uuid:{}::urn:schemas-upnp-org:service:ConnectionManager:1'.format(Setting.getUSN()),
+            'uuid:{}::urn:schemas-upnp-org:service:AVTransport:1'.format(Setting.getUSN())
         ]
         logger.info('Initializing SSDPPlugin')
 
     def notify(self):
-        for type in self.devices:
-            self.ssdp.do_notify('uuid:{}{}'.format(Setting.getUSN(), type))
+        for device in self.devices:
+            self.ssdp.do_notify(device)
 
     def register(self):
         ip = Setting.getIP()
-        for type in self.devices:
+        for device in self.devices:
             self.ssdp.register('local',
-                'uuid:{}{}'.format(Setting.getUSN(), type),
-                type,
+                device,
+                device[43:],
                 'http://{}:{}/description.xml'.format(ip, PORT))
 
     def unregister(self):
-        for type in self.devices:
-            self.ssdp.unregister('uuid:{}{}'.format(Setting.getUSN(), type))
+        for device in self.devices:
+            self.ssdp.unregister(device)
 
     def updateIP(self):
         self.unregister()
