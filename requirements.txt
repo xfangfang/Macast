@@ -1,3 +1,4 @@
 cherrypy
 lxml
 rumps
+requests
