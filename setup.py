@@ -9,15 +9,14 @@ import os
 from setuptools import setup
 
 APP = ['Macast.py']
-DATA_FILES = []
-DATA_FILES = ['xml', '.version', 'i18n']
+DATA_FILES = ['xml', '.version', 'i18n', 'assets']
 OPTIONS = {
     'argv_emulation': True,
     'plist': {
         'LSUIElement': True,
     },
     'packages': ['rumps'],
-    'iconfile': os.path.abspath('icon.icns')
+    'iconfile': os.path.abspath('assets/icon.icns')
 }
 
 setup(
