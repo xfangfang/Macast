@@ -43,6 +43,7 @@ jobs:
         # pip3 install setuptools==44.0.0
         wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
         mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
+        msgfmt -o i18n/zh_CN/LC_MESSAGES/macast.mo i18n/zh_CN/LC_MESSAGES/macast.po
         python3 setup.py py2app
         cp -R bin dist/Macast.app/Contents/Resources/
         export VERSION=`cat .version`
@@ -58,10 +59,9 @@ jobs:
         name: ${{ env.DIST }}
         path: dist/${{ env.DIST }}
 
-    - name: Generate release tag
+    - name: Generate release body
       id: tag
       run: |
-        echo "::set-output name=release_tag::Macast_${VERSION}"
         touch release.txt
         echo "auto compile" >> release.txt
         echo "::set-output name=status::success"
@@ -72,10 +72,10 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ steps.tag.outputs.release_tag }}
+        tag_name: ${{ env.VERSION }}
         body_path: release.txt
         files: dist/${{ env.DIST }}
-        
+
     - name: SSH connection to Actions
       uses: P3TERX/ssh2actions@v1.0.0
       if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
