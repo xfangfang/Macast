@@ -84,7 +84,7 @@ class Setting:
 
 class XMLPath(Enum):
     BASE_PATH = os.getcwd() #os.path.abspath(os.path.dirname(__file__))
-    DESCRIPTION = BASE_PATH + '/xml/description.xml'
+    DESCRIPTION = BASE_PATH + '/xml/Description.xml'
     ACTION_RESPONSE = BASE_PATH + '/xml/ActionResponse.xml'
     AV_TRANSPORT = BASE_PATH + '/xml/AVTransport.xml'
     CONNECTION_MANAGER = BASE_PATH + '/xml/ConnectionManager.xml'
