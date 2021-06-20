@@ -503,7 +503,7 @@ class MPVRender(Render):
                     pass
             self.ipcSock.close()
             time.sleep(2)
-            logger.error("mpv ipc stopp")
+            logger.error("mpv ipc stopped")
 
     # start mpv thread
     def startMPV(self):
