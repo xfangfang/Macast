@@ -2,17 +2,23 @@
 
 [Chinese README](https://github.com/xfangfang/Macast/blob/main/README_ZH.md)
 
-A menu bar application using mpv as DLNA media render runing on Linux under Xorg, GNOME, Ubuntu and MacOS
+<img align="right" src="https://raw.githubusercontent.com/xfangfang/Macast/main/demo.png?raw=true" alt="demo" width="256" height="auto"/> A menu bar application using mpv as **DLNA AVTransport Media Renderer**.
 
-![demo](demo.png)
+Currently supported platform 🖥 :
+
+- [x] MacOS
+- [x] Gnome (like ubuntu20.04)
+- [ ] KDE (welcome test the code)
+- [ ] Windows
+
 
 ## Install
 
-### MacOS
+- ### MacOS
 
 Download link:  [Macast_v*.zip](https://github.com/xfangfang/Macast/releases/latest)
 
-### Linux under Xorg, GNOME and Ubuntu
+- ### Linux
 
 ```
 wget https://github.com/xfangfang/Macast/archive/main.zip
@@ -39,23 +45,23 @@ if there is something wrong, try: **sudo apt-get install python3-gi**
 if you use conda, check this https://stackoverflow.com/a/40303128
 
 
-## usage
+## Usage
 
 After opening this app, a small icon will appear in the menu bar, and you can push video from a local DLNA client.
 
 `⚠️ In MacOS The "~/Library/Application\ Support/Macast" directory will be created to save the configuration information of the application`
 
 
-## development upder MacOS
+## Development upder MacOS
 
-### download mpv
+### 1. download mpv
 
 ```shell
 wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
 mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
 ```
 
-### debug
+### 2. debug
 
 ```shell
 pip install -r requirements.txt
@@ -63,7 +69,7 @@ python Macast.py
 ```
 `⚠️ MPV starts slowly the first time you run Macast.py, it needs to wait for a while`
 
-### package
+### 3. package
 
 ```shell
 pip install py2app
