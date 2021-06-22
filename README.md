@@ -8,9 +8,11 @@ Currently supported platform 🖥 :
 
 - [x] MacOS
 - [x] Gnome (like ubuntu20.04)
-- [ ] KDE (welcome test the code)
+- [x] KDE (welcome test the code)
+- [x] Linux under xorg (like Raspberry Pi OS)
 - [ ] Windows
 
+For details of GUI support, please refer to: https://github.com/moses-palmer/pystray
 
 ## Install
 
@@ -87,3 +89,5 @@ open dist
 [UPnP™ Device Architecture 1.1](http://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf)
 
 [python-upnp-ssdp-example](https://github.com/ZeWaren/python-upnp-ssdp-example)
+
+[pystray](https://github.com/moses-palmer/pystray)
