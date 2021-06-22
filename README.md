@@ -2,23 +2,51 @@
 
 [Chinese README](https://github.com/xfangfang/Macast/blob/main/README_ZH.md)
 
-using mpv as DLNA media render runing on MacOS
+A menu bar application using mpv as DLNA media render runing on Linux under Xorg, GNOME, Ubuntu and MacOS
 
 ![demo](demo.png)
 
 ## Install
 
-Download link:  [Macast](https://github.com/xfangfang/Macast/releases/latest)
+### MacOS
+
+Download link:  [Macast_v*.zip](https://github.com/xfangfang/Macast/releases/latest)
+
+### Linux under Xorg, GNOME and Ubuntu
+
+```
+wget https://github.com/xfangfang/Macast/archive/main.zip
+unzip main.zip
+cd Macast-main
+pip install pystray cherrypy lxml requests
+python3 Macast.py
+```
+
+Tips:
+1. make sure you can use **mpv** in terminal
+2. make sure you can use **gi**:
+
+```
+$ python3
+Python 3.7.10 (default, Jun  3 2021, 17:51:26)
+Type "help", "copyright", "credits" or "license" for more information.
+>>> import gi
+>>>
+```
+
+if there is something wrong, try: **sudo apt-get install python3-gi**
+
+if you use conda, check this https://stackoverflow.com/a/40303128
 
 
 ## usage
 
-After opening this app, a small TV icon will appear in the status bar, and you can  push video from DLNA client from the same LAN to your computer.
+After opening this app, a small icon will appear in the menu bar, and you can push video from a local DLNA client.
 
-`⚠️ The "~/Library/Application\ Support/Macast" directory will be created to save the configuration information of the application`
+`⚠️ In MacOS The "~/Library/Application\ Support/Macast" directory will be created to save the configuration information of the application`
 
 
-## development
+## development upder MacOS
 
 ### download mpv
 
