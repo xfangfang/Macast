@@ -144,7 +144,7 @@ else:
             if macast.Setting.getSystem() == 'Windows':
                 macast.Setting.setMpvPath(os.path.abspath('bin/mpv.exe'))
             self.init()
-            self.icon = pystray.Icon('Macast', Image.open('assets/menu.png'), menu = pystray.Menu(
+            self.icon = pystray.Icon('Macast', Image.open('assets/menu_light.png'), menu = pystray.Menu(
                     pystray.MenuItem("IP: {}".format(macast.Setting.getIP()), None, enabled=False),
                     pystray.MenuItem("Macast (v{})".format(macast.Setting.getVersion()), None, enabled=False),
                     pystray.MenuItem(_("Check for updates"), self.check),
