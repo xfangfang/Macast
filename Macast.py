@@ -157,10 +157,10 @@ else:
             webbrowser.open(url)
 
         def alert(self, content):
-            self.icon.notify(message=content)
+            self.icon.notify(message=content, title="Macast")
 
         def notification(self, title, content):
-            self.icon.notify(message=title)
+            self.icon.notify(message=content, title=title)
 
         def check(self, icon, item):
             self.checkUpdate()
@@ -169,6 +169,7 @@ else:
             super(Macast_common, self).about()
 
         def quit(self, icon, item):
+            icon.remove_notification()
             super(Macast_common, self).quit()
             self.icon.stop()
 
