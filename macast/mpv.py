@@ -11,10 +11,10 @@ import logging
 import threading
 import copy
 from enum import Enum
-
-
-from utils import loadXML, XMLPath, NAME, Setting, SYSTEM, SYSTEM_VERSION
 from lxml import etree as ET
+
+from .utils import loadXML, XMLPath, NAME, Setting, SYSTEM, SYSTEM_VERSION
+
 
 logger = logging.getLogger("Render")
 logger.setLevel(logging.DEBUG)
@@ -509,19 +509,18 @@ class MPVRender(Render):
     def startMPV(self):
         while self.running:
             self.setState('TransportState', 'STOPPED')
-            mpv = XMLPath.BASE_PATH.value + "/bin/MacOS/mpv"
-            logger.debug(mpv)
-            self.proc = subprocess.run(
-                [mpv, '--input-ipc-server={}'.format(self.mpv_sock),
-                '--pause', '--idle=yes', '--image-display-duration=inf',
-                '--autofit=20%', '--geometry=98%:5%',
-                '--ontop', '--ontop-level=system', # macos only
-                '--hwdec=yes', '--macos-force-dedicated-gpu=yes', # macos only
-                '--macos-app-activation-policy=accessory', # macos only
-                '--on-all-workspaces', #macos and x11 only
+            params = [Setting.mpv_path, '--input-ipc-server={}'.format(self.mpv_sock),
+                '--pause', '--idle=yes', '--image-display-duration=inf', '--really-quiet',
+                '--autofit=20%', '--geometry=98%:5%', '--ontop', '--hwdec=yes',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,osc-title=${title},osc-showwindowed=no,osc-seekbarstyle=bar,osc-visibility=auto'
-                '--really-quiet',
-                ],
+            ]
+            if Setting.getSystem() == 'Darwin':
+                params += [
+                    '--ontop-level=system', '--on-all-workspaces',
+                    '--macos-force-dedicated-gpu=yes',
+                    '--macos-app-activation-policy=accessory',
+                ]
+            self.proc = subprocess.run(params,
                 stdout = subprocess.DEVNULL,
                 stderr = subprocess.DEVNULL,
             )

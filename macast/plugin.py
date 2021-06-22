@@ -3,9 +3,9 @@
 from cherrypy.process import plugins
 import logging
 
-from ssdp import SSDPServer
-from mpv import MPVRender, Render
-from utils import PORT, Setting
+from .ssdp import SSDPServer
+from .mpv import MPVRender, Render
+from .utils import PORT, Setting
 
 logger = logging.getLogger("PLUGIN")
 logger.setLevel(logging.DEBUG)

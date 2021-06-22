@@ -4,6 +4,7 @@ import os
 import socket
 import uuid
 import json
+import ctypes
 import logging
 import platform
 import locale
@@ -17,14 +18,18 @@ PORT = 6068
 NAME = "Macast({})".format(platform.node())
 SYSTEM = str(platform.system())
 SYSTEM_VERSION = str(platform.release())
-HOME_PATH = os.environ['HOME']
-SETTING_DIR = os.path.join(HOME_PATH, 'Library/Application Support/Macast')
+
+if SYSTEM == 'Darwin':
+    SETTING_DIR = os.path.join(os.environ['HOME'], 'Library/Application Support/Macast')
+else:
+    SETTING_DIR = os.getcwd()
 
 class Setting:
     setting = {}
     version = 'v0'
     setting_path = os.path.join(SETTING_DIR, "setting.json")
     last_ip = None
+    mpv_path = 'mpv'
 
     @staticmethod
     def save():
@@ -43,6 +48,10 @@ class Setting:
             return
         with open(Setting.setting_path, "r") as f:
             Setting.setting = json.load(fp=f)
+
+    @staticmethod
+    def getSystem():
+        return str(platform.system())
 
     @staticmethod
     def getVersion():
@@ -80,10 +89,19 @@ class Setting:
         if SYSTEM == 'Darwin':
             res = subprocess.getstatusoutput("osascript -e 'user locale of (get system info)'")
             if res[0] == 0: lang = res[1]
+        elif SYSTEM == 'Windows':
+            windll = ctypes.windll.kernel32
+            lang = locale.windows_locale[windll.GetUserDefaultUILanguage()]
+        else:
+            lang = os.environ['LANG'].split('.')[0]
         return lang
 
+    @staticmethod
+    def setMpvPath(path):
+        Setting.mpv_path = path
+
 class XMLPath(Enum):
-    BASE_PATH = os.getcwd() #os.path.abspath(os.path.dirname(__file__))
+    BASE_PATH = os.path.abspath(os.path.dirname(__file__))
     DESCRIPTION = BASE_PATH + '/xml/Description.xml'
     ACTION_RESPONSE = BASE_PATH + '/xml/ActionResponse.xml'
     AV_TRANSPORT = BASE_PATH + '/xml/AVTransport.xml'
