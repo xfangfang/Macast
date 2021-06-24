@@ -46,11 +46,12 @@ class SSDPServer:
 
     def stop(self):
         self.running = False
+        # Wake up the socket, this will speed up exiting ssdp thread.
+        socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
         self.ssdpThread.join()
 
     def run(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if hasattr(socket, "SO_REUSEPORT"):
             try:
                 self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
@@ -75,6 +76,7 @@ class SSDPServer:
             except socket.timeout:
                 continue
         self.shutdown()
+        self.sock.close()
 
     def shutdown(self):
         for st in self.known:
@@ -210,7 +212,6 @@ class SSDPServer:
         logger.debug('do_notify content')
         logger.debug(resp)
         try:
-            self.sock.sendto('\r\n'.join(resp).encode(), (SSDP_ADDR, SSDP_PORT))
             self.sock.sendto('\r\n'.join(resp).encode(), (SSDP_ADDR, SSDP_PORT))
         except (AttributeError, socket.error) as msg:
             logger.warning("failure sending out alive notification: %r" % msg)

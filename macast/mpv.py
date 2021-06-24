@@ -1,6 +1,7 @@
 # Copyright (c) 2021 by xfangfang. All Rights Reserved.
 
 import re
+import os
 import json
 import time
 import socket
@@ -177,7 +178,7 @@ class Render():
     def start(self):
         if not self.running:
             self.running = True
-            self.eventThread = threading.Thread(target=self.event, args=())
+            self.eventThread = threading.Thread(target=self.event, daemon=True)
             self.eventThread.start()
         else:
             return
@@ -186,13 +187,13 @@ class Render():
         self.running = False
         self.stateChangeEvent.set()
         self.stateSetEvent.set()
-        self.eventThread.join()
 
     def event(self):
         interval = 1
         while self.running:
             self.stateSetEvent.wait()
             time.sleep(interval)
+            if not self.running: return
             if bool(self.eventSubcribes):
                 self.stateChangeEvent.clear()
                 time.sleep(0.05)
@@ -481,14 +482,14 @@ class MPVRender(Render):
             logger.error("mpv ipc is already runing")
             return
         self.ipc_running = True
-        while self.ipc_running:
+        while self.ipc_running and self.running and self.mpvThread.isAlive():
             self.ipcSock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             try:
+                time.sleep(2)
                 self.ipcSock.connect(self.mpv_sock)
                 self.setObserve()
             except Exception as e:
                 logger.error("mpv ipc socket reconnecting")
-                time.sleep(2)
                 continue
             while self.ipc_running:
                 res = self.ipcSock.recv(1048576)
@@ -500,48 +501,48 @@ class MPVRender(Render):
                     logger.error("decode error "+str(msgs))
                     if res == b'':
                         break
-                    pass
             self.ipcSock.close()
-            time.sleep(2)
             logger.error("mpv ipc stopped")
 
     # start mpv thread
     def startMPV(self):
         while self.running:
             self.setState('TransportState', 'STOPPED')
-            params = [Setting.mpv_path, '--input-ipc-server={}'.format(self.mpv_sock),
-                '--pause', '--idle=yes', '--image-display-duration=inf', '--really-quiet',
+            params = [Setting.mpv_path, '--idle=yes', '--pause',
+                '--image-display-duration=inf', '--no-terminal',
                 '--autofit=20%', '--geometry=98%:5%', '--ontop', '--hwdec=yes',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,osc-title=${title},osc-showwindowed=no,osc-seekbarstyle=bar,osc-visibility=auto'
             ]
+            if os.name == 'posix':
+                params += ['--input-ipc-server={}'.format(self.mpv_sock),]
             if Setting.getSystem() == 'Darwin':
                 params += [
                     '--ontop-level=system', '--on-all-workspaces',
                     '--macos-force-dedicated-gpu=yes',
                     '--macos-app-activation-policy=accessory',
                 ]
+            logger.error("MPV started")
             self.proc = subprocess.run(params,
                 stdout = subprocess.DEVNULL,
                 stderr = subprocess.DEVNULL,
             )
-            time.sleep(1)
-            if self.running: logger.error("MPV restarting")
+            if self.running:
+                time.sleep(1)
+                logger.error("MPV restarting")
 
     def start(self):
         super(MPVRender, self).start()
         self.mpvThread = threading.Thread(target=self.startMPV, args=())
         self.mpvThread.start()
-        time.sleep(2)
         self.ipcThread = threading.Thread(target=self.startIPC, args=())
         self.ipcThread.start()
 
     def stop(self):
         super(MPVRender, self).stop()
         logger.error("stoping mpv")
-        while self.sendCommand(['quit']) is not True:
+        while self.mpvThread.isAlive() and self.sendCommand(['quit']) is not True:
             logger.error("cannot send command quit to mpv")
-            time.sleep(2)
+            time.sleep(1)
         self.mpvThread.join()
         self.ipc_running = False
-        logger.error("stoping mpv ipc")
         self.ipcThread.join()
