@@ -14,6 +14,10 @@ import copy
 from enum import Enum
 from lxml import etree as ET
 
+if os.name == 'nt':
+    import _winapi
+    from multiprocessing.conection import PipeCoection
+
 from .utils import loadXML, XMLPath, NAME, Setting, SYSTEM, SYSTEM_VERSION
 
 
@@ -306,7 +310,10 @@ class MPVRender(Render):
 
     def __init__(self):
         super(MPVRender, self).__init__()
-        self.mpv_sock = '/tmp/macast_mpvsocket'
+        if os.name == 'nt':
+            self.mpv_sock = os.path.abspath("\\.\pipe\macast_mpvsocket")
+        else:
+            self.mpv_sock = '/tmp/macast_mpvsocket'
         self.proc = None
         self.mpvThread = None
         self.ipcThread = None
@@ -470,7 +477,10 @@ class MPVRender(Render):
         data = {"command" :command}
         msg = json.dumps(data) + '\n'
         try:
-            self.ipcSock.sendall(msg.encode())
+            if os.name == 'nt':
+                self.ipcSock.send_bytes(msg.encode())
+            else:
+                self.ipcSock.sendall(msg.encode())
             return True
         except Exception as e:
             logger.error('sendCommand: '+str(e))
@@ -482,25 +492,44 @@ class MPVRender(Render):
             logger.error("mpv ipc is already runing")
             return
         self.ipc_running = True
-        while self.ipc_running and self.running and self.mpvThread.isAlive():
-            self.ipcSock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        while self.ipc_running and self.running and self.mpvThread.is_alive():
             try:
                 time.sleep(2)
-                self.ipcSock.connect(self.mpv_sock)
+                if os.name == 'nt':
+                    handler = _winapi.CreateFile(self.mpv_sock,
+                        _winapi.GENERIC_READ | _winapi.GENERIC_WRITE, 0,
+                        _winapi.NULL, _winapi.OPEN_EXISTING,
+                        _winapi.FILE_FLAG_OVERLAPPED, _winapi.NULL
+                    )
+                    self.ipcSock = PipeConnection(handler)
+                else:
+                    self.ipcSock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                    self.ipcSock.connect(self.mpv_sock)
                 self.setObserve()
             except Exception as e:
                 logger.error("mpv ipc socket reconnecting")
                 continue
+            res = b''
             while self.ipc_running:
-                res = self.ipcSock.recv(1048576)
+                try:
+                    if os.name == 'nt':
+                        data = self.ipcSock.recv_bytes(1048576)
+                    else:
+                        data = self.ipcSock.recv(1048576)
+                    if data == b'': break
+                    res += data
+                    if data[-1] != 10: continue
+                except Exception as e:
+                    logger.debug(e)
+                    break
                 try:
                     msgs = res.decode().strip().split('\n')
                     for msg in msgs:
                         self.updateState(msg)
                 except Exception as e:
                     logger.error("decode error "+str(msgs))
-                    if res == b'':
-                        break
+                finally:
+                    res = b''
             self.ipcSock.close()
             logger.error("mpv ipc stopped")
 
@@ -508,13 +537,11 @@ class MPVRender(Render):
     def startMPV(self):
         while self.running:
             self.setState('TransportState', 'STOPPED')
-            params = [Setting.mpv_path, '--idle=yes', '--pause',
-                '--image-display-duration=inf', '--no-terminal',
+            params = [Setting.mpv_path, '--input-ipc-server={}'.format(self.mpv_sock),
+                '--image-display-duration=inf', '--no-terminal', '--idle=yes', '--pause',
                 '--autofit=20%', '--geometry=98%:5%', '--ontop', '--hwdec=yes',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,osc-title=${title},osc-showwindowed=no,osc-seekbarstyle=bar,osc-visibility=auto'
             ]
-            if os.name == 'posix':
-                params += ['--input-ipc-server={}'.format(self.mpv_sock),]
             if Setting.getSystem() == 'Darwin':
                 params += [
                     '--ontop-level=system', '--on-all-workspaces',
@@ -540,7 +567,7 @@ class MPVRender(Render):
     def stop(self):
         super(MPVRender, self).stop()
         logger.error("stoping mpv")
-        while self.mpvThread.isAlive() and self.sendCommand(['quit']) is not True:
+        while self.mpvThread.is_alive() and self.sendCommand(['quit']) is not True:
             logger.error("cannot send command quit to mpv")
             time.sleep(1)
         self.mpvThread.join()
