@@ -16,7 +16,7 @@ from lxml import etree as ET
 
 if os.name == 'nt':
     import _winapi
-    from multiprocessing.conection import PipeCoection
+    from multiprocessing.connection import PipeConnection
 
 from .utils import loadXML, XMLPath, NAME, Setting, SYSTEM, SYSTEM_VERSION
 
@@ -311,7 +311,7 @@ class MPVRender(Render):
     def __init__(self):
         super(MPVRender, self).__init__()
         if os.name == 'nt':
-            self.mpv_sock = os.path.abspath("\\.\pipe\macast_mpvsocket")
+            self.mpv_sock = os.path.abspath(r"\\.\pipe\macast_mpvsocket")
         else:
             self.mpv_sock = '/tmp/macast_mpvsocket'
         self.proc = None
