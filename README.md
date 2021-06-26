@@ -7,18 +7,22 @@
 Currently supported platform 🖥 :
 
 - [x] MacOS
-- [x] Gnome (like ubuntu20.04)
-- [x] KDE (welcome test the code)
-- [x] Linux under xorg (like Raspberry Pi OS)
-- [ ] Windows
+- [x] Gnome (test with ubuntu20.04)
+- [x] KDE (test with kubuntu21.04)
+- [x] Other Linux under xorg (test with Raspberry Pi OS)
+- [x] Windows (beta)
 
-For details of GUI support, please refer to: https://github.com/moses-palmer/pystray
+For details of GUI support, please refer to: https://pystray.readthedocs.io/en/latest/usage.html#selecting-a-backend
 
 ## Install
 
 - ### MacOS
 
-Download link:  [Macast_v*.zip](https://github.com/xfangfang/Macast/releases/latest)
+Download link:  [Macast_v*_darwin.zip](https://github.com/xfangfang/Macast/releases/latest)
+
+- ### Windows
+
+Download link:  [Macast_v*_windows_debug.zip](https://github.com/xfangfang/Macast/releases/latest)
 
 - ### Linux
 
@@ -26,13 +30,21 @@ Download link:  [Macast_v*.zip](https://github.com/xfangfang/Macast/releases/lat
 wget https://github.com/xfangfang/Macast/archive/main.zip
 unzip main.zip
 cd Macast-main
-pip install pystray cherrypy lxml requests
+pip3 install pystray cherrypy lxml requests
 python3 Macast.py
+# if there is something wrong, try this:
+export PYSTRAY_BACKEND=gtk && python3 Macast.py
 ```
 
 Tips:
-1. make sure you can use **mpv** in terminal
-2. make sure you can use **gi**:
+1. Make sure you have **mpv** installed:
+
+```
+# install mpv in ubuntu
+sudo apt install mpv
+```
+
+2. Make sure you can use **gi**:
 
 ```
 $ python3
