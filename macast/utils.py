@@ -56,14 +56,6 @@ class Setting:
         else:
             with open(Setting.setting_path, "r") as f:
                 Setting.setting = json.load(fp = f)
-        # save default settings
-        if len(Setting.setting.items()) < 5:
-            if SettingProperty.PlayerHW.name not in Setting.setting: Setting.setting[SettingProperty.PlayerHW.name] = 1
-            if SettingProperty.PlayerSize.name not in Setting.setting: Setting.setting[SettingProperty.PlayerSize.name] = 1
-            if SettingProperty.PlayerPosition.name not in Setting.setting: Setting.setting[SettingProperty.PlayerPosition.name] = 2
-            if SettingProperty.checkUpdate.name not in Setting.setting: Setting.setting[SettingProperty.checkUpdate.name] = 1
-            if 'USN' not in Setting.setting: Setting.setting['USN'] = str(uuid.uuid4())
-        Setting.save()
         return Setting.setting
 
     @staticmethod
@@ -120,8 +112,7 @@ class Setting:
     def get(property, default = 1):
         if property.name in Setting.setting: return Setting.setting[property.name]
         Setting.setting[property.name] = default
-        Setting.save()
-        return Setting.setting[property.name]
+        return default
 
     @staticmethod
     def set(property, data):
