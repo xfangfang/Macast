@@ -17,6 +17,24 @@ class RenderPlugin(plugins.SimplePlugin):
         logger.error('Initializing RenderPlugin')
         self.render = Render()
 
+    def reloadRender(self):
+        uri = self.render.getState('AVTransportURI')
+        position = self.render.getState('AbsoluteTimePosition')
+
+        def seek(duration):
+            self.render.sendCommand(['seek', position, 'absolute'])
+            self.bus.unsubscribe('mpv_update_duration', seek)
+
+        def loadfile():
+            self.render.sendCommand(['loadfile', uri, 'replace'])
+            self.bus.unsubscribe('mpvipc_start', loadfile)
+            self.bus.subscribe('mpv_update_duration', seek)
+
+        if self.render.getState('TransportState') == 'PLAYING':
+            self.bus.subscribe('mpvipc_start', loadfile)
+        self.render.stop()
+        self.render.start()
+
     def start(self):
         logger.error('starting RenderPlugin')
         self.render.start()
@@ -24,6 +42,7 @@ class RenderPlugin(plugins.SimplePlugin):
         self.bus.subscribe('add_subscribe', self.render.addSubcribe)
         self.bus.subscribe('renew_subscribe', self.render.renewSubcribe)
         self.bus.subscribe('remove_subscribe', self.render.removeSubcribe)
+        self.bus.subscribe('reloadRender', self.reloadRender)
 
     def stop(self):
         logger.error('Stoping RenderPlugin')
@@ -31,6 +50,7 @@ class RenderPlugin(plugins.SimplePlugin):
         self.bus.unsubscribe('add_subscribe', self.render.addSubcribe)
         self.bus.unsubscribe('renew_subscribe', self.render.renewSubcribe)
         self.bus.unsubscribe('remove_subscribe', self.render.removeSubcribe)
+        self.bus.unsubscribe('reloadRender', self.reloadRender)
         self.render.stop()
 
 class MPVPlugin(RenderPlugin):

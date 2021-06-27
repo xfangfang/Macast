@@ -11,6 +11,7 @@ import subprocess
 import logging
 import threading
 import copy
+import cherrypy
 from enum import Enum
 from lxml import etree as ET
 
@@ -18,7 +19,7 @@ if os.name == 'nt':
     import _winapi
     from multiprocessing.connection import PipeConnection
 
-from .utils import loadXML, XMLPath, NAME, Setting, SYSTEM, SYSTEM_VERSION
+from .utils import loadXML, XMLPath, NAME, Setting, SYSTEM, SYSTEM_VERSION, SettingProperty
 
 
 logger = logging.getLogger("Render")
@@ -346,6 +347,7 @@ class MPVRender(Render):
         time.sleep(0.1)
 
         uri = data['CurrentURI'].value
+        cherrypy.engine.publish('mpv_av_uri', uri)
         self.setState('AVTransportURI', uri)
         self.sendCommand(['loadfile', uri, 'replace'])
         meta = data['CurrentURIMetaData'].value
@@ -357,6 +359,8 @@ class MPVRender(Render):
             if len(title) > 0: title = title[0]
         self.sendCommand(['set_property', 'title', title])
         self.sendCommand(['set_property', 'pause', False])
+        self.setState('RelativeTimePosition', '00:00:00')
+        self.setState('AbsoluteTimePosition', '00:00:00')
         self.willStop = False
         return {}
 
@@ -432,6 +436,7 @@ class MPVRender(Render):
                 else:
                     sec = int(res['data'])
                     time = '%d:%02d:%02d' % (sec // 3600, (sec % 3600) // 60, sec % 60)
+                    cherrypy.engine.publish('mpv_update_duration', time)
                     logger.debug("update duration "+time)
                 self.setState('CurrentTrackDuration', time)
                 self.setState('CurrentMediaDuration', time)
@@ -440,6 +445,7 @@ class MPVRender(Render):
         elif 'event' in res:
             logger.debug(res)
             if res['event'] == 'end-file':
+                cherrypy.engine.publish('mpv_av_stop')
                 self.playing = False
                 if res['reason'] == 'error':
                     self.setState('TransportStatus', 'ERROR_OCCURRED')
@@ -494,7 +500,7 @@ class MPVRender(Render):
         self.ipc_running = True
         while self.ipc_running and self.running and self.mpvThread.is_alive():
             try:
-                time.sleep(2)
+                time.sleep(1)
                 if os.name == 'nt':
                     handler = _winapi.CreateFile(self.mpv_sock,
                         _winapi.GENERIC_READ | _winapi.GENERIC_WRITE, 0,
@@ -505,6 +511,7 @@ class MPVRender(Render):
                 else:
                     self.ipcSock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                     self.ipcSock.connect(self.mpv_sock)
+                cherrypy.engine.publish('mpvipc_start')
                 self.setObserve()
             except Exception as e:
                 logger.error("mpv ipc socket reconnecting")
@@ -537,18 +544,34 @@ class MPVRender(Render):
     def startMPV(self):
         while self.running:
             self.setState('TransportState', 'STOPPED')
+            player_position = Setting.get(SettingProperty.PlayerPosition, default = 2)
+            player_position_data = [[2,5],[2,98],[98,5],[98,98],[50,50]]
+            x = player_position_data[player_position][0]
+            y = player_position_data[player_position][1]
             params = [Setting.mpv_path, '--input-ipc-server={}'.format(self.mpv_sock),
-                '--image-display-duration=inf', '--no-terminal', '--idle=yes', '--pause',
-                '--autofit=20%', '--geometry=98%:5%', '--ontop', '--hwdec=yes',
+                '--image-display-duration=inf', '--no-terminal', '--idle=yes', '--ontop', '--hwdec=yes',
+                '--geometry={}%:{}%'.format(x, y),
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,osc-title=${title},osc-showwindowed=no,osc-seekbarstyle=bar,osc-visibility=auto'
             ]
+            player_size = Setting.get(SettingProperty.PlayerSize, default = 1)
+            if player_size <= 2:
+                params.append('--autofit={}%'.format(player_size**2*10))
+            elif player_size == 3:
+                params.append('--autofit-larger=90%')
+            elif player_size == 4:
+                params.append('--fullscreen')
             if Setting.getSystem() == 'Darwin':
                 params += [
                     '--ontop-level=system', '--on-all-workspaces',
-                    '--macos-force-dedicated-gpu=yes',
                     '--macos-app-activation-policy=accessory',
                 ]
+                hw = Setting.get(SettingProperty.PlayerHW, default = 1)
+                if hw == 0:
+                    params.remove('--hwdec=yes')
+                elif hw == 2:
+                    params.append('--macos-force-dedicated-gpu=yes')
             logger.error("MPV started")
+            cherrypy.engine.publish('mpv_start')
             self.proc = subprocess.run(params,
                 stdout = subprocess.DEVNULL,
                 stderr = subprocess.DEVNULL,

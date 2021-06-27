@@ -1,6 +1,7 @@
 # Copyright (c) 2021 by xfangfang. All Rights Reserved.
 
 import os
+import sys
 import socket
 import uuid
 import json
@@ -19,10 +20,17 @@ NAME = "Macast({})".format(platform.node())
 SYSTEM = str(platform.system())
 SYSTEM_VERSION = str(platform.release())
 
-if SYSTEM == 'Darwin':
+if sys.platform == 'darwin':
     SETTING_DIR = os.path.join(os.environ['HOME'], 'Library/Application Support/Macast')
 else:
     SETTING_DIR = os.getcwd()
+
+class SettingProperty(Enum):
+    USN = 0
+    PlayerHW = 1
+    PlayerSize = 2
+    PlayerPosition = 3
+    checkUpdate = 4
 
 class Setting:
     setting = {}
@@ -45,9 +53,18 @@ class Setting:
             Setting.version = f.read().strip()
         if not os.path.exists(Setting.setting_path):
             Setting.setting = {}
-            return
-        with open(Setting.setting_path, "r") as f:
-            Setting.setting = json.load(fp=f)
+        else:
+            with open(Setting.setting_path, "r") as f:
+                Setting.setting = json.load(fp = f)
+        # save default settings
+        if len(Setting.setting.items()) < 5:
+            if SettingProperty.PlayerHW.name not in Setting.setting: Setting.setting[SettingProperty.PlayerHW.name] = 1
+            if SettingProperty.PlayerSize.name not in Setting.setting: Setting.setting[SettingProperty.PlayerSize.name] = 1
+            if SettingProperty.PlayerPosition.name not in Setting.setting: Setting.setting[SettingProperty.PlayerPosition.name] = 2
+            if SettingProperty.checkUpdate.name not in Setting.setting: Setting.setting[SettingProperty.checkUpdate.name] = 1
+            if 'USN' not in Setting.setting: Setting.setting['USN'] = str(uuid.uuid4())
+        Setting.save()
+        return Setting.setting
 
     @staticmethod
     def getSystem():
@@ -60,7 +77,6 @@ class Setting:
     @staticmethod
     def getUSN():
         if 'USN' in Setting.setting: return Setting.setting['USN']
-        logger.error(Setting.setting)
         Setting.setting['USN'] = str(uuid.uuid4())
         Setting.save()
         return Setting.setting['USN']
@@ -86,10 +102,10 @@ class Setting:
     @staticmethod
     def getLocale():
         lang = 'en_US'
-        if SYSTEM == 'Darwin':
+        if sys.platform == 'darwin':
             res = subprocess.getstatusoutput("osascript -e 'user locale of (get system info)'")
             if res[0] == 0: lang = res[1]
-        elif SYSTEM == 'Windows':
+        elif sys.platform == 'win32':
             windll = ctypes.windll.kernel32
             lang = locale.windows_locale[windll.GetUserDefaultUILanguage()]
         else:
@@ -99,6 +115,18 @@ class Setting:
     @staticmethod
     def setMpvPath(path):
         Setting.mpv_path = path
+
+    @staticmethod
+    def get(property, default = 1):
+        if property.name in Setting.setting: return Setting.setting[property.name]
+        Setting.setting[property.name] = default
+        Setting.save()
+        return Setting.setting[property.name]
+
+    @staticmethod
+    def set(property, data):
+        Setting.setting[property.name] = data
+        Setting.save()
 
 class XMLPath(Enum):
     BASE_PATH = os.path.abspath(os.path.dirname(__file__))
