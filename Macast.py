@@ -30,6 +30,7 @@ class Macast(object):
     def init(self):
         self.thread = None
         self.running = False
+        macast.Setting.load()
         self.startCast()
         self.setting_check = macast.Setting.get(macast.SettingProperty.checkUpdate, 1)
         self.setting_player_size = macast.Setting.get(macast.SettingProperty.PlayerSize, 1)
