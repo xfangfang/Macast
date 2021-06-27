@@ -4,3 +4,4 @@
 from .macast import run
 from .macast import stop
 from .utils import Setting
+from .utils import SettingProperty
