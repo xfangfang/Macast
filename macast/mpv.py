@@ -555,7 +555,7 @@ class MPVRender(Render):
             ]
             player_size = Setting.get(SettingProperty.PlayerSize, default = 1)
             if player_size <= 2:
-                params.append('--autofit={}%'.format(player_size**2*10))
+                params.append('--autofit={}%'.format(2**player_size*10))
             elif player_size == 3:
                 params.append('--autofit-larger=90%')
             elif player_size == 4:
