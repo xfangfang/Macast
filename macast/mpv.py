@@ -23,7 +23,7 @@ from .utils import loadXML, XMLPath, NAME, Setting, SYSTEM, SYSTEM_VERSION, Sett
 
 
 logger = logging.getLogger("Render")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 class ObserveProperty(Enum):
     volume = 1
@@ -215,7 +215,8 @@ class Render():
         action = root.tag.split('}')[1]
         service = root.tag.split(":")[3]
         method = "{}_{}".format(service, action)
-        logger.debug(method)
+        if method not in ['AVTransport_GetPositionInfo', 'AVTransport_GetTransportInfo', 'RenderingControl_GetVolume']:
+            logger.info(method)
         res = {}
         if hasattr(self, method):
             data = {}
@@ -407,7 +408,7 @@ class MPVRender(Render):
         res = json.loads(res)
         if 'id' in res:
             if res['id'] == ObserveProperty.volume.value:
-                logger.error(res)
+                logger.info(res)
                 if 'data' in res:
                     self.setState('Volume', int(res['data']))
             elif res['id'] == ObserveProperty.time_pos.value:
@@ -419,7 +420,7 @@ class MPVRender(Render):
                 self.setState('RelativeTimePosition', time)
                 self.setState('AbsoluteTimePosition', time)
             elif res['id'] == ObserveProperty.pause.value:
-                logger.debug(res)
+                logger.info(res)
                 if self.playing is False: return
                 if res['data']:
                     self.pause = True
@@ -437,13 +438,13 @@ class MPVRender(Render):
                     sec = int(res['data'])
                     time = '%d:%02d:%02d' % (sec // 3600, (sec % 3600) // 60, sec % 60)
                     cherrypy.engine.publish('mpv_update_duration', time)
-                    logger.debug("update duration "+time)
+                    logger.info("update duration "+time)
                 self.setState('CurrentTrackDuration', time)
                 self.setState('CurrentMediaDuration', time)
             elif res['id'] == ObserveProperty.idle.value:
-                logger.debug(res)
+                logger.info(res)
         elif 'event' in res:
-            logger.debug(res)
+            logger.info(res)
             if res['event'] == 'end-file':
                 cherrypy.engine.publish('mpv_av_stop')
                 self.playing = False
@@ -500,7 +501,7 @@ class MPVRender(Render):
         self.ipc_running = True
         while self.ipc_running and self.running and self.mpvThread.is_alive():
             try:
-                time.sleep(1)
+                time.sleep(2)
                 if os.name == 'nt':
                     handler = _winapi.CreateFile(self.mpv_sock,
                         _winapi.GENERIC_READ | _winapi.GENERIC_WRITE, 0,

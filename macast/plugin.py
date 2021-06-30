@@ -22,10 +22,12 @@ class RenderPlugin(plugins.SimplePlugin):
         position = self.render.getState('AbsoluteTimePosition')
 
         def seek(duration):
+            logger.debug("seek")
             self.render.sendCommand(['seek', position, 'absolute'])
             self.bus.unsubscribe('mpv_update_duration', seek)
 
         def loadfile():
+            logger.debug("loadfile")
             self.render.sendCommand(['loadfile', uri, 'replace'])
             self.bus.unsubscribe('mpvipc_start', loadfile)
             self.bus.subscribe('mpv_update_duration', seek)

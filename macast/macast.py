@@ -14,8 +14,10 @@ from cherrypy.process.plugins import Monitor
 from .utils import loadXML, XMLPath, PORT, NAME, Setting, SYSTEM, SYSTEM_VERSION
 from .plugin import SSDPPlugin, MPVPlugin
 
+logging.getLogger("cherrypy").propagate = False
+
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.ERROR)
 
 
 @cherrypy.expose
@@ -25,9 +27,9 @@ class DLNAHandler:
             friendly_name = NAME,
             manufacturer = "xfangfang",
             manufacturer_url = "https://github.com/xfangfang",
-            model_description = "Media Renderer on your MAC",
+            model_description = "AVTransport Media Renderer",
             model_name = NAME,
-            model_url = "https://xfangfang.github.io/dlna-media-render",
+            model_url = "https://xfangfang.github.io/Macast",
             model_number = Setting.getVersion(),
             uuid = Setting.getUSN()).encode()
 
@@ -86,7 +88,10 @@ def run():
     cherrypy_config = {
         'global':{
             'server.socket_host' : '0.0.0.0',
-            'server.socket_port' : PORT,},
+            'server.socket_port' : PORT,
+            'log.screen': False,
+            'log.access_file': "",
+            'log.error_file': ""},
        '/dlna': {
             'tools.staticdir.root' : XMLPath.BASE_PATH.value,
             'tools.staticdir.on' : True,
