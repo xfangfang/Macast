@@ -10,10 +10,18 @@ from setuptools import setup
 
 APP = ['Macast.py']
 DATA_FILES = ['.version', 'i18n', 'assets']
+VERSION = "0.0.0"
+with open('.version', 'r') as f: VERSION = f.read().strip()
 OPTIONS = {
     'argv_emulation': True,
     'plist': {
         'LSUIElement': True,
+        'NSHighResolutionCapable': True,
+        'LSMinimumSystemVersion': '10.15.0',
+        'CFBundleIdentifier': 'cn.xfangfang.Macast',
+        'NSHumanReadableCopyright': 'Copyright 2021 xfangfang and the Macast contributors.',
+        'CFBundleShortVersionString': str(VERSION),
+        'CFBundleVersion': str(VERSION),
     },
     'packages': ['rumps', 'macast'],
     'iconfile': os.path.abspath('assets/icon.icns')
