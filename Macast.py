@@ -230,7 +230,7 @@ if sys.platform == 'darwin':
             macast.Setting.set(macast.SettingProperty.CheckUpdate, 1 if sender.state else 0)
 
         def startAtLogin(self, sender):
-            res = macast.Setting.setStartAtLogin(sender.state)
+            res = macast.Setting.setStartAtLogin(not sender.state)
             if res[0] == 0:
                 sender.state = not sender.state
                 macast.Setting.set(macast.SettingProperty.StartAtLogin, 1 if sender.state else 0)
@@ -261,7 +261,7 @@ if sys.platform == 'darwin':
         def newUpdate(self, version):
             def callback():
                 self.openBrowser('https://github.com/xfangfang/Macast/releases/latest')
-            self.dialog(_("Macast New Update {}").format(version), callback, ok=_("Update"))
+            self.dialog(_("Macast New Update {}").format(version), callback, ok="Update")
 
         def openBrowser(self, url):
             subprocess.run(['open', url])
@@ -272,12 +272,12 @@ if sys.platform == 'darwin':
         def notification(self, title, content, sound=True):
             rumps.notification(title, "", content, sound=sound)
 
-        def dialog(self, content, callback, cancel=_("Cancel"), ok=_("Ok")):
+        def dialog(self, content, callback, cancel="Cancel", ok="Ok"):
             try:
                 res = subprocess.getstatusoutput("""osascript -e 'display dialog "{}" buttons {{"{}", "{}"}}'""".format(
                     content, cancel, ok
                 ))
-                if res[0] == 0 and res[1] == 'button returned:{}'.format(ok):
+                if ok in res[1]:
                     callback()
             except Exception as e:
                 self.notification(_("Error"), _("Cannot access System Events"))

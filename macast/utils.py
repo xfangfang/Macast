@@ -140,8 +140,7 @@ class Setting:
                 if app_name not in apps:
                     return (0, "Macast is already not in login items.")
                 res = subprocess.getstatusoutput("""osascript -e 'tell application "System Events" to delete login item "{}"'""".format(app_name))
-            print(res)
-            return res[0]
+            return res
     @staticmethod
     def copy2Pasteboard(uri):
         if sys.platform == 'darwin':
