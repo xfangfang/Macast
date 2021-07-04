@@ -1,4 +1,5 @@
 cherrypy
 lxml
-rumps
 requests
+pystray
+PIL

@@ -1,0 +1,4 @@
+cherrypy
+lxml
+requests
+rumps
