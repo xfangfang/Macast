@@ -12,6 +12,7 @@ import locale
 import subprocess
 from enum import Enum
 
+
 logger = logging.getLogger("Utils")
 logger.setLevel(logging.ERROR)
 
@@ -21,6 +22,7 @@ SYSTEM = str(platform.system())
 SYSTEM_VERSION = str(platform.release())
 
 if sys.platform == 'darwin':
+    from AppKit import NSPasteboard, NSArray, NSBundle
     SETTING_DIR = os.path.join(os.environ['HOME'], 'Library/Application Support/Macast')
 else:
     SETTING_DIR = os.getcwd()
@@ -30,7 +32,8 @@ class SettingProperty(Enum):
     PlayerHW = 1
     PlayerSize = 2
     PlayerPosition = 3
-    checkUpdate = 4
+    CheckUpdate = 4
+    StartAtLogin = 5
 
 class Setting:
     setting = {}
@@ -95,8 +98,7 @@ class Setting:
     def getLocale():
         lang = 'en_US'
         if sys.platform == 'darwin':
-            res = subprocess.getstatusoutput("osascript -e 'user locale of (get system info)'")
-            if res[0] == 0: lang = res[1]
+            lang = subprocess.check_output(["osascript", "-e", "user locale of (get system info)"]).decode().strip()
         elif sys.platform == 'win32':
             windll = ctypes.windll.kernel32
             lang = locale.windows_locale[windll.GetUserDefaultUILanguage()]
@@ -118,6 +120,34 @@ class Setting:
     def set(property, data):
         Setting.setting[property.name] = data
         Setting.save()
+
+    @staticmethod
+    def setStartAtLogin(launch):
+        if sys.platform == 'darwin':
+            app_path = NSBundle.mainBundle().bundlePath()
+            if not app_path.startswith("/Applications"):
+                return (1, "You need move Macast.app to Applications folder.")
+            app_name = app_path.split("/")[-1].split(".")[0]
+            res = subprocess.getstatusoutput("""osascript -e 'tell application "System Events" to get the name of every login item'""")
+            if res[0] == 1:
+                return (1, "Cannot access System Events")
+            apps = res[1].split(",")
+            if launch:
+                if app_name in apps:
+                    return (0, "Macast is already in login items.")
+                res = subprocess.getstatusoutput("""osascript -e 'tell application "System Events" to make login item at end with properties {{name: "{}",path:"{}", hidden:false}}'""".format(app_name, app_path))
+            else:
+                if app_name not in apps:
+                    return (0, "Macast is already not in login items.")
+                res = subprocess.getstatusoutput("""osascript -e 'tell application "System Events" to delete login item "{}"'""".format(app_name))
+            print(res)
+            return res[0]
+    @staticmethod
+    def copy2Pasteboard(uri):
+        if sys.platform == 'darwin':
+            pb = NSPasteboard.generalPasteboard()
+            pb.clearContents()
+            pb.writeObjects_(NSArray.arrayWithObject_(uri))
 
 class XMLPath(Enum):
     BASE_PATH = os.path.abspath(os.path.dirname(__file__))

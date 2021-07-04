@@ -32,7 +32,8 @@ class Macast(object):
         self.running = False
         macast.Setting.load()
         self.startCast()
-        self.setting_check = macast.Setting.get(macast.SettingProperty.checkUpdate, 1)
+        self.setting_start_at_login = macast.Setting.get(macast.SettingProperty.StartAtLogin, 0)
+        self.setting_check = macast.Setting.get(macast.SettingProperty.CheckUpdate, 1)
         self.setting_player_size = macast.Setting.get(macast.SettingProperty.PlayerSize, 1)
         self.setting_player_position = macast.Setting.get(macast.SettingProperty.PlayerPosition, 2)
         self.setting_player_hw = macast.Setting.get(macast.SettingProperty.PlayerHW, 1)
@@ -118,7 +119,6 @@ class Macast(object):
 
 if sys.platform == 'darwin':
     import rumps
-    from AppKit import NSPasteboard, NSArray
     class Macast_darwin(rumps.App, Macast):
         def __init__(self):
             super(Macast_darwin, self).__init__("Macast",icon='assets/menu.png', title="", template=True, quit_button=None)
@@ -133,7 +133,8 @@ if sys.platform == 'darwin':
             self.playerPositionItem = rumps.MenuItem(_("Player Position"))
             self.playerSizeItem = rumps.MenuItem(_("Player Size"))
             self.playerHWItem = rumps.MenuItem(_("Hardware Decode"))
-            self.autoCheckUpdateItem = rumps.MenuItem(_("Auto check updates"), self.autoCheckUpdate)
+            self.autoCheckUpdateItem = rumps.MenuItem(_("Auto Check Updates"), self.autoCheckUpdate)
+            self.startAtLoginItem = rumps.MenuItem(_("Start At Login"), self.startAtLogin)
             self.menu = [
                 self.toggleItem ,
                 None,
@@ -157,14 +158,17 @@ if sys.platform == 'darwin':
                         ],
                         None,
                         self.autoCheckUpdateItem,
-                        rumps.MenuItem(_("Start on login")),
-                        rumps.MenuItem(_("Check for updates"), callback=self.check),
+                        self.startAtLoginItem,
+                        None,
+                        rumps.MenuItem(_("Check For Updates"), callback=self.check),
                         rumps.MenuItem(_("About"), callback=self.about),
                     ]
                 ],
                 rumps.MenuItem(_("Quit"), key="q", callback=self.quit),
             ]
             self.autoCheckUpdateItem.state = self.setting_check
+            self.startAtLoginItem.state = self.setting_start_at_login
+            macast.Setting.setStartAtLogin(self.setting_start_at_login)
             self.playerPositionItem.items()[self.setting_player_position][1].state = True
             self.playerSizeItem.items()[self.setting_player_size][1].state = True
             if self.setting_player_hw == 0:
@@ -181,12 +185,13 @@ if sys.platform == 'darwin':
                 items.append(item)
             return items
 
-        def playerPosition(self, sender):
+        def playerPosition(self, sender, notify=True):
             for key, item in self.playerPositionItem.iteritems():
                 item.state = False
             sender.state = True
             macast.Setting.set(macast.SettingProperty.PlayerPosition, sender.index)
-            self.notification(_("Reload MPV"), _("please wait"))
+            if notify:
+                self.notification(_("Reload Player"), _("please wait"), sound=False)
             cherrypy.engine.publish('reloadRender')
 
         def playerHW(self, sender):
@@ -207,7 +212,7 @@ if sys.platform == 'darwin':
             else:
                 # Default Hardware Decode
                 macast.Setting.set(macast.SettingProperty.PlayerHW, 1)
-            self.notification(_("Reload MPV"), _("please wait"))
+            self.notification(_("Reload Player"), _("please wait"), sound=False)
             cherrypy.engine.publish('reloadRender')
 
         def playerSize(self, sender):
@@ -216,13 +221,21 @@ if sys.platform == 'darwin':
             sender.state = True
             macast.Setting.set(macast.SettingProperty.PlayerSize, sender.index)
             if sender.index == 3:
-                self.playerPosition(self.playerPositionItem.items()[4][1])
-            self.notification(_("Reload MPV"), _("please wait"))
+                self.playerPosition(self.playerPositionItem.items()[4][1], notify=False)
+            self.notification(_("Reload Player"), _("please wait"), sound=False)
             cherrypy.engine.publish('reloadRender')
 
         def autoCheckUpdate(self, sender):
             sender.state = not sender.state
-            macast.Setting.set(macast.SettingProperty.checkUpdate, 1 if sender.state else 0)
+            macast.Setting.set(macast.SettingProperty.CheckUpdate, 1 if sender.state else 0)
+
+        def startAtLogin(self, sender):
+            res = macast.Setting.setStartAtLogin(sender.state)
+            if res[0] == 0:
+                sender.state = not sender.state
+                macast.Setting.set(macast.SettingProperty.StartAtLogin, 1 if sender.state else 0)
+            else:
+                self.notification(_("Error"), _(res[1]))
 
         def ssdp_updateip(self):
             logger.debug("ssdp_updateip")
@@ -235,12 +248,7 @@ if sys.platform == 'darwin':
 
         def mpv_av_uri(self, uri):
             logger.debug("mpv_av_uri: " + uri)
-            def paste(_):
-                pb = NSPasteboard.generalPasteboard()
-                pb.clearContents()
-                pb.writeObjects_(NSArray.arrayWithObject_(uri))
-
-            self.copyItem = rumps.MenuItem(_("Copy Video URI"), key="c", callback=paste)
+            self.copyItem = rumps.MenuItem(_("Copy Video URI"), key="c", callback=lambda _ : macast.Setting.copy2Pasteboard(uri))
             self.menu.insert_after(self.toggleItem.title, self.copyItem)
 
         def toggle(self, sender):
@@ -253,8 +261,7 @@ if sys.platform == 'darwin':
         def newUpdate(self, version):
             def callback():
                 self.openBrowser('https://github.com/xfangfang/Macast/releases/latest')
-
-            self.dialog(_("New Update {}").format(version), callback, ok="Update")
+            self.dialog(_("Macast New Update {}").format(version), callback, ok=_("Update"))
 
         def openBrowser(self, url):
             subprocess.run(['open', url])
@@ -262,15 +269,18 @@ if sys.platform == 'darwin':
         def alert(self, content):
             rumps.alert(content)
 
-        def notification(self, title, content):
-            rumps.notification(title, "", content)
+        def notification(self, title, content, sound=True):
+            rumps.notification(title, "", content, sound=sound)
 
-        def dialog(self, content, callback, cancel="Cancel", ok="Ok"):
-            res = subprocess.getstatusoutput("""osascript -e 'display dialog "{}" buttons {{"{}", "{}"}}'""".format(
-                content, cancel, ok
-            ))
-            if res[0] == 0 and res[1] == 'button returned:{}'.format(ok):
-                callback()
+        def dialog(self, content, callback, cancel=_("Cancel"), ok=_("Ok")):
+            try:
+                res = subprocess.getstatusoutput("""osascript -e 'display dialog "{}" buttons {{"{}", "{}"}}'""".format(
+                    content, cancel, ok
+                ))
+                if res[0] == 0 and res[1] == 'button returned:{}'.format(ok):
+                    callback()
+            except Exception as e:
+                self.notification(_("Error"), _("Cannot access System Events"))
 
         def check(self, _):
             self.checkUpdate()
