@@ -322,8 +322,8 @@ class MPVRender(Render):
         self.ipcSock = None
         self.pause = False # changed with pause action
         self.playing = False # changed with start and stop
-        self.willStop = False # if this is True that mpv will stop after 0.2s
         self.ipc_running = False
+        self.commandLock = threading.Lock()
 
     def RenderingControl_SetVolume(self, data):
         volume = data['DesiredVolume']
@@ -343,12 +343,7 @@ class MPVRender(Render):
         return {}
 
     def AVTransport_SetAVTransportURI(self, data):
-        # some client send "stop action" before SetAVTransportURI(nearly the same time)
-        # sleep 0.1s to reduce the closing times of MPV
-        time.sleep(0.1)
-
         uri = data['CurrentURI'].value
-        cherrypy.engine.publish('mpv_av_uri', uri)
         self.setState('AVTransportURI', uri)
         self.sendCommand(['loadfile', uri, 'replace'])
         meta = data['CurrentURIMetaData'].value
@@ -362,7 +357,6 @@ class MPVRender(Render):
         self.sendCommand(['set_property', 'pause', False])
         self.setState('RelativeTimePosition', '00:00:00')
         self.setState('AbsoluteTimePosition', '00:00:00')
-        self.willStop = False
         return {}
 
     def AVTransport_Play(self, data):
@@ -384,15 +378,8 @@ class MPVRender(Render):
         return {}
 
     def AVTransport_Stop(self, data):
-        # some client send "stop action" before SetAVTransportURI(nearly the same time)
-        # sleep 0.2s to reduce the closing times of MPV
-        self.willStop = True
-        logger.debug("AVTransport_Stop1 "+str(self.willStop))
-        time.sleep(0.2)
-        if self.willStop:
-            self.sendCommand(['stop'])
-            self.setState('TransportState', 'STOPPED')
-        logger.debug("AVTransport_Stop2 "+str(self.willStop))
+        self.sendCommand(['stop'])
+        self.setState('TransportState', 'STOPPED')
         return {}
 
     # set several property that needed observe
@@ -458,6 +445,7 @@ class MPVRender(Render):
                 self.playing = True
                 self.setState('TransportState', 'TRANSITIONING')
                 self.setState('TransportStatus', 'OK')
+                cherrypy.engine.publish('mpv_av_uri', self.getState('AVTransportURI'))
             elif res['event'] == 'seek':
                 self.setState('TransportState', 'TRANSITIONING')
                 self.setState('TransportStatus', 'OK')
@@ -484,6 +472,7 @@ class MPVRender(Render):
         data = {"command" :command}
         msg = json.dumps(data) + '\n'
         try:
+            self.commandLock.acquire()
             if os.name == 'nt':
                 self.ipcSock.send_bytes(msg.encode())
             else:
@@ -492,6 +481,8 @@ class MPVRender(Render):
         except Exception as e:
             logger.error('sendCommand: '+str(e))
             return False
+        finally:
+            self.commandLock.release()
 
     # start ipc thread (communicate with mpv)
     def startIPC(self):
