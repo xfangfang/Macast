@@ -1,5 +1,6 @@
 # Copyright (c) 2021 by xfangfang. All Rights Reserved.
 
+import sys
 import re
 import os
 import json
@@ -21,9 +22,9 @@ if os.name == 'nt':
 
 from .utils import loadXML, XMLPath, NAME, Setting, SYSTEM, SYSTEM_VERSION, SettingProperty
 
-
 logger = logging.getLogger("Render")
 logger.setLevel(logging.INFO)
+
 
 class ObserveProperty(Enum):
     volume = 1
@@ -32,8 +33,9 @@ class ObserveProperty(Enum):
     mute = 4
     duration = 5
 
+
 class ObserveClient():
-    def __init__(self, url, timeout = 1800):
+    def __init__(self, url, timeout=1800):
         self.url = url
         self.startTime = int(time.time())
         self.sid = "uuid:{}".format(uuid.uuid4())
@@ -43,12 +45,12 @@ class ObserveClient():
         self.path = re.findall("//[0-9:\.]*(.*)$", url)[0]
         self.error = 0
 
-
     def isTimeout(self):
         return int(time.time()) - self.startTime > self.timeout
 
     def update(self):
         self.startTime = int(time.time())
+
 
 class DataType(Enum):
     boolean = 'boolean'
@@ -57,6 +59,7 @@ class DataType(Enum):
     i4 = 'i4'
     ui4 = 'ui4'
     string = 'string'
+
 
 class StateVariable:
     def __init__(self, name, sendEvents, datatype):
@@ -75,11 +78,13 @@ class StateVariable:
         self.minimum = minimum
         self.maximum = maximum
 
+
 class Argument:
-    def __init__(self, name, state, value = None):
+    def __init__(self, name, state, value=None):
         self.name = name
         self.state = state
         self.value = value
+
 
 class Action:
     def __init__(self, name, input, output):
@@ -87,12 +92,16 @@ class Action:
         self.input = input
         self.output = output
 
+
 class Render():
     def __init__(self):
         self.av_transport = ET.parse(XMLPath.AV_TRANSPORT.value).getroot()
-        self.rendering_control = ET.parse(XMLPath.RENDERING_CONTROL.value).getroot()
-        self.conection_manager = ET.parse(XMLPath.CONNECTION_MANAGER.value).getroot()
-        self.action_response = ET.parse(XMLPath.ACTION_RESPONSE.value).getroot()
+        self.rendering_control = ET.parse(
+            XMLPath.RENDERING_CONTROL.value).getroot()
+        self.conection_manager = ET.parse(
+            XMLPath.CONNECTION_MANAGER.value).getroot()
+        self.action_response = ET.parse(
+            XMLPath.ACTION_RESPONSE.value).getroot()
         self.event_response = ET.parse(XMLPath.EVENT_RESPONSE.value).getroot()
         self.running = False
         self.stateList = {}
@@ -142,7 +151,7 @@ class Render():
         data = ET.tostring(root, encoding="UTF-8", xml_declaration=True)
 
         # logger.debug("EVENT DATA: "+data.decode())
-        conn = http.client.HTTPConnection(host, timeout = 1)
+        conn = http.client.HTTPConnection(host, timeout=1)
         conn.request("NOTIFY", path, data, headers)
         conn.close()
 
@@ -157,25 +166,29 @@ class Render():
                 continue
             try:
                 self.sendEventCallback(
-                    client.host,
-                    client.path,
-                    {
-                        "NT": "upnp:event",
-                        "NTS": "upnp:propchange",
-                        "Content-Type": 'text/xml; charset="utf-8"',
-                        "SERVER": "{}/{} UPnP/1.0 Macast/{}".format(SYSTEM, SYSTEM_VERSION, Setting.getVersion()),
-                        "SID": client.sid,
-                        "SEQ": client.seq,
-                        "TIMEOUT": "Second-{}".format(client.timeout)
-                    },
-                    stateChangeList
-                )
+                    client.host, client.path, {
+                        "NT":
+                        "upnp:event",
+                        "NTS":
+                        "upnp:propchange",
+                        "Content-Type":
+                        'text/xml; charset="utf-8"',
+                        "SERVER":
+                        "{}/{} UPnP/1.0 Macast/{}".format(
+                            SYSTEM, SYSTEM_VERSION, Setting.getVersion()),
+                        "SID":
+                        client.sid,
+                        "SEQ":
+                        client.seq,
+                        "TIMEOUT":
+                        "Second-{}".format(client.timeout)
+                    }, stateChangeList)
                 client.seq = client.seq + 1
             except Exception as e:
-                logger.error("send event error: "+str(e))
+                logger.error("send event error: " + str(e))
                 client.error = client.error + 1
                 if client.error > 10:
-                    logger.debug("remove "+ client.sid)
+                    logger.debug("remove " + client.sid)
                     removeList.append(client.sid)
         for sid in removeList:
             self.removeSubcribe(sid)
@@ -210,12 +223,16 @@ class Render():
     def call(self, rawbody):
         root = ET.fromstring(rawbody)[0][0]
         param = {}
-        for node in root: param[node.tag] = node.text
+        for node in root:
+            param[node.tag] = node.text
         logger.debug(param)
         action = root.tag.split('}')[1]
         service = root.tag.split(":")[3]
         method = "{}_{}".format(service, action)
-        if method not in ['AVTransport_GetPositionInfo', 'AVTransport_GetTransportInfo', 'RenderingControl_GetVolume']:
+        if method not in [
+                'AVTransport_GetPositionInfo', 'AVTransport_GetTransportInfo',
+                'RenderingControl_GetVolume'
+        ]:
             logger.info(method)
         res = {}
         if hasattr(self, method):
@@ -223,10 +240,8 @@ class Render():
             input = self.actionList[service][action].input
             for arg in input:
                 data[arg.name] = Argument(
-                    arg.name,
-                    arg.state,
-                    param[arg.name] if arg.name in param else None
-                )
+                    arg.name, arg.state,
+                    param[arg.name] if arg.name in param else None)
                 if arg.name in param: self.setState(arg.state, param[arg.name])
             res = getattr(self, method)(data)
         else:
@@ -237,7 +252,8 @@ class Render():
         # build response xml
         root = copy.deepcopy(self.action_response)
         ns = 'urn:schemas-upnp-org:service:{}:1'.format(service)
-        response = ET.SubElement(root[0], '{{{}}}{}Response'.format(ns, action))
+        response = ET.SubElement(root[0],
+                                 '{{{}}}{}Response'.format(ns, action))
         for key in res:
             prop = ET.SubElement(response, key)
             prop.text = str(res[key])
@@ -262,22 +278,21 @@ class Render():
         # add var
         for stateVariable in xml.iter(ns + 'stateVariable'):
             name = stateVariable.find(ns + "name").text
-            data = StateVariable(
-                name,
-                stateVariable.attrib['sendEvents'],
-                stateVariable.find(ns + "dataType").text
-            )
+            data = StateVariable(name, stateVariable.attrib['sendEvents'],
+                                 stateVariable.find(ns + "dataType").text)
             allowedValueList = stateVariable.find(ns + "allowedValueList")
             if allowedValueList is not None:
-                values = [value.text for value in allowedValueList.findall(ns + "allowedValue")]
+                values = [
+                    value.text
+                    for value in allowedValueList.findall(ns + "allowedValue")
+                ]
                 data.setAllowedValueList(values)
 
             allowedValueRange = stateVariable.find(ns + "allowedValueRange")
             if allowedValueRange is not None:
                 data.setAllowedValueRange(
                     int(allowedValueRange.find(ns + "minimum").text),
-                    int(allowedValueRange.find(ns + "maximum").text)
-                )
+                    int(allowedValueRange.find(ns + "maximum").text))
             self.stateList[name] = data
 
         # add action
@@ -292,8 +307,7 @@ class Render():
                 for argument in l:
                     data = Argument(
                         argument.find(ns + "name").text,
-                        argument.find(ns + "relatedStateVariable").text
-                    )
+                        argument.find(ns + "relatedStateVariable").text)
                     if argument.find(ns + "direction").text == 'in':
                         input.append(data)
                     else:
@@ -309,19 +323,18 @@ class MPVRender(Render):
     When some "service_action" methods are implemented (such as "RenderingControl_SetVolume"),
         the DLNA client's access will be automatically directed to these methods
     """
-
     def __init__(self):
         super(MPVRender, self).__init__()
         if os.name == 'nt':
-            self.mpv_sock = os.path.abspath(r"\\.\pipe\macast_mpvsocket")
+            self.mpv_sock = Setting.getPath(r"\\.\pipe\macast_mpvsocket")
         else:
             self.mpv_sock = '/tmp/macast_mpvsocket'
         self.proc = None
         self.mpvThread = None
         self.ipcThread = None
         self.ipcSock = None
-        self.pause = False # changed with pause action
-        self.playing = False # changed with start and stop
+        self.pause = False  # changed with pause action
+        self.playing = False  # changed with start and stop
         self.ipc_running = False
         self.commandLock = threading.Lock()
 
@@ -351,7 +364,7 @@ class MPVRender(Render):
         logger.error(uri)
         title = NAME
         if meta:
-            title = re.findall("title>(.*?)</",meta)
+            title = re.findall("title>(.*?)</", meta)
             if len(title) > 0: title = title[0]
         self.sendCommand(['set_property', 'title', title])
         self.sendCommand(['set_property', 'pause', False])
@@ -384,11 +397,16 @@ class MPVRender(Render):
 
     # set several property that needed observe
     def setObserve(self):
-        self.sendCommand(['observe_property', ObserveProperty.volume.value, 'volume'])
-        self.sendCommand(['observe_property', ObserveProperty.time_pos.value, 'time-pos'])
-        self.sendCommand(['observe_property', ObserveProperty.pause.value, 'pause'])
-        self.sendCommand(['observe_property', ObserveProperty.mute.value, 'mute'])
-        self.sendCommand(['observe_property', ObserveProperty.duration.value, 'duration'])
+        self.sendCommand(
+            ['observe_property', ObserveProperty.volume.value, 'volume'])
+        self.sendCommand(
+            ['observe_property', ObserveProperty.time_pos.value, 'time-pos'])
+        self.sendCommand(
+            ['observe_property', ObserveProperty.pause.value, 'pause'])
+        self.sendCommand(
+            ['observe_property', ObserveProperty.mute.value, 'mute'])
+        self.sendCommand(
+            ['observe_property', ObserveProperty.duration.value, 'duration'])
 
     # update player state from mpv
     def updateState(self, res):
@@ -403,7 +421,8 @@ class MPVRender(Render):
                     time = '00:00:00'
                 else:
                     sec = int(res['data'])
-                    time = '%d:%02d:%02d' % (sec // 3600, (sec % 3600) // 60, sec % 60)
+                    time = '%d:%02d:%02d' % (sec // 3600,
+                                             (sec % 3600) // 60, sec % 60)
                 self.setState('RelativeTimePosition', time)
                 self.setState('AbsoluteTimePosition', time)
             elif res['id'] == ObserveProperty.pause.value:
@@ -423,9 +442,10 @@ class MPVRender(Render):
                     time = '00:00:00'
                 else:
                     sec = int(res['data'])
-                    time = '%d:%02d:%02d' % (sec // 3600, (sec % 3600) // 60, sec % 60)
+                    time = '%d:%02d:%02d' % (sec // 3600,
+                                             (sec % 3600) // 60, sec % 60)
                     cherrypy.engine.publish('mpv_update_duration', time)
-                    logger.info("update duration "+time)
+                    logger.info("update duration " + time)
                 self.setState('CurrentTrackDuration', time)
                 self.setState('CurrentMediaDuration', time)
             elif res['id'] == ObserveProperty.idle.value:
@@ -445,7 +465,8 @@ class MPVRender(Render):
                 self.playing = True
                 self.setState('TransportState', 'TRANSITIONING')
                 self.setState('TransportStatus', 'OK')
-                cherrypy.engine.publish('mpv_av_uri', self.getState('AVTransportURI'))
+                cherrypy.engine.publish('mpv_av_uri',
+                                        self.getState('AVTransportURI'))
             elif res['event'] == 'seek':
                 self.setState('TransportState', 'TRANSITIONING')
                 self.setState('TransportStatus', 'OK')
@@ -468,8 +489,8 @@ class MPVRender(Render):
 
     # send command to mpv
     def sendCommand(self, command):
-        logger.debug("send command: "+str(command))
-        data = {"command" :command}
+        logger.debug("send command: " + str(command))
+        data = {"command": command}
         msg = json.dumps(data) + '\n'
         try:
             self.commandLock.acquire()
@@ -479,7 +500,7 @@ class MPVRender(Render):
                 self.ipcSock.sendall(msg.encode())
             return True
         except Exception as e:
-            logger.error('sendCommand: '+str(e))
+            logger.error('sendCommand: ' + str(e))
             return False
         finally:
             self.commandLock.release()
@@ -493,15 +514,17 @@ class MPVRender(Render):
         while self.ipc_running and self.running and self.mpvThread.is_alive():
             try:
                 time.sleep(2)
+                logger.error("mpv ipc socket start connect")
                 if os.name == 'nt':
-                    handler = _winapi.CreateFile(self.mpv_sock,
+                    handler = _winapi.CreateFile(
+                        self.mpv_sock,
                         _winapi.GENERIC_READ | _winapi.GENERIC_WRITE, 0,
                         _winapi.NULL, _winapi.OPEN_EXISTING,
-                        _winapi.FILE_FLAG_OVERLAPPED, _winapi.NULL
-                    )
+                        _winapi.FILE_FLAG_OVERLAPPED, _winapi.NULL)
                     self.ipcSock = PipeConnection(handler)
                 else:
-                    self.ipcSock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                    self.ipcSock = socket.socket(socket.AF_UNIX,
+                                                 socket.SOCK_STREAM)
                     self.ipcSock.connect(self.mpv_sock)
                 cherrypy.engine.publish('mpvipc_start')
                 self.setObserve()
@@ -526,7 +549,7 @@ class MPVRender(Render):
                     for msg in msgs:
                         self.updateState(msg)
                 except Exception as e:
-                    logger.error("decode error "+str(msgs))
+                    logger.error("decode error " + str(msgs))
                 finally:
                     res = b''
             self.ipcSock.close()
@@ -536,28 +559,33 @@ class MPVRender(Render):
     def startMPV(self):
         while self.running:
             self.setState('TransportState', 'STOPPED')
-            player_position = Setting.get(SettingProperty.PlayerPosition, default = 2)
-            player_position_data = [[2,5],[2,98],[98,5],[98,98],[50,50]]
+            player_position = Setting.get(SettingProperty.PlayerPosition,
+                                          default=2)
+            player_position_data = [[2, 5], [2, 98], [98, 5], [98, 98],
+                                    [50, 50]]
             x = player_position_data[player_position][0]
             y = player_position_data[player_position][1]
-            params = [Setting.mpv_path, '--input-ipc-server={}'.format(self.mpv_sock),
-                '--image-display-duration=inf', '--no-terminal', '--idle=yes', '--ontop', '--hwdec=yes',
-                '--geometry={}%:{}%'.format(x, y),
+            params = [
+                Setting.mpv_path,
+                '--input-ipc-server={}'.format(self.mpv_sock),
+                '--image-display-duration=inf', '--no-terminal', '--idle=yes',
+                '--ontop', '--hwdec=yes', '--geometry={}%:{}%'.format(x, y),
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,osc-title=${title},osc-showwindowed=no,osc-seekbarstyle=bar,osc-visibility=auto'
             ]
-            player_size = Setting.get(SettingProperty.PlayerSize, default = 1)
+            player_size = Setting.get(SettingProperty.PlayerSize, default=1)
             if player_size <= 2:
-                params.append('--autofit={}%'.format(2**player_size*10))
+                params.append('--autofit={}%'.format(2**player_size * 10))
             elif player_size == 3:
                 params.append('--autofit-larger=90%')
             elif player_size == 4:
                 params.append('--fullscreen')
-            if Setting.getSystem() == 'Darwin':
+            if sys.platform == 'darwin':
                 params += [
-                    '--ontop-level=system', '--on-all-workspaces',
+                    '--ontop-level=system',
+                    '--on-all-workspaces',
                     '--macos-app-activation-policy=accessory',
                 ]
-                hw = Setting.get(SettingProperty.PlayerHW, default = 1)
+                hw = Setting.get(SettingProperty.PlayerHW, default=1)
                 if hw == 0:
                     params.remove('--hwdec=yes')
                 elif hw == 2:
@@ -565,9 +593,11 @@ class MPVRender(Render):
             logger.error("MPV started")
             cherrypy.engine.publish('mpv_start')
             self.proc = subprocess.run(params,
-                stdout = subprocess.DEVNULL,
-                stderr = subprocess.DEVNULL,
-            )
+                                       stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL,
+                                       stdin=subprocess.PIPE)
+
+            logger.error("MPV stopped")
             if self.running:
                 time.sleep(1)
                 logger.error("MPV restarting")
@@ -582,7 +612,8 @@ class MPVRender(Render):
     def stop(self):
         super(MPVRender, self).stop()
         logger.error("stoping mpv")
-        while self.mpvThread.is_alive() and self.sendCommand(['quit']) is not True:
+        while self.mpvThread.is_alive() and self.sendCommand(['quit'
+                                                              ]) is not True:
             logger.error("cannot send command quit to mpv")
             time.sleep(1)
         self.mpvThread.join()

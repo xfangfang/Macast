@@ -18,7 +18,7 @@ logger.setLevel(logging.DEBUG)
 
 try:
     locale = macast.Setting.getLocale()
-    lang = gettext.translation('macast', localedir='i18n', languages=[locale])
+    lang = gettext.translation('macast', localedir=macast.Setting.getPath('i18n'), languages=[locale])
     lang.install()
     logger.error("Macast Loading Language: {}".format(locale))
 except Exception as e:
@@ -32,13 +32,21 @@ class Macast(object):
         self.running = False
         macast.Setting.load()
         self.startCast()
-        self.setting_start_at_login = macast.Setting.get(macast.SettingProperty.StartAtLogin, 0)
-        self.setting_check = macast.Setting.get(macast.SettingProperty.CheckUpdate, 1)
-        self.setting_player_size = macast.Setting.get(macast.SettingProperty.PlayerSize, 1)
-        self.setting_player_position = macast.Setting.get(macast.SettingProperty.PlayerPosition, 2)
-        self.setting_player_hw = macast.Setting.get(macast.SettingProperty.PlayerHW, 1)
+        self.setting_start_at_login = macast.Setting.get(
+            macast.SettingProperty.StartAtLogin, 0)
+        self.setting_check = macast.Setting.get(
+            macast.SettingProperty.CheckUpdate, 1)
+        self.setting_player_size = macast.Setting.get(
+            macast.SettingProperty.PlayerSize, 1)
+        self.setting_player_position = macast.Setting.get(
+            macast.SettingProperty.PlayerPosition, 2)
+        self.setting_player_hw = macast.Setting.get(
+            macast.SettingProperty.PlayerHW, 1)
         if self.setting_check:
-            threading.Thread(target = self.checkUpdate, kwargs={'verbose': False}).start()
+            threading.Thread(target=self.checkUpdate,
+                             kwargs={
+                                 'verbose': False
+                             }).start()
         logger.debug("Macast APP started")
 
     @abstractmethod
@@ -90,12 +98,13 @@ class Macast(object):
         logger.debug("mpv_stop")
 
     def mpv_av_uri(self, uri):
-        logger.debug("mpv_av_uri: "+uri)
+        logger.debug("mpv_av_uri: " + uri)
 
-
-    def checkUpdate(self, verbose = True):
+    def checkUpdate(self, verbose=True):
         try:
-            res = requests.get('https://api.github.com/repos/xfangfang/Macast/releases/latest').text
+            res = requests.get(
+                'https://api.github.com/repos/xfangfang/Macast/releases/latest'
+            ).text
             res = json.loads(res)
             logger.debug("tag_name: {}".format(res['tag_name']))
             onlineVersion = re.findall(r'(\d+\.*\d+)', res['tag_name'])[0]
@@ -117,50 +126,78 @@ class Macast(object):
         if self.running:
             self.stopCast()
 
+
 if sys.platform == 'darwin':
     import rumps
+
     class Macast_darwin(rumps.App, Macast):
         def __init__(self):
-            super(Macast_darwin, self).__init__("Macast",icon='assets/menu.png', title="", template=True, quit_button=None)
+            super(Macast_darwin, self).__init__("Macast",
+                                                icon='assets/menu.png',
+                                                title="",
+                                                template=True,
+                                                quit_button=None)
             macast.Setting.setMpvPath(os.path.abspath('bin/MacOS/mpv'))
             self.init()
             self._buildMenu()
             rumps.debug_mode(True)
 
         def _buildMenu(self):
-            self.toggleItem = rumps.MenuItem(_("Stop Cast"), key="p", callback=self.toggle)
-            self.ipItem = rumps.MenuItem("IP: {}".format(macast.Setting.getIP()))
+            self.toggleItem = rumps.MenuItem(_("Stop Cast"),
+                                             key="p",
+                                             callback=self.toggle)
+            self.ipItem = rumps.MenuItem("IP: {}".format(
+                macast.Setting.getIP()))
             self.playerPositionItem = rumps.MenuItem(_("Player Position"))
             self.playerSizeItem = rumps.MenuItem(_("Player Size"))
             self.playerHWItem = rumps.MenuItem(_("Hardware Decode"))
-            self.autoCheckUpdateItem = rumps.MenuItem(_("Auto Check Updates"), self.autoCheckUpdate)
-            self.startAtLoginItem = rumps.MenuItem(_("Start At Login"), self.startAtLogin)
+            self.autoCheckUpdateItem = rumps.MenuItem(_("Auto Check Updates"),
+                                                      self.autoCheckUpdate)
+            self.startAtLoginItem = rumps.MenuItem(_("Start At Login"),
+                                                   self.startAtLogin)
             self.menu = [
-                self.toggleItem ,
+                self.toggleItem,
                 None,
                 [
                     rumps.MenuItem(_("Setting")),
                     [
                         self.ipItem,
-                        rumps.MenuItem("Macast (v{})".format(macast.Setting.getVersion())),
+                        rumps.MenuItem("Macast (v{})".format(
+                            macast.Setting.getVersion())),
                         None,
                         [
                             self.playerPositionItem,
-                            self._buildMenuItems([_("LeftTop"), _("LeftBottom"), _("RightTop"), _("RightBottom"), _("Center")], self.playerPosition)
+                            self._buildMenuItems([
+                                _("LeftTop"),
+                                _("LeftBottom"),
+                                _("RightTop"),
+                                _("RightBottom"),
+                                _("Center")
+                            ], self.playerPosition)
                         ],
                         [
                             self.playerSizeItem,
-                            self._buildMenuItems([_("Small"), _("Normal"), _("Large"), _("Auto"), _("Fullscreen")], self.playerSize)
+                            self._buildMenuItems([
+                                _("Small"),
+                                _("Normal"),
+                                _("Large"),
+                                _("Auto"),
+                                _("Fullscreen")
+                            ], self.playerSize)
                         ],
                         [
                             self.playerHWItem,
-                            self._buildMenuItems([_("Hardware Decode"), _("Force Dedicated GPU")], self.playerHW)
+                            self._buildMenuItems([
+                                _("Hardware Decode"),
+                                _("Force Dedicated GPU")
+                            ], self.playerHW)
                         ],
                         None,
                         self.autoCheckUpdateItem,
                         self.startAtLoginItem,
                         None,
-                        rumps.MenuItem(_("Check For Updates"), callback=self.check),
+                        rumps.MenuItem(_("Check For Updates"),
+                                       callback=self.check),
                         rumps.MenuItem(_("About"), callback=self.about),
                     ]
                 ],
@@ -169,13 +206,16 @@ if sys.platform == 'darwin':
             self.autoCheckUpdateItem.state = self.setting_check
             self.startAtLoginItem.state = self.setting_start_at_login
             macast.Setting.setStartAtLogin(self.setting_start_at_login)
-            self.playerPositionItem.items()[self.setting_player_position][1].state = True
-            self.playerSizeItem.items()[self.setting_player_size][1].state = True
+            self.playerPositionItem.items()[
+                self.setting_player_position][1].state = True
+            self.playerSizeItem.items()[
+                self.setting_player_size][1].state = True
             if self.setting_player_hw == 0:
                 self.playerHWItem.items()[1][1].set_callback(None)
             else:
                 self.playerHWItem.items()[0][1].state = True
-            self.playerHWItem.items()[1][1].state = (self.setting_player_hw == 2)
+            self.playerHWItem.items()[1][1].state = (
+                self.setting_player_hw == 2)
 
         def _buildMenuItems(self, titles, callback):
             items = []
@@ -189,9 +229,12 @@ if sys.platform == 'darwin':
             for key, item in self.playerPositionItem.iteritems():
                 item.state = False
             sender.state = True
-            macast.Setting.set(macast.SettingProperty.PlayerPosition, sender.index)
+            macast.Setting.set(macast.SettingProperty.PlayerPosition,
+                               sender.index)
             if notify:
-                self.notification(_("Reload Player"), _("please wait"), sound=False)
+                self.notification(_("Reload Player"),
+                                  _("please wait"),
+                                  sound=False)
             cherrypy.engine.publish('reloadRender')
 
         def playerHW(self, sender):
@@ -212,7 +255,9 @@ if sys.platform == 'darwin':
             else:
                 # Default Hardware Decode
                 macast.Setting.set(macast.SettingProperty.PlayerHW, 1)
-            self.notification(_("Reload Player"), _("please wait"), sound=False)
+            self.notification(_("Reload Player"),
+                              _("please wait"),
+                              sound=False)
             cherrypy.engine.publish('reloadRender')
 
         def playerSize(self, sender):
@@ -221,19 +266,24 @@ if sys.platform == 'darwin':
             sender.state = True
             macast.Setting.set(macast.SettingProperty.PlayerSize, sender.index)
             if sender.index == 3:
-                self.playerPosition(self.playerPositionItem.items()[4][1], notify=False)
-            self.notification(_("Reload Player"), _("please wait"), sound=False)
+                self.playerPosition(self.playerPositionItem.items()[4][1],
+                                    notify=False)
+            self.notification(_("Reload Player"),
+                              _("please wait"),
+                              sound=False)
             cherrypy.engine.publish('reloadRender')
 
         def autoCheckUpdate(self, sender):
             sender.state = not sender.state
-            macast.Setting.set(macast.SettingProperty.CheckUpdate, 1 if sender.state else 0)
+            macast.Setting.set(macast.SettingProperty.CheckUpdate,
+                               1 if sender.state else 0)
 
         def startAtLogin(self, sender):
             res = macast.Setting.setStartAtLogin(not sender.state)
             if res[0] == 0:
                 sender.state = not sender.state
-                macast.Setting.set(macast.SettingProperty.StartAtLogin, 1 if sender.state else 0)
+                macast.Setting.set(macast.SettingProperty.StartAtLogin,
+                                   1 if sender.state else 0)
             else:
                 self.notification(_("Error"), _(res[1]))
 
@@ -248,7 +298,10 @@ if sys.platform == 'darwin':
 
         def mpv_av_uri(self, uri):
             logger.debug("mpv_av_uri: " + uri)
-            self.copyItem = rumps.MenuItem(_("Copy Video URI"), key="c", callback=lambda _ : macast.Setting.copy2Pasteboard(uri))
+            self.copyItem = rumps.MenuItem(
+                _("Copy Video URI"),
+                key="c",
+                callback=lambda _: macast.Setting.copy2Pasteboard(uri))
             self.menu.insert_after(self.toggleItem.title, self.copyItem)
 
         def toggle(self, sender):
@@ -260,8 +313,12 @@ if sys.platform == 'darwin':
 
         def newUpdate(self, version):
             def callback():
-                self.openBrowser('https://github.com/xfangfang/Macast/releases/latest')
-            self.dialog(_("Macast New Update {}").format(version), callback, ok="Update")
+                self.openBrowser(
+                    'https://github.com/xfangfang/Macast/releases/latest')
+
+            self.dialog(_("Macast New Update {}").format(version),
+                        callback,
+                        ok="Update")
 
         def openBrowser(self, url):
             subprocess.run(['open', url])
@@ -274,9 +331,9 @@ if sys.platform == 'darwin':
 
         def dialog(self, content, callback, cancel="Cancel", ok="Ok"):
             try:
-                res = subprocess.getstatusoutput("""osascript -e 'display dialog "{}" buttons {{"{}", "{}"}}'""".format(
-                    content, cancel, ok
-                ))
+                res = subprocess.getstatusoutput(
+                    """osascript -e 'display dialog "{}" buttons {{"{}", "{}"}}'"""
+                    .format(content, cancel, ok))
                 if ok in res[1]:
                     callback()
             except Exception as e:
@@ -296,24 +353,34 @@ else:
     import pystray
     import webbrowser
     from PIL import Image
+
     class Macast_common(Macast):
         def __init__(self):
             super(Macast_common, self).__init__()
             if os.name == 'nt':
-                macast.Setting.setMpvPath(os.path.abspath('bin/mpv.exe'))
+                macast.Setting.setMpvPath(macast.Setting.getPath('bin/mpv.exe'))
             self.init()
-            self.icon = pystray.Icon('Macast', Image.open('assets/menu_light.png'), menu = pystray.Menu(
-                    pystray.MenuItem("IP: {}".format(macast.Setting.getIP()), None, enabled=False),
-                    pystray.MenuItem("Macast (v{})".format(macast.Setting.getVersion()), None, enabled=False),
+            self.icon = pystray.Icon(
+                'Macast',
+                Image.open(macast.Setting.getPath('assets/menu_light.png')),
+                menu=pystray.Menu(
+                    pystray.MenuItem("IP: {}".format(macast.Setting.getIP()),
+                                     None,
+                                     enabled=False),
+                    pystray.MenuItem("Macast (v{})".format(
+                        macast.Setting.getVersion()),
+                                     None,
+                                     enabled=False),
                     pystray.MenuItem(_("Check for updates"), self.check),
                     pystray.MenuItem(_("About"), self.about),
                     pystray.MenuItem(_('Quit'), self.quit),
-                )
-            )
+                ))
 
         def newUpdate(self, version):
-            self.notification(_("New Update {}").format(version), "opening browser")
-            self.openBrowser('https://github.com/xfangfang/Macast/releases/latest')
+            self.notification(
+                _("New Update {}").format(version), "opening browser")
+            self.openBrowser(
+                'https://github.com/xfangfang/Macast/releases/latest')
 
         def openBrowser(self, url):
             webbrowser.open(url)
@@ -340,6 +407,7 @@ else:
 
         def run(self):
             self.icon.run()
+
 
 if __name__ == '__main__':
     if sys.platform == 'darwin':

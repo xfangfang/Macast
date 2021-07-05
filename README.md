@@ -63,8 +63,6 @@ if you use conda, check this https://stackoverflow.com/a/40303128
 
 After opening this app, a small icon will appear in the menu bar, and you can push video from a local DLNA client.
 
-`⚠️ In MacOS The "~/Library/Application\ Support/Macast" directory will be created to save the configuration information of the application`
-
 
 ## Development upder MacOS
 
@@ -78,7 +76,7 @@ mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/
 ### 2. debug
 
 ```shell
-pip install -r requirements.txt
+pip install -r requirements/darwin.txt
 python Macast.py
 ```
 `⚠️ MPV starts slowly the first time you run Macast.py, it needs to wait for a while`
@@ -94,6 +92,31 @@ open dist
 ```
 
 `⚠️ After packing, you can find the compiled content in the dist directory`
+
+
+## Development under Windows
+
+### 1. download mpv
+
+```powershell
+$client = new-object System.Net.WebClient
+$client.DownloadFile('https://nchc.dl.sourceforge.net/project/mpv-player-windows/stable/mpv-0.33.0-x86_64.7z','mpv.7z')
+7z x -obin mpv.7z *.exe
+```
+
+### 2. debug
+
+```powershell
+pip install -r requirements/common.txt
+python Macast.py
+```
+
+### 3. package
+
+```powershell
+pip install pyinstaller
+pyinstaller --noconfirm -F -w --additional-hooks-dir=. --add-data=".version;." --add-data="macast/xml/*;macast/xml"  --add-data="i18n/zh_CN/LC_MESSAGES/*.mo;i18n/zh_CN/LC_MESSAGES" --add-data="assets/*;assets" --add-binary="bin/mpv.exe;bin" --icon=assets/icon.ico Macast.py
+```
 
 
 ## Relevant links

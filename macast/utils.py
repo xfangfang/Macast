@@ -12,7 +12,6 @@ import locale
 import subprocess
 from enum import Enum
 
-
 logger = logging.getLogger("Utils")
 logger.setLevel(logging.ERROR)
 
@@ -23,9 +22,13 @@ SYSTEM_VERSION = str(platform.release())
 
 if sys.platform == 'darwin':
     from AppKit import NSPasteboard, NSArray, NSBundle
-    SETTING_DIR = os.path.join(os.environ['HOME'], 'Library/Application Support/Macast')
+    SETTING_DIR = os.path.join(os.environ['HOME'],
+                               'Library/Application Support/Macast')
+elif sys.platform == 'win32':
+    SETTING_DIR = 'C:\ProgramData\Macast'
 else:
     SETTING_DIR = os.getcwd()
+
 
 class SettingProperty(Enum):
     USN = 0
@@ -35,30 +38,32 @@ class SettingProperty(Enum):
     CheckUpdate = 4
     StartAtLogin = 5
 
+
 class Setting:
     setting = {}
     version = 'v0'
     setting_path = os.path.join(SETTING_DIR, "setting.json")
     last_ip = None
     mpv_path = 'mpv'
+    base_path = None
 
     @staticmethod
     def save():
         if not os.path.exists(SETTING_DIR):
             os.makedirs(SETTING_DIR)
         with open(Setting.setting_path, "w") as f:
-            json.dump(obj = Setting.setting, fp = f)
+            json.dump(obj=Setting.setting, fp=f)
 
     @staticmethod
     def load():
         logger.error("Load Setting")
-        with open('.version', 'r') as f:
+        with open(Setting.getPath('.version'), 'r') as f:
             Setting.version = f.read().strip()
         if not os.path.exists(Setting.setting_path):
             Setting.setting = {}
         else:
             with open(Setting.setting_path, "r") as f:
-                Setting.setting = json.load(fp = f)
+                Setting.setting = json.load(fp=f)
         return Setting.setting
 
     @staticmethod
@@ -98,7 +103,9 @@ class Setting:
     def getLocale():
         lang = 'en_US'
         if sys.platform == 'darwin':
-            lang = subprocess.check_output(["osascript", "-e", "user locale of (get system info)"]).decode().strip()
+            lang = subprocess.check_output(
+                ["osascript", "-e",
+                 "user locale of (get system info)"]).decode().strip()
         elif sys.platform == 'win32':
             windll = ctypes.windll.kernel32
             lang = locale.windows_locale[windll.GetUserDefaultUILanguage()]
@@ -111,8 +118,9 @@ class Setting:
         Setting.mpv_path = path
 
     @staticmethod
-    def get(property, default = 1):
-        if property.name in Setting.setting: return Setting.setting[property.name]
+    def get(property, default=1):
+        if property.name in Setting.setting:
+            return Setting.setting[property.name]
         Setting.setting[property.name] = default
         return default
 
@@ -128,19 +136,26 @@ class Setting:
             if not app_path.startswith("/Applications"):
                 return (1, "You need move Macast.app to Applications folder.")
             app_name = app_path.split("/")[-1].split(".")[0]
-            res = subprocess.getstatusoutput("""osascript -e 'tell application "System Events" to get the name of every login item'""")
+            res = subprocess.getstatusoutput(
+                """osascript -e 'tell application "System Events" to get the name of every login item'"""
+            )
             if res[0] == 1:
                 return (1, "Cannot access System Events")
             apps = res[1].split(",")
             if launch:
                 if app_name in apps:
                     return (0, "Macast is already in login items.")
-                res = subprocess.getstatusoutput("""osascript -e 'tell application "System Events" to make login item at end with properties {{name: "{}",path:"{}", hidden:false}}'""".format(app_name, app_path))
+                res = subprocess.getstatusoutput(
+                    """osascript -e 'tell application "System Events" to make login item at end with properties {{name: "{}",path:"{}", hidden:false}}'"""
+                    .format(app_name, app_path))
             else:
                 if app_name not in apps:
                     return (0, "Macast is already not in login items.")
-                res = subprocess.getstatusoutput("""osascript -e 'tell application "System Events" to delete login item "{}"'""".format(app_name))
+                res = subprocess.getstatusoutput(
+                    """osascript -e 'tell application "System Events" to delete login item "{}"'"""
+                    .format(app_name))
             return res
+
     @staticmethod
     def copy2Pasteboard(uri):
         if sys.platform == 'darwin':
@@ -148,14 +163,29 @@ class Setting:
             pb.clearContents()
             pb.writeObjects_(NSArray.arrayWithObject_(uri))
 
+    @staticmethod
+    def getPath(path="."):
+        """PyInstaller creates a temp folder and stores path in _MEIPASS
+            https://stackoverflow.com/a/13790741
+        """
+        if Setting.base_path is not None:
+            return os.path.join(Setting.base_path, path)
+        try:
+            Setting.base_path = sys._MEIPASS
+        except Exception:
+            Setting.base_path = os.getcwd()
+        return os.path.join(Setting.base_path, path)
+
+
 class XMLPath(Enum):
-    BASE_PATH = os.path.abspath(os.path.dirname(__file__))
+    BASE_PATH = Setting.getPath(os.path.dirname(__file__))
     DESCRIPTION = BASE_PATH + '/xml/Description.xml'
     ACTION_RESPONSE = BASE_PATH + '/xml/ActionResponse.xml'
     AV_TRANSPORT = BASE_PATH + '/xml/AVTransport.xml'
     CONNECTION_MANAGER = BASE_PATH + '/xml/ConnectionManager.xml'
     RENDERING_CONTROL = BASE_PATH + '/xml/RenderingControl.xml'
     EVENT_RESPONSE = BASE_PATH + '/xml/EventResponse.xml'
+
 
 def loadXML(path):
     with open(path) as f:
