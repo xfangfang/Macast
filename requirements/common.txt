@@ -2,4 +2,4 @@ cherrypy
 lxml
 requests
 pystray
-PIL
+pillow
