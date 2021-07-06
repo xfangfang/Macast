@@ -24,7 +24,7 @@ msgstr "现在已经是最新版"
 
 #: Macast.py:132 Macast.py:258
 msgid "Stop Cast"
-msgstr "停止投屏"
+msgstr "停止接受投屏"
 
 #: Macast.py:134
 msgid "Player Position"
@@ -128,7 +128,7 @@ msgstr "复制视频链接"
 
 #: Macast.py:260
 msgid "Start Cast"
-msgstr "开始投屏"
+msgstr "开始接受投屏"
 
 #: Macast.py:265
 msgid "Macast New Update {}"
