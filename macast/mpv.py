@@ -16,11 +16,11 @@ import cherrypy
 from enum import Enum
 from lxml import etree as ET
 
+from .utils import loadXML, XMLPath, Setting, SettingProperty
+
 if os.name == 'nt':
     import _winapi
     from multiprocessing.connection import PipeConnection
-
-from .utils import loadXML, XMLPath, NAME, Setting, SYSTEM, SYSTEM_VERSION, SettingProperty
 
 logger = logging.getLogger("Render")
 logger.setLevel(logging.INFO)
@@ -41,8 +41,9 @@ class ObserveClient():
         self.sid = "uuid:{}".format(uuid.uuid4())
         self.timeout = timeout
         self.seq = 0
-        self.host = re.findall("//([0-9:\.]*)", url)[0]
-        self.path = re.findall("//[0-9:\.]*(.*)$", url)[0]
+        self.host = re.findall(r"//([0-9:\.]*)", url)[0]
+        self.path = re.findall(r"//[0-9:\.]*(.*)$", url)[0]
+        print("-----------------------------", self.host)
         self.error = 0
 
     def isTimeout(self):
@@ -62,6 +63,8 @@ class DataType(Enum):
 
 
 class StateVariable:
+    """The state of render
+    """
     def __init__(self, name, sendEvents, datatype):
         self.name = name
         self.sendEvents = True if sendEvents == 'yes' else False
@@ -87,6 +90,18 @@ class Argument:
 
 
 class Action:
+    """Operations supported by render.
+
+    Parameters
+    ----------
+    name : string
+        The name of the operation.
+    input : list<Argument>
+        A set of state values.
+    output : list<Argument>
+        A set of state values.
+
+    """
     def __init__(self, name, input, output):
         self.name = name
         self.input = input
@@ -94,6 +109,11 @@ class Action:
 
 
 class Render():
+    """Media Renderer base class
+    By inheriting this class,
+    you can use a variety of players as media renderer
+    see also: class MPVRender
+    """
     def __init__(self):
         self.av_transport = ET.parse(XMLPath.AV_TRANSPORT.value).getroot()
         self.rendering_control = ET.parse(
@@ -123,6 +143,8 @@ class Render():
         self.setState('AbsoluteCounterPosition', 2147483647)
 
     def addSubcribe(self, url):
+        """Add a DLNA client to subcribe list
+        """
         logger.error("APPEND SUBSCRIBE: " + url)
         client = ObserveClient(url)
         self.eventSubcribes[client.sid] = client
@@ -132,32 +154,39 @@ class Render():
         }
 
     def removeSubcribe(self, sid):
+        """Remove a DLNA client from subcribe list
+        """
         if sid in self.eventSubcribes:
             del self.eventSubcribes[sid]
             return 200
         return 412
 
     def renewSubcribe(self, sid):
+        """Renew a DLNA client in subcribe list
+        """
         if sid in self.eventSubcribes:
             self.eventSubcribes.update()
             return 200
         return 412
 
-    def sendEventCallback(self, host, path, headers, data):
+    def _sendEventCallback(self, host, path, headers, data):
+        """Sending event
+        """
         root = copy.deepcopy(self.event_response)
         for i in data:
             p = ET.SubElement(root[0][0][0][0], i)
             p.set('val', str(data[i].value))
         data = ET.tostring(root, encoding="UTF-8", xml_declaration=True)
-
-        # logger.debug("EVENT DATA: "+data.decode())
         conn = http.client.HTTPConnection(host, timeout=1)
         conn.request("NOTIFY", path, data, headers)
         conn.close()
 
-    def eventCallback(self, stateChangeList):
+    def _eventCallback(self, stateChangeList):
+        """Sending event to DLNA client in subcribe list
+        """
         logger.debug("state change callback " + str(stateChangeList))
-        if not bool(stateChangeList): return
+        if not bool(stateChangeList):
+            return
         removeList = []
         for sid in self.eventSubcribes:
             client = self.eventSubcribes[sid]
@@ -165,7 +194,7 @@ class Render():
                 removeList.append(client.sid)
                 continue
             try:
-                self.sendEventCallback(
+                self._sendEventCallback(
                     client.host, client.path, {
                         "NT":
                         "upnp:event",
@@ -175,7 +204,8 @@ class Render():
                         'text/xml; charset="utf-8"',
                         "SERVER":
                         "{}/{} UPnP/1.0 Macast/{}".format(
-                            SYSTEM, SYSTEM_VERSION, Setting.getVersion()),
+                            Setting.getSystem(), Setting.getSystemVersion(),
+                            Setting.getVersion()),
                         "SID":
                         client.sid,
                         "SEQ":
@@ -193,34 +223,37 @@ class Render():
         for sid in removeList:
             self.removeSubcribe(sid)
 
-    def start(self):
-        if not self.running:
-            self.running = True
-            self.eventThread = threading.Thread(target=self.event, daemon=True)
-            self.eventThread.start()
-        else:
-            return
-
-    def stop(self):
-        self.running = False
-        self.stateChangeEvent.set()
-        self.stateSetEvent.set()
-
     def event(self):
+        """Render Event thread
+        If a DLNA client subscribes to the render event,
+        it will automatically send the event to the client every second
+        when the player state changes.
+        """
         interval = 1
         while self.running:
             self.stateSetEvent.wait()
             time.sleep(interval)
-            if not self.running: return
+            if not self.running:
+                return
             if bool(self.eventSubcribes):
                 self.stateChangeEvent.clear()
+                # Wait 0.05 seconds for all the setState methods
+                # to finish running
                 time.sleep(0.05)
-                self.eventCallback(self.stateChangeList)
+                self._eventCallback(self.stateChangeList)
                 self.stateChangeList = {}
                 self.stateSetEvent.clear()
                 self.stateChangeEvent.set()
 
     def call(self, rawbody):
+        """Processing requests from DLNA clients
+        The request from the client is passed into this method
+        through the DLNAHandler(macast.py -> class DLNAHandler).
+        If the Render class implements the corresponding action method,
+        the method will be called automatically.
+        Otherwise, the corresponding state variable will be returned
+        according to the **action return value** described in the XML file.
+        """
         root = ET.fromstring(rawbody)[0][0]
         param = {}
         for node in root:
@@ -242,7 +275,8 @@ class Render():
                 data[arg.name] = Argument(
                     arg.name, arg.state,
                     param[arg.name] if arg.name in param else None)
-                if arg.name in param: self.setState(arg.state, param[arg.name])
+                if arg.name in param:
+                    self.setState(arg.state, param[arg.name])
             res = getattr(self, method)(data)
         else:
             output = self.actionList[service][action].output
@@ -260,22 +294,34 @@ class Render():
         return ET.tostring(root, encoding="UTF-8", xml_declaration=True)
 
     def setState(self, name, value):
+        """Set states of the render
+        When the statistical state changes, this method will be blocked
+        Every time this method is called, the event thread will be informed
+        of the state change through self.stateSetEvent
+        """
         self.stateChangeEvent.wait()
         self.stateList[name].value = value
         self.stateChangeList[name] = self.stateList[name]
-        if name == 'AVTransportURI' and 'TransportState' in self.stateChangeList:
-            # remove TransportState(stopped) if set new uri
-            if self.stateChangeList['TransportState'] == 'STOPPED':
-                del self.stateChangeList['TransportState']
+
+        # remove TransportState(stopped) if set new uri
+        if name == 'AVTransportURI' \
+            and 'TransportState' in self.stateChangeList \
+                and self.stateChangeList['TransportState'] == 'STOPPED':
+            del self.stateChangeList['TransportState']
+
         self.stateSetEvent.set()
 
     def getState(self, name):
+        """Get various states of the render
+        The type of state is described by XML file
+        """
         return self.stateList[name].value
 
     def _buildAction(self, service, xml):
-
+        """Build action and variable list from xml file
+        """
         ns = '{urn:schemas-upnp-org:service-1-0}'
-        # add var
+        # get state variable from xml file
         for stateVariable in xml.iter(ns + 'stateVariable'):
             name = stateVariable.find(ns + "name").text
             data = StateVariable(name, stateVariable.attrib['sendEvents'],
@@ -295,7 +341,7 @@ class Render():
                     int(allowedValueRange.find(ns + "maximum").text))
             self.stateList[name] = data
 
-        # add action
+        # get action from xml file
         actions = {}
         for action in xml.iter(ns + 'action'):
             name = action.find(ns + "name").text
@@ -303,8 +349,7 @@ class Render():
             output = []
             argumentList = action.find(ns + "argumentList")
             if argumentList is not None:
-                l = argumentList.findall(ns + 'argument')
-                for argument in l:
+                for argument in argumentList.findall(ns + 'argument'):
                     data = Argument(
                         argument.find(ns + "name").text,
                         argument.find(ns + "relatedStateVariable").text)
@@ -315,13 +360,32 @@ class Render():
             actions[name] = Action(name, input, output)
         self.actionList[service] = actions
 
+    def start(self):
+        """Start render thread
+        """
+        if not self.running:
+            self.running = True
+            self.eventThread = threading.Thread(target=self.event, daemon=True)
+            self.eventThread.start()
+        else:
+            return
+
+    def stop(self):
+        """Stop render thread
+        """
+        self.running = False
+        self.stateChangeEvent.set()
+        self.stateSetEvent.set()
+
 
 class MPVRender(Render):
     """
-    When the DLNA client accesses, MPVRender will returns the state value
-        corresponding to "out" section in the action specified in the service XML file by default.
-    When some "service_action" methods are implemented (such as "RenderingControl_SetVolume"),
-        the DLNA client's access will be automatically directed to these methods
+      When the DLNA client accesses, MPVRender will returns the state value
+    corresponding to "out" section in the action specified in the service XML
+    file by default.
+      When some "service_action" methods are implemented
+    (such as "RenderingControl_SetVolume"), the DLNA client's access will be
+    automatically directed to these methods
     """
     def __init__(self):
         super(MPVRender, self).__init__()
@@ -345,7 +409,6 @@ class MPVRender(Render):
 
     def RenderingControl_SetMute(self, data):
         logger.debug(data)
-
         mute = data['DesiredMute']
         logger.debug(mute.value)
         if mute.value == 0 or mute.value == '0':
@@ -361,11 +424,12 @@ class MPVRender(Render):
         self.sendCommand(['loadfile', uri, 'replace'])
         meta = data['CurrentURIMetaData'].value
         self.setState('AVTransportURIMetaData', meta)
-        logger.error(uri)
-        title = NAME
+        logger.info(uri)
+        title = Setting.getFriendlyName()
         if meta:
             title = re.findall("title>(.*?)</", meta)
-            if len(title) > 0: title = title[0]
+            if len(title) > 0 and title[0].strip() != "":
+                title = title[0]
         self.sendCommand(['set_property', 'title', title])
         self.sendCommand(['set_property', 'pause', False])
         self.setState('RelativeTimePosition', '00:00:00')
@@ -383,7 +447,6 @@ class MPVRender(Render):
         return {}
 
     def AVTransport_Seek(self, data):
-        logger.error("SEEK-----------------------")
         target = data['Target']
         self.sendCommand(['seek', target.value, 'absolute'])
         self.setState('RelativeTimePosition', target.value)
@@ -395,8 +458,9 @@ class MPVRender(Render):
         self.setState('TransportState', 'STOPPED')
         return {}
 
-    # set several property that needed observe
     def setObserve(self):
+        """Set several property that needed observe
+        """
         self.sendCommand(
             ['observe_property', ObserveProperty.volume.value, 'volume'])
         self.sendCommand(
@@ -408,8 +472,9 @@ class MPVRender(Render):
         self.sendCommand(
             ['observe_property', ObserveProperty.duration.value, 'duration'])
 
-    # update player state from mpv
     def updateState(self, res):
+        """Update player state from mpv
+        """
         res = json.loads(res)
         if 'id' in res:
             if res['id'] == ObserveProperty.volume.value:
@@ -427,7 +492,8 @@ class MPVRender(Render):
                 self.setState('AbsoluteTimePosition', time)
             elif res['id'] == ObserveProperty.pause.value:
                 logger.info(res)
-                if self.playing is False: return
+                if self.playing is False:
+                    return
                 if res['data']:
                     self.pause = True
                     state = "PAUSED_PLAYBACK"
@@ -487,8 +553,9 @@ class MPVRender(Render):
         else:
             logger.debug(res)
 
-    # send command to mpv
     def sendCommand(self, command):
+        """Sending command to mpv
+        """
         logger.debug("send command: " + str(command))
         data = {"command": command}
         msg = json.dumps(data) + '\n'
@@ -505,8 +572,10 @@ class MPVRender(Render):
         finally:
             self.commandLock.release()
 
-    # start ipc thread (communicate with mpv)
     def startIPC(self):
+        """Start ipc thread
+        Communicating with mpv
+        """
         if self.ipc_running:
             logger.error("mpv ipc is already runing")
             return
@@ -538,9 +607,11 @@ class MPVRender(Render):
                         data = self.ipcSock.recv_bytes(1048576)
                     else:
                         data = self.ipcSock.recv(1048576)
-                    if data == b'': break
+                    if data == b'':
+                        break
                     res += data
-                    if data[-1] != 10: continue
+                    if data[-1] != 10:
+                        continue
                 except Exception as e:
                     logger.debug(e)
                     break
@@ -555,8 +626,9 @@ class MPVRender(Render):
             self.ipcSock.close()
             logger.error("mpv ipc stopped")
 
-    # start mpv thread
     def startMPV(self):
+        """Start mpv thread
+        """
         while self.running:
             self.setState('TransportState', 'STOPPED')
             player_position = Setting.get(SettingProperty.PlayerPosition,
@@ -570,11 +642,14 @@ class MPVRender(Render):
                 '--input-ipc-server={}'.format(self.mpv_sock),
                 '--image-display-duration=inf', '--no-terminal', '--idle=yes',
                 '--ontop', '--hwdec=yes', '--geometry={}%:{}%'.format(x, y),
-                '--script-opts=osc-timetotal=yes,osc-layout=bottombar,osc-title=${title},osc-showwindowed=no,osc-seekbarstyle=bar,osc-visibility=auto'
+                '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
+                'osc-title=${title},osc-showwindowed=no,' +
+                'osc-seekbarstyle=bar,osc-visibility=auto'
             ]
             player_size = Setting.get(SettingProperty.PlayerSize, default=1)
             if player_size <= 2:
-                params.append('--autofit={}%'.format(2**player_size * 10))
+                params.append('--autofit={}%'.format(
+                    int(15 - 2.5 * player_size + 7.5 * player_size**2)))
             elif player_size == 3:
                 params.append('--autofit-larger=90%')
             elif player_size == 4:
@@ -603,6 +678,8 @@ class MPVRender(Render):
                 logger.error("MPV restarting")
 
     def start(self):
+        """Start mpv and mpv ipc
+        """
         super(MPVRender, self).start()
         self.mpvThread = threading.Thread(target=self.startMPV, args=())
         self.mpvThread.start()
@@ -610,6 +687,8 @@ class MPVRender(Render):
         self.ipcThread.start()
 
     def stop(self):
+        """Stop mpv and mpv ipc
+        """
         super(MPVRender, self).stop()
         logger.error("stoping mpv")
         while self.mpvThread.is_alive() and self.sendCommand(['quit'

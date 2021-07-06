@@ -13,19 +13,14 @@ import subprocess
 from enum import Enum
 
 logger = logging.getLogger("Utils")
-logger.setLevel(logging.ERROR)
-
 PORT = 6068
-NAME = "Macast({})".format(platform.node())
-SYSTEM = str(platform.system())
-SYSTEM_VERSION = str(platform.release())
 
 if sys.platform == 'darwin':
     from AppKit import NSPasteboard, NSArray, NSBundle
     SETTING_DIR = os.path.join(os.environ['HOME'],
                                'Library/Application Support/Macast')
 elif sys.platform == 'win32':
-    SETTING_DIR = 'C:\ProgramData\Macast'
+    SETTING_DIR = 'C:\\ProgramData\\Macast'
 else:
     SETTING_DIR = os.getcwd()
 
@@ -46,9 +41,12 @@ class Setting:
     last_ip = None
     mpv_path = 'mpv'
     base_path = None
+    friendly_name = "Macast({})".format(platform.node())
 
     @staticmethod
     def save():
+        """Save user settings
+        """
         if not os.path.exists(SETTING_DIR):
             os.makedirs(SETTING_DIR)
         with open(Setting.setting_path, "w") as f:
@@ -56,7 +54,9 @@ class Setting:
 
     @staticmethod
     def load():
-        logger.error("Load Setting")
+        """Load user settings
+        """
+        logger.info("Load Setting")
         with open(Setting.getPath('.version'), 'r') as f:
             Setting.version = f.read().strip()
         if not os.path.exists(Setting.setting_path):
@@ -67,16 +67,45 @@ class Setting:
         return Setting.setting
 
     @staticmethod
+    def getSystemVersion():
+        """Get system version
+        """
+        return str(platform.release())
+
+    @staticmethod
     def getSystem():
+        """Get system name
+        """
         return str(platform.system())
 
     @staticmethod
     def getVersion():
+        """Get application version
+        """
         return Setting.version
 
     @staticmethod
+    def getFriendlyName():
+        """Get application friendly name
+        This name will show in the device search list of the DLNA client
+        and as player window default name.
+        """
+        return Setting.friendly_name
+
+    @staticmethod
+    def setFriendlyName(name):
+        """Set application friendly name
+        This name will show in the device search list of the DLNA client
+        and as player window default name.
+        """
+        Setting.friendly_name = name
+
+    @staticmethod
     def getUSN():
-        if 'USN' in Setting.setting: return Setting.setting['USN']
+        """Get device Unique identification
+        """
+        if 'USN' in Setting.setting:
+            return Setting.setting['USN']
         Setting.setting['USN'] = str(uuid.uuid4())
         Setting.save()
         return Setting.setting['USN']
@@ -101,6 +130,9 @@ class Setting:
 
     @staticmethod
     def getLocale():
+        """Get the language settings of the system
+        Default: en_US
+        """
         lang = 'en_US'
         if sys.platform == 'darwin':
             lang = subprocess.check_output(
@@ -115,10 +147,17 @@ class Setting:
 
     @staticmethod
     def setMpvPath(path):
+        """Set mpv path
+        MacOS default: bin/MacOS/mpv
+        Windows default: bin/mpv.exe
+        Others Default: mpv
+        """
         Setting.mpv_path = path
 
     @staticmethod
     def get(property, default=1):
+        """Get application settings
+        """
         if property.name in Setting.setting:
             return Setting.setting[property.name]
         Setting.setting[property.name] = default
@@ -126,6 +165,8 @@ class Setting:
 
     @staticmethod
     def set(property, data):
+        """Set application settings
+        """
         Setting.setting[property.name] = data
         Setting.save()
 
@@ -137,8 +178,8 @@ class Setting:
                 return (1, "You need move Macast.app to Applications folder.")
             app_name = app_path.split("/")[-1].split(".")[0]
             res = subprocess.getstatusoutput(
-                """osascript -e 'tell application "System Events" to get the name of every login item'"""
-            )
+                """ osascript -e 'tell application "System Events" to """ +
+                """ get the name of every login item'""")
             if res[0] == 1:
                 return (1, "Cannot access System Events")
             apps = res[1].split(",")
@@ -146,13 +187,16 @@ class Setting:
                 if app_name in apps:
                     return (0, "Macast is already in login items.")
                 res = subprocess.getstatusoutput(
-                    """osascript -e 'tell application "System Events" to make login item at end with properties {{name: "{}",path:"{}", hidden:false}}'"""
+                    """ osascript -e 'tell application "System Events" to """ +
+                    """ make login item at end with properties """ +
+                    """ {{name: "{}",path:"{}", hidden:false}}' """
                     .format(app_name, app_path))
             else:
                 if app_name not in apps:
                     return (0, "Macast is already not in login items.")
                 res = subprocess.getstatusoutput(
-                    """osascript -e 'tell application "System Events" to delete login item "{}"'"""
+                    """ osascript -e 'tell application "System Events" to """ +
+                    """ delete login item "{}"'"""
                     .format(app_name))
             return res
 
