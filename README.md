@@ -1,6 +1,6 @@
 # Macast
 
-[Chinese README](https://github.com/xfangfang/Macast/blob/main/README_ZH.md)
+[Chinese README](https://github.com/xfangfang/Macast/blob/main/docs/README_ZH.md)
 
 <img align="right" src="https://raw.githubusercontent.com/xfangfang/Macast/main/demo.png?raw=true" alt="demo" width="256" height="auto"/> A menu bar application using mpv as **DLNA AVTransport Media Renderer**.
 
