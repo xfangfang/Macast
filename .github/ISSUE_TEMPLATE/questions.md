@@ -16,18 +16,3 @@ assignees: ''
 ## Problem
 
 (your problem description here)
-
-## Log
-
-Starting Macast from terminal to get logs.
-
-run this in your terminal:
-
-```
-/Applications/Macast.app/Contents/MacOS/Macast
-```
-
-```
-# your log here
-
-```
