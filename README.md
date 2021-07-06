@@ -6,7 +6,7 @@
 
 Currently supported platform 🖥 :
 
-- [x] MacOS
+- [x] MacOS 10.15 and later
 - [x] Gnome (test with ubuntu20.04)
 - [x] KDE (test with kubuntu21.04)
 - [x] Other Linux under xorg (test with Raspberry Pi OS)
