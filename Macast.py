@@ -143,6 +143,7 @@ if sys.platform == 'darwin':
             rumps.debug_mode(True)
 
         def _buildMenu(self):
+            self.copyItem = None
             self.toggleItem = rumps.MenuItem(_("Stop Cast"),
                                              key="p",
                                              callback=self.toggle)
@@ -231,7 +232,7 @@ if sys.platform == 'darwin':
             sender.state = True
             macast.Setting.set(macast.SettingProperty.PlayerPosition,
                                sender.index)
-            if notify:
+            if notify and self.copyItem is not None:
                 self.notification(_("Reload Player"),
                                   _("please wait"),
                                   sound=False)
@@ -255,9 +256,10 @@ if sys.platform == 'darwin':
             else:
                 # Default Hardware Decode
                 macast.Setting.set(macast.SettingProperty.PlayerHW, 1)
-            self.notification(_("Reload Player"),
-                              _("please wait"),
-                              sound=False)
+            if self.copyItem is not None:
+                self.notification(_("Reload Player"),
+                                  _("please wait"),
+                                  sound=False)
             cherrypy.engine.publish('reloadRender')
 
         def playerSize(self, sender):
@@ -268,9 +270,10 @@ if sys.platform == 'darwin':
             if sender.index == 3:
                 self.playerPosition(self.playerPositionItem.items()[4][1],
                                     notify=False)
-            self.notification(_("Reload Player"),
-                              _("please wait"),
-                              sound=False)
+            if self.copyItem is not None:
+                self.notification(_("Reload Player"),
+                                  _("please wait"),
+                                  sound=False)
             cherrypy.engine.publish('reloadRender')
 
         def autoCheckUpdate(self, sender):
