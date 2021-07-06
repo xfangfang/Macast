@@ -23,10 +23,8 @@ from errno import ENOPROTOOPT
 SSDP_PORT = 1900
 SSDP_ADDR = '239.255.255.250'
 SERVER_ID = 'SSDP Server'
-
-
 logger = logging.getLogger("SSDPServer")
-logger.setLevel(logging.INFO)
+
 
 class SSDPServer:
     """A class implementing a SSDP server.  The notify_received and
@@ -39,15 +37,20 @@ class SSDPServer:
         self.running = False
 
     def start(self):
+        """Start ssdp background thread
+        """
         if not self.running:
             self.running = True
             self.ssdpThread = threading.Thread(target=self.run, args=())
             self.ssdpThread.start()
 
     def stop(self):
+        """Stop ssdp background thread
+        """
         self.running = False
         # Wake up the socket, this will speed up exiting ssdp thread.
-        socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
+        socket.socket(socket.AF_INET,
+                      socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
         self.ssdpThread.join()
 
     def run(self):
@@ -106,7 +109,8 @@ class SSDPServer:
         headers = dict(map(lambda x: (x[0].lower(), x[1]), headers))
 
         if cmd[0] != 'NOTIFY':
-            logger.info('SSDP command %s %s - from %s:%d' % (cmd[0], cmd[1], host, port))
+            logger.info('SSDP command %s %s - from %s:%d' %
+                        (cmd[0], cmd[1], host, port))
         logger.debug('with headers: {}.'.format(headers))
         if cmd[0] == 'M-SEARCH' and cmd[1] == '*':
             # SSDP discovery
@@ -117,7 +121,8 @@ class SSDPServer:
         else:
             logger.warning('Unknown SSDP command %s %s' % (cmd[0], cmd[1]))
 
-    def register(self, manifestation, usn, st, location, server=SERVER_ID, cache_control='max-age=1800', silent=False,
+    def register(self, manifestation, usn, st, location, server=SERVER_ID,
+                 cache_control='max-age=1800', silent=False,
                  host=None):
         """Register a service or device that this SSDP server will
         respond to."""
@@ -148,7 +153,8 @@ class SSDPServer:
         return usn in self.known
 
     def send_it(self, response, destination, delay, usn):
-        logger.debug('send discovery response delayed by %ds for %s to %r' % (delay, usn, destination))
+        logger.debug('send discovery response delayed by %ds for %s to %r' %
+                     (delay, usn, destination))
         try:
             self.sock.sendto(response.encode(), destination)
         except (AttributeError, socket.error) as msg:
@@ -160,7 +166,8 @@ class SSDPServer:
 
         (host, port) = host_port
 
-        logger.info('Discovery request from (%s,%d) for %s' % (host, port, headers['st']))
+        logger.info('Discovery request from (%s,%d) for %s' % (host, port,
+                                                               headers['st']))
         logger.info('Discovery request for %s' % headers['st'])
 
         # Do we know about this service?
@@ -180,12 +187,15 @@ class SSDPServer:
                         response.append('%s: %s' % (k, v))
 
                 if usn:
-                    response.append('DATE: %s' % formatdate(timeval=None, localtime=False, usegmt=True))
+                    response.append('DATE: %s' % formatdate(timeval=None,
+                                                            localtime=False,
+                                                            usegmt=True))
 
                     response.extend(('', ''))
                     delay = random.randint(0, int(headers['mx']))
 
-                    self.send_it('\r\n'.join(response), (host, port), delay, usn)
+                    self.send_it('\r\n'.join(response),
+                                 (host, port), delay, usn)
 
     def do_notify(self, usn):
         """Do notification"""
@@ -212,7 +222,8 @@ class SSDPServer:
         logger.debug('do_notify content')
         logger.debug(resp)
         try:
-            self.sock.sendto('\r\n'.join(resp).encode(), (SSDP_ADDR, SSDP_PORT))
+            self.sock.sendto('\r\n'.join(resp).encode(),
+                             (SSDP_ADDR, SSDP_PORT))
         except (AttributeError, socket.error) as msg:
             logger.warning("failure sending out alive notification: %r" % msg)
 
@@ -240,8 +251,9 @@ class SSDPServer:
             logger.debug(resp)
             if self.sock:
                 try:
-                    self.sock.sendto('\r\n'.join(resp).encode(), (SSDP_ADDR, SSDP_PORT))
+                    self.sock.sendto('\r\n'.join(resp).encode(),
+                                     (SSDP_ADDR, SSDP_PORT))
                 except (AttributeError, socket.error) as msg:
-                    logger.error("failure sending out byebye notification: %r" % msg)
+                    logger.error("error sending byebye notification: %r" % msg)
         except KeyError as msg:
             logger.error("error building byebye notification: %r" % msg)
