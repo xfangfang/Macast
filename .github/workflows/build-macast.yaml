@@ -21,60 +21,110 @@ env:
   REPO_BRANCH: main
 
 jobs:
-  build:
-    runs-on: macos-10.15
+  release:
+    needs: [build-nt, build-darwin]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          repository: 'xfangfang/Macast'
 
+      - uses: actions/download-artifact@v2
+
+      - name: Version
+        run: |
+          ls -R
+          export VERSION=`cat .version`
+          echo "VERSION=v$VERSION" >> $GITHUB_ENV
+          echo "DIST_DMG=Macast-v${VERSION}.dmg" >> $GITHUB_ENV
+          echo "DIST_EXE=Macast-v${VERSION}.exe" >> $GITHUB_ENV
+          echo "DIST_EXE_DEBUG=Macast-v${VERSION}-debug.exe" >> $GITHUB_ENV
+          echo $GITHUB_ENV
+
+      - name: Upload
+        if: github.event.inputs.release == 'true' && github.event.inputs.release  != 'false' && !cancelled()
+        uses: ncipollo/release-action@v1
+        with:
+          name: Macast ${{ env.VERSION }}
+          tag: ${{ env.VERSION }}
+          body: This release is built by github-action.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          artifacts: ${{ env.DIST_DMG }}/${{ env.DIST_DMG }},${{ env.DIST_EXE }}/${{ env.DIST_EXE }},${{ env.DIST_EXE_DEBUG }}/${{ env.DIST_EXE_DEBUG }}
+
+  build-nt:
+    runs-on: windows-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
       with:
         repository: 'xfangfang/Macast'
 
-    - name: debug
+    - name: Install Requirement
       run: |
-        ls -lah
-        pwd
+        pip3 install -r requirements/common.txt
+        pip3 install pyinstaller
+        $client = new-object System.Net.WebClient
+        $client.DownloadFile('https://github.com/xfangfang/Macast/releases/download/v0.1/mpv-0.33.0-x86_64.7z','mpv.7z')
+        7z x -obin mpv.7z *.exe
+        $client.DownloadFile('https://github.com/mlocati/gettext-iconv-windows/releases/download/v0.21-v1.16/gettext0.21-iconv1.16-static-64.zip','gettext.zip')
+        7z x -ogettext gettext.zip bin/msgfmt.exe
 
     - name: Build
       id: compile
       run: |
-        pip3 install -r requirements.txt
-        pip3 install py2app
-        # pip3 install setuptools==44.0.0
-        wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
-        mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
-        msgfmt -o i18n/zh_CN/LC_MESSAGES/macast.mo i18n/zh_CN/LC_MESSAGES/macast.po
-        python3 setup.py py2app
-        cp -R bin dist/Macast.app/Contents/Resources/
-        export VERSION=`cat .version`
-        echo "DIST=Macast_v$VERSION.zip" >> $GITHUB_ENV
-        echo "VERSION=v$VERSION" >> $GITHUB_ENV
-        cd dist && zip -r Macast_v${VERSION}.zip Macast.app
+        ./gettext/bin/msgfmt -o i18n/zh_CN/LC_MESSAGES/macast.mo i18n/zh_CN/LC_MESSAGES/macast.po
+        $VERSION=cat .version
+        echo "DIST_EXE=Macast-v${VERSION}.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "DIST_EXE_DEBUG=Macast-v${VERSION}-debug.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "VERSION=v${VERSION}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        pyinstaller --noconfirm -F -w --additional-hooks-dir=. --add-data=".version;." --add-data="macast/xml/*;macast/xml"  --add-data="i18n/zh_CN/LC_MESSAGES/*.mo;i18n/zh_CN/LC_MESSAGES" --add-data="assets/*;assets" --add-binary="bin/mpv.exe;bin" --icon=assets/icon.ico Macast.py
+        cp dist/Macast.exe Macast-v${VERSION}.exe
+        pyinstaller --noconfirm -F --additional-hooks-dir=. --add-data=".version;." --add-data="macast/xml/*;macast/xml"  --add-data="i18n/zh_CN/LC_MESSAGES/*.mo;i18n/zh_CN/LC_MESSAGES" --add-data="assets/*;assets" --add-binary="bin/mpv.exe;bin" --icon=assets/icon.ico Macast.py
+        cp dist/Macast.exe Macast-v${VERSION}-debug.exe
         echo "::set-output name=status::success"
 
     - name: Upload dist
       uses: actions/upload-artifact@v2
       if: steps.compile.outputs.status == 'success'
       with:
-        name: ${{ env.DIST }}
-        path: dist/${{ env.DIST }}
+        name: ${{ env.DIST_EXE }}
+        path: ${{ env.DIST_EXE }}
 
-    - name: Generate release body
-      id: tag
-      run: |
-        touch release.txt
-        echo "auto compile" >> release.txt
-        echo "::set-output name=status::success"
-
-    - name: Upload Macast to release
-      uses: softprops/action-gh-release@v1
-      if: github.event.inputs.release == 'true' && github.event.inputs.release  != 'false' && steps.tag.outputs.status == 'success' && !cancelled()
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload dist debug
+      uses: actions/upload-artifact@v2
+      if: steps.compile.outputs.status == 'success'
       with:
-        tag_name: ${{ env.VERSION }}
-        body_path: release.txt
-        files: dist/${{ env.DIST }}
+        name: ${{ env.DIST_EXE_DEBUG }}
+        path: ${{ env.DIST_EXE_DEBUG }}
+
+  build-darwin:
+    runs-on: macos-10.15
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        repository: 'xfangfang/Macast'
+
+    - name: install create-dmg
+      run: brew install create-dmg
+
+    - name: Build
+      id: compile
+      run: |
+        pip3 install -r requirements/darwin.txt
+        pip3 install py2app
+        wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
+        mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
+        msgfmt -o i18n/zh_CN/LC_MESSAGES/macast.mo i18n/zh_CN/LC_MESSAGES/macast.po
+        python3 setup.py py2app
+        cp -R bin dist/Macast.app/Contents/Resources/
+        export VERSION=`cat .version`
+        echo "DIST_DMG=Macast-v${VERSION}.dmg" >> $GITHUB_ENV
+        echo "VERSION=v$VERSION" >> $GITHUB_ENV
+        create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --hide-extension "Macast.app" --app-drop-link 600 185  --volname "Macast-v${VERSION} Installer" Macast-v${VERSION}.dmg "dist/"
+        echo "::set-output name=status::success"
 
     - name: SSH connection to Actions
       uses: P3TERX/ssh2actions@v1.0.0
@@ -82,3 +132,10 @@ jobs:
       env:
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+    - name: Upload dist
+      uses: actions/upload-artifact@v2
+      if: steps.compile.outputs.status == 'success'
+      with:
+        name: ${{ env.DIST_DMG }}
+        path: ${{ env.DIST_DMG }}
