@@ -426,10 +426,10 @@ class MPVRender(Render):
         self.setState('AVTransportURIMetaData', meta)
         logger.info(uri)
         title = Setting.getFriendlyName()
-        if meta:
-            title = re.findall("title>(.*?)</", meta)
-            if len(title) > 0 and title[0].strip() != "":
-                title = title[0]
+        meta = ET.fromstring(meta)
+        titleXML = meta.find('.//{{{}}}title'.format(meta.nsmap['dc']))
+        if titleXML is not None and titleXML.text is not None:
+            title = titleXML.text
         self.sendCommand(['set_property', 'title', title])
         self.sendCommand(['set_property', 'pause', False])
         self.setState('RelativeTimePosition', '00:00:00')
