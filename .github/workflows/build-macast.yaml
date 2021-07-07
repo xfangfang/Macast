@@ -48,6 +48,7 @@ jobs:
         with:
           name: Macast ${{ env.VERSION }}
           tag: ${{ env.VERSION }}
+          omitBodyDuringUpdate: true
           body: This release is built by github-action.
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
