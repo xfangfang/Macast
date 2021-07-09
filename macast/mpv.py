@@ -479,10 +479,10 @@ class MPVRender(Render):
         if 'id' in res:
             if res['id'] == ObserveProperty.volume.value:
                 logger.info(res)
-                if 'data' in res:
+                if 'data' in res and res['data'] is not None:
                     self.setState('Volume', int(res['data']))
             elif res['id'] == ObserveProperty.time_pos.value:
-                if 'data' not in res:
+                if 'data' not in res or res['data'] is None:
                     time = '00:00:00'
                 else:
                     sec = int(res['data'])
@@ -494,7 +494,7 @@ class MPVRender(Render):
                 logger.info(res)
                 if self.playing is False:
                     return
-                if res['data']:
+                if res['data'] and res['data'] is not None:
                     self.pause = True
                     state = "PAUSED_PLAYBACK"
                 else:
@@ -504,7 +504,7 @@ class MPVRender(Render):
             elif res['id'] == ObserveProperty.mute.value:
                 self.setState('Mute', res['data'])
             elif res['id'] == ObserveProperty.duration.value:
-                if 'data' not in res:
+                if 'data' not in res or res['data'] is None:
                     time = '00:00:00'
                 else:
                     sec = int(res['data'])
