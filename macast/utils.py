@@ -37,7 +37,7 @@ class SettingProperty(Enum):
 class Setting:
     setting = {}
     version = 'v0'
-    setting_path = os.path.join(SETTING_DIR, "setting.json")
+    setting_path = os.path.join(SETTING_DIR, "macast_setting.json")
     last_ip = None
     mpv_path = 'mpv'
     base_path = None
