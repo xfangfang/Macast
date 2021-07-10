@@ -18,7 +18,9 @@ logger.setLevel(logging.DEBUG)
 
 try:
     locale = macast.Setting.getLocale()
-    lang = gettext.translation('macast', localedir=macast.Setting.getPath('i18n'), languages=[locale])
+    lang = gettext.translation('macast',
+                               localedir=macast.Setting.getPath('i18n'),
+                               languages=[locale])
     lang.install()
     logger.error("Macast Loading Language: {}".format(locale))
 except Exception as e:
@@ -72,6 +74,7 @@ class Macast(object):
         macast.stop()
         self.thread.join()
         self.running = False
+        cherrypy.engine.unsubscribe('mpv_error', self.mpv_error)
         cherrypy.engine.unsubscribe('mpv_start', self.mpv_start)
         cherrypy.engine.unsubscribe('mpv_av_stop', self.mpv_av_stop)
         cherrypy.engine.unsubscribe('mpv_av_uri', self.mpv_av_uri)
@@ -83,6 +86,7 @@ class Macast(object):
         self.thread = threading.Thread(target=macast.run, args=())
         self.thread.start()
         self.running = True
+        cherrypy.engine.subscribe('mpv_error', self.mpv_error)
         cherrypy.engine.subscribe('mpv_start', self.mpv_start)
         cherrypy.engine.subscribe('mpv_av_stop', self.mpv_av_stop)
         cherrypy.engine.subscribe('mpv_av_uri', self.mpv_av_uri)
@@ -99,6 +103,9 @@ class Macast(object):
 
     def mpv_av_uri(self, uri):
         logger.debug("mpv_av_uri: " + uri)
+
+    def mpv_error(self):
+        logger.debug("mpv_error")
 
     def checkUpdate(self, verbose=True):
         try:
@@ -295,9 +302,12 @@ if sys.platform == 'darwin':
             self.ipItem.title = "IP: {}".format(macast.Setting.getIP())
 
         def mpv_av_stop(self):
-            if self.copyItem != None:
+            if self.copyItem is not None:
                 self.menu.pop(self.copyItem.title)
                 self.copyItem = None
+
+        def mpv_error(self):
+            self.dialog(_("Cannot start player"))
 
         def mpv_av_uri(self, uri):
             logger.debug("mpv_av_uri: " + uri)
@@ -332,12 +342,13 @@ if sys.platform == 'darwin':
         def notification(self, title, content, sound=True):
             rumps.notification(title, "", content, sound=sound)
 
-        def dialog(self, content, callback, cancel="Cancel", ok="Ok"):
+        def dialog(self, content, callback=None, cancel="Cancel", ok="Ok"):
             try:
                 res = subprocess.getstatusoutput(
-                    """osascript -e 'display dialog "{}" buttons {{"{}", "{}"}}'"""
+                    """osascript -e """ +
+                    """'display dialog "{}" buttons {{"{}", "{}"}}'"""
                     .format(content, cancel, ok))
-                if ok in res[1]:
+                if ok in res[1] and callback is not None:
                     callback()
             except Exception as e:
                 self.notification(_("Error"), _("Cannot access System Events"))
@@ -361,7 +372,8 @@ else:
         def __init__(self):
             super(Macast_common, self).__init__()
             if os.name == 'nt':
-                macast.Setting.setMpvPath(macast.Setting.getPath('bin/mpv.exe'))
+                macast.Setting.setMpvPath(
+                    macast.Setting.getPath('bin/mpv.exe'))
             self.init()
             self.icon = pystray.Icon(
                 'Macast',

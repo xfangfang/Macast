@@ -400,6 +400,11 @@ class MPVRender(Render):
         self.pause = False  # changed with pause action
         self.playing = False  # changed with start and stop
         self.ipc_running = False
+        self.ipc_once_connected = False
+        # As long as IPC has been connected, the ipc_once_connected is True
+        # When the ipc_once_connected is True, it shows that there is no error
+        # in the starting parameters of MPV, and there is no need to wait for
+        # one second to restart MPV.
         self.commandLock = threading.Lock()
 
     def RenderingControl_SetVolume(self, data):
@@ -582,7 +587,7 @@ class MPVRender(Render):
         self.ipc_running = True
         while self.ipc_running and self.running and self.mpvThread.is_alive():
             try:
-                time.sleep(2)
+                time.sleep(0.5)
                 logger.error("mpv ipc socket start connect")
                 if os.name == 'nt':
                     handler = _winapi.CreateFile(
@@ -596,6 +601,7 @@ class MPVRender(Render):
                                                  socket.SOCK_STREAM)
                     self.ipcSock.connect(self.mpv_sock)
                 cherrypy.engine.publish('mpvipc_start')
+                self.ipc_once_connected = True
                 self.setObserve()
             except Exception as e:
                 logger.error("mpv ipc socket reconnecting")
@@ -629,7 +635,8 @@ class MPVRender(Render):
     def startMPV(self):
         """Start mpv thread
         """
-        while self.running:
+        error_time = 3
+        while self.running and error_time > 0:
             self.setState('TransportState', 'STOPPED')
             player_position = Setting.get(SettingProperty.PlayerPosition,
                                           default=2)
@@ -673,9 +680,15 @@ class MPVRender(Render):
                                        stdin=subprocess.PIPE)
 
             logger.error("MPV stopped")
-            if self.running:
+            if self.running and not self.ipc_once_connected:
+                # There should be a problem with the MPV startup parameters
                 time.sleep(1)
+                error_time -= 1
                 logger.error("MPV restarting")
+        if error_time <= 0:
+            # some thing wrong with mpv
+            cherrypy.engine.publish('mpv_error')
+            logger.error("MPV cannot start")
 
     def start(self):
         """Start mpv and mpv ipc
