@@ -647,8 +647,13 @@ class MPVRender(Render):
             params = [
                 Setting.mpv_path,
                 '--input-ipc-server={}'.format(self.mpv_sock),
-                '--image-display-duration=inf', '--no-terminal', '--idle=yes',
-                '--ontop', '--hwdec=yes', '--geometry={}%:{}%'.format(x, y),
+                '--image-display-duration=inf',
+                '--idle=yes',
+                '--no-terminal',
+                '--ontop',
+                '--hwdec=yes',
+                '--geometry={}%:{}%'.format(x, y),
+                '--save-position-on-quit=yes',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
                 'osc-title=${title},osc-showwindowed=no,' +
                 'osc-seekbarstyle=bar,osc-visibility=auto'

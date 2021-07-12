@@ -68,16 +68,10 @@ class MPVPlugin(RenderPlugin):
         uri = self.render.getState('AVTransportURI')
         position = self.render.getState('AbsoluteTimePosition')
 
-        def seek(duration):
-            logger.debug("mpv seek")
-            self.render.sendCommand(['seek', position, 'absolute'])
-            self.bus.unsubscribe('mpv_update_duration', seek)
-
         def loadfile():
             logger.debug("mpv loadfile")
             self.render.sendCommand(['loadfile', uri, 'replace'])
             self.bus.unsubscribe('mpvipc_start', loadfile)
-            self.bus.subscribe('mpv_update_duration', seek)
 
         if self.render.getState('TransportState') == 'PLAYING':
             self.bus.subscribe('mpvipc_start', loadfile)
