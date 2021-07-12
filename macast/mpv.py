@@ -658,6 +658,13 @@ class MPVRender(Render):
                 'osc-title=${title},osc-showwindowed=no,' +
                 'osc-seekbarstyle=bar,osc-visibility=auto'
             ]
+            scripts_path = Setting.getPath(
+                os.path.join(os.path.dirname(__file__), 'scripts'))
+            scripts = os.listdir(scripts_path)
+            scripts = filter(lambda s: s.endswith('.lua'), scripts)
+            for script in scripts:
+                path = os.path.join(scripts_path, script)
+                params.append('--script={}'.format(path))
             player_size = Setting.get(SettingProperty.PlayerSize, default=1)
             if player_size <= 2:
                 params.append('--autofit={}%'.format(
@@ -679,10 +686,11 @@ class MPVRender(Render):
                     params.append('--macos-force-dedicated-gpu=yes')
             logger.error("MPV started")
             cherrypy.engine.publish('mpv_start')
-            self.proc = subprocess.run(params,
-                                       stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL,
-                                       stdin=subprocess.PIPE)
+            self.proc = subprocess.run(
+                params,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.PIPE)
 
             logger.error("MPV stopped")
             if self.running and not self.ipc_once_connected:
