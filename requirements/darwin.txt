@@ -2,3 +2,4 @@ cherrypy
 lxml
 requests
 rumps
+pyperclip

@@ -8,6 +8,7 @@ import logging
 import macast
 import cherrypy
 import gettext
+import pyperclip
 import requests
 import threading
 import subprocess
@@ -18,9 +19,8 @@ logger.setLevel(logging.DEBUG)
 
 try:
     locale = macast.Setting.getLocale()
-    lang = gettext.translation('macast',
-                               localedir=macast.Setting.getPath('i18n'),
-                               languages=[locale])
+    lang = gettext.translation(
+        'macast', localedir=macast.Setting.getPath('i18n'), languages=[locale])
     lang.install()
     logger.error("Macast Loading Language: {}".format(locale))
 except Exception as e:
@@ -314,7 +314,7 @@ if sys.platform == 'darwin':
             self.copyItem = rumps.MenuItem(
                 _("Copy Video URI"),
                 key="c",
-                callback=lambda _: macast.Setting.copy2Pasteboard(uri))
+                callback=lambda _: pyperclip.copy(uri))
             self.menu.insert_after(self.toggleItem.title, self.copyItem)
 
         def toggle(self, sender):
@@ -384,8 +384,8 @@ else:
                                      enabled=False),
                     pystray.MenuItem("Macast (v{})".format(
                         macast.Setting.getVersion()),
-                                     None,
-                                     enabled=False),
+                        None,
+                        enabled=False),
                     pystray.MenuItem(_("Check for updates"), self.check),
                     pystray.MenuItem(_("About"), self.about),
                     pystray.MenuItem(_('Quit'), self.quit),

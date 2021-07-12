@@ -3,3 +3,4 @@ lxml
 requests
 pystray
 pillow
+pyperclip
