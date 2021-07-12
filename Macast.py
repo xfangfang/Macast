@@ -342,13 +342,15 @@ if sys.platform == 'darwin':
         def notification(self, title, content, sound=True):
             rumps.notification(title, "", content, sound=sound)
 
-        def dialog(self, content, callback=None, cancel="Cancel", ok="Ok"):
+        def dialog(self, content, callback, cancel="Cancel", ok="Ok"):
             try:
-                res = subprocess.getstatusoutput(
-                    """osascript -e """ +
-                    """'display dialog "{}" buttons {{"{}", "{}"}}'"""
-                    .format(content, cancel, ok))
-                if ok in res[1] and callback is not None:
+                res = macast.Setting.systemShell(
+                    ['osascript',
+                     '-e',
+                     'display dialog "{}" buttons {{"{}","{}"}}'.format(
+                         content, cancel, ok)
+                     ])
+                if ok in res[1]:
                     callback()
             except Exception as e:
                 self.notification(_("Error"), _("Cannot access System Events"))

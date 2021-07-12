@@ -16,7 +16,7 @@ logger = logging.getLogger("Utils")
 PORT = 6068
 
 if sys.platform == 'darwin':
-    from AppKit import NSPasteboard, NSArray, NSBundle
+    from AppKit import NSBundle
     SETTING_DIR = os.path.join(os.environ['HOME'],
                                'Library/Application Support/Macast')
 elif sys.platform == 'win32':
@@ -171,41 +171,48 @@ class Setting:
         Setting.save()
 
     @staticmethod
+    def systemShell(shell):
+        result = subprocess.run(shell, stdout=subprocess.PIPE)
+        return (result.returncode, result.stdout.decode('UTF-8').strip())
+
+    @staticmethod
     def setStartAtLogin(launch):
         if sys.platform == 'darwin':
             app_path = NSBundle.mainBundle().bundlePath()
             if not app_path.startswith("/Applications"):
                 return (1, "You need move Macast.app to Applications folder.")
             app_name = app_path.split("/")[-1].split(".")[0]
-            res = subprocess.getstatusoutput(
-                """ osascript -e 'tell application "System Events" to """ +
-                """ get the name of every login item'""")
+            res = Setting.systemShell(
+                ['osascript',
+                 '-e',
+                 'tell application "System Events" ' +
+                 'to get the name of every login item'])
             if res[0] == 1:
-                return (1, "Cannot access System Events")
-            apps = res[1].split(",")
+                return (1, "Cannot access System Events.")
+            apps = list(map(lambda app: app.strip(), res[1].split(",")))
+            # apps which start at login
             if launch:
                 if app_name in apps:
                     return (0, "Macast is already in login items.")
-                res = subprocess.getstatusoutput(
-                    """ osascript -e 'tell application "System Events" to """ +
-                    """ make login item at end with properties """ +
-                    """ {{name: "{}",path:"{}", hidden:false}}' """
-                    .format(app_name, app_path))
+                res = Setting.systemShell(
+                    ['osascript',
+                     '-e',
+                     'tell application "System Events" ' +
+                     'to make login item at end with properties ' +
+                     '{{name: "{}",path:"{}", hidden:false}}'.format(
+                         app_name, app_path)
+                     ])
             else:
                 if app_name not in apps:
                     return (0, "Macast is already not in login items.")
-                res = subprocess.getstatusoutput(
-                    """ osascript -e 'tell application "System Events" to """ +
-                    """ delete login item "{}"'"""
-                    .format(app_name))
+                res = Setting.systemShell(
+                    ['osascript',
+                     '-e',
+                     'tell application "System Events" ' +
+                     'to delete login item "{}"'.format(app_name)])
             return res
-
-    @staticmethod
-    def copy2Pasteboard(uri):
-        if sys.platform == 'darwin':
-            pb = NSPasteboard.generalPasteboard()
-            pb.clearContents()
-            pb.writeObjects_(NSArray.arrayWithObject_(uri))
+        else:
+            return (1, 'Not support current platform.')
 
     @staticmethod
     def getPath(path="."):
