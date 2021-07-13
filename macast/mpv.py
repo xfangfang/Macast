@@ -65,6 +65,7 @@ class DataType(Enum):
 class StateVariable:
     """The state of render
     """
+
     def __init__(self, name, sendEvents, datatype):
         self.name = name
         self.sendEvents = True if sendEvents == 'yes' else False
@@ -102,6 +103,7 @@ class Action:
         A set of state values.
 
     """
+
     def __init__(self, name, input, output):
         self.name = name
         self.input = input
@@ -114,6 +116,7 @@ class Render():
     you can use a variety of players as media renderer
     see also: class MPVRender
     """
+
     def __init__(self):
         self.av_transport = ET.parse(XMLPath.AV_TRANSPORT.value).getroot()
         self.rendering_control = ET.parse(
@@ -387,6 +390,7 @@ class MPVRender(Render):
     (such as "RenderingControl_SetVolume"), the DLNA client's access will be
     automatically directed to these methods
     """
+
     def __init__(self):
         super(MPVRender, self).__init__()
         if os.name == 'nt':
@@ -651,6 +655,7 @@ class MPVRender(Render):
                 '--idle=yes',
                 '--no-terminal',
                 '--ontop',
+                '--on-all-workspaces',
                 '--hwdec=yes',
                 '--geometry={}%:{}%'.format(x, y),
                 '--save-position-on-quit=yes',
@@ -660,11 +665,12 @@ class MPVRender(Render):
             ]
             scripts_path = Setting.getPath(
                 os.path.join(os.path.dirname(__file__), 'scripts'))
-            scripts = os.listdir(scripts_path)
-            scripts = filter(lambda s: s.endswith('.lua'), scripts)
-            for script in scripts:
-                path = os.path.join(scripts_path, script)
-                params.append('--script={}'.format(path))
+            if os.path.exists(scripts_path):
+                scripts = os.listdir(scripts_path)
+                scripts = filter(lambda s: s.endswith('.lua'), scripts)
+                for script in scripts:
+                    path = os.path.join(scripts_path, script)
+                    params.append('--script={}'.format(path))
             player_size = Setting.get(SettingProperty.PlayerSize, default=1)
             if player_size <= 2:
                 params.append('--autofit={}%'.format(
