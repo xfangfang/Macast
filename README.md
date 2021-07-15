@@ -2,14 +2,13 @@
 
 <img align="right" src="demo.png" alt="demo" width="256" height="auto"/> 
 
-![visitor](https://visitor-badge.glitch.me/badge?page_id=xfangfang.Macast)
-![downloads](https://img.shields.io/github/downloads/xfangfang/Macast/total?color=blue)
-![version](https://img.shields.io/badge/dynamic/json?&color=blue&label=version&query=%24%5B0%5D.name&url=https%3A%2F%2Fapi.github.com%2Frepos%2Fxfangfang%2FMacast%2Ftags)
-![build](https://img.shields.io/github/workflow/status/xfangfang/Macast/Build%20Macast)
+[![visitor](https://visitor-badge.glitch.me/badge?page_id=xfangfang.Macast)](https://github.com/xfangfang/Macast/releases/latest)
+[![downloads](https://img.shields.io/github/downloads/xfangfang/Macast/total?color=blue)](https://github.com/xfangfang/Macast/releases/latest)
+[![build](https://img.shields.io/github/workflow/status/xfangfang/Macast/Build%20Macast)](https://github.com/xfangfang/Macast/actions/workflows/build-macast.yaml)
 
-![mac](https://img.shields.io/badge/MacOS-10.15%20and%20later-lightgrey?logo=Apple)
-![windows](https://img.shields.io/badge/Windows-10-lightgrey?logo=Windows)
-![linux](https://img.shields.io/badge/Linux-Xorg-lightgrey?logo=Linux)
+[![mac](https://img.shields.io/badge/MacOS-10.15%20and%20later-lightgrey?logo=Apple)](https://github.com/xfangfang/Macast/releases/latest)
+[![windows](https://img.shields.io/badge/Windows-10-lightgrey?logo=Windows)](https://github.com/xfangfang/Macast/releases/latest)
+[![linux](https://img.shields.io/badge/Linux-Xorg-lightgrey?logo=Linux)](https://github.com/xfangfang/Macast/releases/latest)
 
 [Chinese README](docs/README_ZH.md)
 
