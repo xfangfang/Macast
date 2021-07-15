@@ -1,21 +1,19 @@
 # Macast
 
-[Chinese README](docs/README_ZH.md)
+<img align="right" src="demo.png" alt="demo" width="256" height="auto"/> 
 
 ![visitor](https://visitor-badge.glitch.me/badge?page_id=xfangfang.Macast)
-![version](https://img.shields.io/badge/dynamic/json?label=version&query=%24%5B0%5D.name&url=https%3A%2F%2Fapi.github.com%2Frepos%2Fxfangfang%2FMacast%2Ftags)
-![downloads](https://img.shields.io/github/downloads/xfangfang/Macast/total)
-![size](https://img.shields.io/github/repo-size/xfangfang/Macast)
+![downloads](https://img.shields.io/github/downloads/xfangfang/Macast/total?color=blue)
+![version](https://img.shields.io/badge/dynamic/json?&color=blue&label=version&query=%24%5B0%5D.name&url=https%3A%2F%2Fapi.github.com%2Frepos%2Fxfangfang%2FMacast%2Ftags)
+![build](https://img.shields.io/github/workflow/status/xfangfang/Macast/Build%20Macast)
 
-<img align="right" src="https://raw.githubusercontent.com/xfangfang/Macast/main/demo.png?raw=true" alt="demo" width="256" height="auto"/> A menu bar application using mpv as **DLNA AVTransport Media Renderer**.
+![mac](https://img.shields.io/badge/MacOS-10.15%20and%20later-lightgrey?logo=Apple)
+![windows](https://img.shields.io/badge/Windows-10-lightgrey?logo=Windows)
+![linux](https://img.shields.io/badge/Linux-Xorg-lightgrey?logo=Linux)
 
-Currently supported platform 🖥 :
+[Chinese README](docs/README_ZH.md)
 
-- [x] MacOS 10.15 and later
-- [x] Gnome (test with ubuntu20.04)
-- [x] KDE (test with kubuntu21.04)
-- [x] Other Linux under xorg (test with Raspberry Pi OS)
-- [x] Windows (beta)
+A menu bar application using mpv as **DLNA Media Renderer**.
 
 
 ## Install
