@@ -79,6 +79,7 @@ class Macast(object):
         cherrypy.engine.unsubscribe('mpv_av_stop', self.mpv_av_stop)
         cherrypy.engine.unsubscribe('mpv_av_uri', self.mpv_av_uri)
         cherrypy.engine.unsubscribe('ssdp_updateip', self.mpv_av_uri)
+        cherrypy.engine.unsubscribe('notify', self.notification)
 
     def startCast(self):
         if self.running:
@@ -91,6 +92,7 @@ class Macast(object):
         cherrypy.engine.subscribe('mpv_av_stop', self.mpv_av_stop)
         cherrypy.engine.subscribe('mpv_av_uri', self.mpv_av_uri)
         cherrypy.engine.subscribe('ssdp_updateip', self.ssdp_updateip)
+        cherrypy.engine.subscribe('notify', self.notification)
 
     def ssdp_updateip(self):
         logger.debug("ssdp_updateip")

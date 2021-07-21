@@ -536,6 +536,10 @@ class MPVRender(Render):
                     self.setState('TransportState', 'NO_MEDIA_PRESENT')
                 else:
                     self.setState('TransportState', 'STOPPED')
+                if res.get('file_error', False):
+                    cherrypy.engine.publish('notify',
+                                            "File error",
+                                            res['file_error'])
             elif res['event'] == 'start-file':
                 self.playing = True
                 self.setState('TransportState', 'TRANSITIONING')
