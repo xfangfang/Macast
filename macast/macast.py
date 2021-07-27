@@ -64,6 +64,7 @@ class DLNAHandler:
                 res = cherrypy.engine.publish(
                     'renew_subscribe', SID, TIMEOUT).pop()
                 if res != 200:
+                    logger.error("RENEW SUBSCRIBE: cannot find such sid.")
                     raise cherrypy.HTTPError(status=res)
                 cherrypy.response.headers['SID'] = SID
                 cherrypy.response.headers['TIMEOUT'] = TIMEOUT
@@ -74,6 +75,9 @@ class DLNAHandler:
                     'add_subscribe', service, suburl, TIMEOUT).pop()
                 cherrypy.response.headers['SID'] = res['SID']
                 cherrypy.response.headers['TIMEOUT'] = res['TIMEOUT']
+            else:
+                logger.error("SUBSCRIBE: cannot find sid and callback.")
+                raise cherrypy.HTTPError(status=412)
         return b''
 
     def UNSUBSCRIBE(self, service, param):
@@ -82,10 +86,13 @@ class DLNAHandler:
         if param == 'event':
             SID = cherrypy.request.headers.get('SID')
             if SID:
+                logger.error("REMOVE SUBSCRIBE:!!!!!!!" + service)
                 res = cherrypy.engine.publish('remove_subscribe', SID).pop()
                 if res != 200:
                     raise cherrypy.HTTPError(status=res)
-        return b''
+                return b''
+        logger.error("UNSUBSCRIBE: error 412.")
+        raise cherrypy.HTTPError(status=412)
 
 
 def notify():
