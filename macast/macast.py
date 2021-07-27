@@ -24,6 +24,7 @@ class DLNAHandler:
     and communicating with the RenderPlugin thread
     see also: plugin.py -> class RenderPlugin
     """
+
     def __init__(self):
         self.description = loadXML(XMLPath.DESCRIPTION.value).format(
             friendly_name=Setting.getFriendlyName(),
@@ -52,17 +53,25 @@ class DLNAHandler:
     def SUBSCRIBE(self, service="", param=""):
         """DLNA/UPNP event subscribe
         """
-        logger.error("SUBSCRIBE:!!!!!!!" + service + param)
         if param == 'event':
             SID = cherrypy.request.headers.get('SID')
             CALLBACK = cherrypy.request.headers.get('CALLBACK')
+            TIMEOUT = cherrypy.request.headers.get('TIMEOUT')
+            TIMEOUT = TIMEOUT if TIMEOUT is not None else 'Second-1800'
+            TIMEOUT = int(TIMEOUT.split('-')[-1])
             if SID:
-                res = cherrypy.engine.publish('renew_subscribe', SID).pop()
+                logger.error("RENEW SUBSCRIBE:!!!!!!!" + service)
+                res = cherrypy.engine.publish(
+                    'renew_subscribe', SID, TIMEOUT).pop()
                 if res != 200:
                     raise cherrypy.HTTPError(status=res)
+                cherrypy.response.headers['SID'] = SID
+                cherrypy.response.headers['TIMEOUT'] = TIMEOUT
             elif CALLBACK:
+                logger.error("ADD SUBSCRIBE:!!!!!!!" + service)
                 suburl = re.findall("<(.*?)>", CALLBACK)[0]
-                res = cherrypy.engine.publish('add_subscribe', suburl).pop()
+                res = cherrypy.engine.publish(
+                    'add_subscribe', service, suburl, TIMEOUT).pop()
                 cherrypy.response.headers['SID'] = res['SID']
                 cherrypy.response.headers['TIMEOUT'] = res['TIMEOUT']
         return b''

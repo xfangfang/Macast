@@ -24,6 +24,10 @@ if os.name == 'nt':
 
 logger = logging.getLogger("Render")
 logger.setLevel(logging.INFO)
+SERVICE_STATE_OBSERVED = {
+    "AVTransport": ['TransportState', 'TransportStatus'],
+    "RenderingControl": ['Volume', 'Mute']
+}
 
 
 class ObserveProperty(Enum):
@@ -35,8 +39,9 @@ class ObserveProperty(Enum):
 
 
 class ObserveClient():
-    def __init__(self, url, timeout=1800):
+    def __init__(self, service, url, timeout=1800):
         self.url = url
+        self.service = service
         self.startTime = int(time.time())
         self.sid = "uuid:{}".format(uuid.uuid4())
         self.timeout = timeout
@@ -49,8 +54,9 @@ class ObserveClient():
     def isTimeout(self):
         return int(time.time()) - self.startTime > self.timeout
 
-    def update(self):
+    def update(self, timeout=1800):
         self.startTime = int(time.time())
+        self.timeout = timeout
 
 
 class DataType(Enum):
@@ -66,7 +72,7 @@ class StateVariable:
     """The state of render
     """
 
-    def __init__(self, name, sendEvents, datatype):
+    def __init__(self, name, sendEvents, datatype, service):
         self.name = name
         self.sendEvents = True if sendEvents == 'yes' else False
         self.datatype = DataType(datatype)
@@ -74,6 +80,7 @@ class StateVariable:
         self.maximum = None
         self.allowedValueList = None
         self.value = '' if self.datatype == DataType.string else 0
+        self.service = service
 
     def setAllowedValueList(self, values):
         self.allowedValueList = values
@@ -140,21 +147,45 @@ class Render():
         self._buildAction('RenderingControl', self.rendering_control)
         self._buildAction('ConnectionManager', self.conection_manager)
         # set default value
+        self.setState('CurrentPlayMode', 'NORMAL')
         self.setState('TransportPlaySpeed', 1)
         self.setState('TransportStatus', 'OK')
         self.setState('RelativeCounterPosition', 2147483647)
         self.setState('AbsoluteCounterPosition', 2147483647)
 
-    def addSubcribe(self, url):
+    def addSubcribe(self, service, url, timeout=1800):
         """Add a DLNA client to subcribe list
         """
-        logger.error("APPEND SUBSCRIBE: " + url)
-        client = ObserveClient(url)
+        logger.error("SUBSCRIBE: " + url)
+        for client in self.eventSubcribes:
+            if self.eventSubcribes[client].url == url and \
+                    self.eventSubcribes[client].service == service:
+                s = self.eventSubcribes[client]
+                s.update(timeout)
+                logger.error("SUBSCRIBE UPDATE")
+                return {
+                    "SID": s.sid,
+                    "TIMEOUT": "Second-{}".format(s.timeout)
+                }
+        logger.error("SUBSCRIBE ADD")
+        client = ObserveClient(service, url, timeout)
         self.eventSubcribes[client.sid] = client
+        threading.Thread(target=self._sendInitEvent,
+                         kwargs={
+                             'service': service,
+                             'client': client
+                         }).start()
         return {
             "SID": client.sid,
             "TIMEOUT": "Second-{}".format(client.timeout)
         }
+
+    def _sendInitEvent(self, service, client):
+        time.sleep(1)
+        self.stateChangeEvent.wait()
+        for state in SERVICE_STATE_OBSERVED[service]:
+            self.stateChangeList[state] = self.stateList[state]
+        self.stateSetEvent.set()
 
     def removeSubcribe(self, sid):
         """Remove a DLNA client from subcribe list
@@ -164,11 +195,11 @@ class Render():
             return 200
         return 412
 
-    def renewSubcribe(self, sid):
+    def renewSubcribe(self, sid, timeout=1800):
         """Renew a DLNA client in subcribe list
         """
         if sid in self.eventSubcribes:
-            self.eventSubcribes.update()
+            self.eventSubcribes[sid].update(timeout)
             return 200
         return 412
 
@@ -176,18 +207,25 @@ class Render():
         """Sending event
         """
         root = copy.deepcopy(self.event_response)
+        lastChange = ET.SubElement(root[0], 'LastChange')
+        event = ET.Element('Event')
+        event.attrib['xmlns'] = 'urn:schemas-upnp-org:metadata-1-0/AVT/'
+        instanceID = ET.SubElement(event, 'InstanceID')
+        instanceID.set('val', '0')
         for i in data:
-            p = ET.SubElement(root[0][0][0][0], i)
+            p = ET.SubElement(instanceID, i)
             p.set('val', str(data[i].value))
+        lastChange.text = ET.tostring(event, encoding="UTF-8").decode()
         data = ET.tostring(root, encoding="UTF-8", xml_declaration=True)
-        conn = http.client.HTTPConnection(host, timeout=1)
+        logger.debug("Prop Change---------")
+        logger.debug(data)
+        conn = http.client.HTTPConnection(host, timeout=5)
         conn.request("NOTIFY", path, data, headers)
         conn.close()
 
     def _eventCallback(self, stateChangeList):
         """Sending event to DLNA client in subcribe list
         """
-        logger.debug("state change callback " + str(stateChangeList))
         if not bool(stateChangeList):
             return
         removeList = []
@@ -197,6 +235,14 @@ class Render():
                 removeList.append(client.sid)
                 continue
             try:
+                # Only send state which within the service
+                state = {}
+                for name in stateChangeList:
+                    if self.stateList[name].service == client.service:
+                        state[name] = stateChangeList[name]
+                if len(state) == 0:
+                    continue
+
                 self._sendEventCallback(
                     client.host, client.path, {
                         "NT":
@@ -215,7 +261,7 @@ class Render():
                         client.seq,
                         "TIMEOUT":
                         "Second-{}".format(client.timeout)
-                    }, stateChangeList)
+                    }, state)
                 client.seq = client.seq + 1
             except Exception as e:
                 logger.error("send event error: " + str(e))
@@ -232,21 +278,16 @@ class Render():
         it will automatically send the event to the client every second
         when the player state changes.
         """
-        interval = 1
         while self.running:
             self.stateSetEvent.wait()
-            time.sleep(interval)
             if not self.running:
                 return
+            self.stateChangeEvent.clear()
             if bool(self.eventSubcribes):
-                self.stateChangeEvent.clear()
-                # Wait 0.05 seconds for all the setState methods
-                # to finish running
-                time.sleep(0.05)
                 self._eventCallback(self.stateChangeList)
-                self.stateChangeList = {}
-                self.stateSetEvent.clear()
-                self.stateChangeEvent.set()
+            self.stateChangeList = {}
+            self.stateSetEvent.clear()
+            self.stateChangeEvent.set()
 
     def call(self, rawbody):
         """Processing requests from DLNA clients
@@ -266,8 +307,9 @@ class Render():
         service = root.tag.split(":")[3]
         method = "{}_{}".format(service, action)
         if method not in [
-                'AVTransport_GetPositionInfo', 'AVTransport_GetTransportInfo',
-                'RenderingControl_GetVolume'
+            'AVTransport_GetPositionInfo',
+            'AVTransport_GetTransportInfo',
+            'RenderingControl_GetVolume'
         ]:
             logger.info(method)
         res = {}
@@ -302,17 +344,14 @@ class Render():
         Every time this method is called, the event thread will be informed
         of the state change through self.stateSetEvent
         """
-        self.stateChangeEvent.wait()
+        if self.stateList[name].value == value:
+            return
         self.stateList[name].value = value
-        self.stateChangeList[name] = self.stateList[name]
-
-        # remove TransportState(stopped) if set new uri
-        if name == 'AVTransportURI' \
-            and 'TransportState' in self.stateChangeList \
-                and self.stateChangeList['TransportState'] == 'STOPPED':
-            del self.stateChangeList['TransportState']
-
-        self.stateSetEvent.set()
+        if name in SERVICE_STATE_OBSERVED['AVTransport'] or \
+                name in SERVICE_STATE_OBSERVED['RenderingControl']:
+            self.stateChangeEvent.wait()
+            self.stateChangeList[name] = self.stateList[name]
+            self.stateSetEvent.set()
 
     def getState(self, name):
         """Get various states of the render
@@ -327,8 +366,10 @@ class Render():
         # get state variable from xml file
         for stateVariable in xml.iter(ns + 'stateVariable'):
             name = stateVariable.find(ns + "name").text
-            data = StateVariable(name, stateVariable.attrib['sendEvents'],
-                                 stateVariable.find(ns + "dataType").text)
+            data = StateVariable(name,
+                                 stateVariable.attrib['sendEvents'],
+                                 stateVariable.find(ns + "dataType").text,
+                                 service)
             allowedValueList = stateVariable.find(ns + "allowedValueList")
             if allowedValueList is not None:
                 values = [
@@ -431,11 +472,12 @@ class MPVRender(Render):
         uri = data['CurrentURI'].value
         self.setState('AVTransportURI', uri)
         self.sendCommand(['loadfile', uri, 'replace'])
-        meta = data['CurrentURIMetaData'].value
-        self.setState('AVTransportURIMetaData', meta)
+        meta = ET.fromstring(data['CurrentURIMetaData'].value)
+        meta_text = ET.tostring(meta, encoding="UTF-8").decode()
+        self.setState('AVTransportURIMetaData', meta_text)
+        self.setState('CurrentTrackMetaData', meta_text)
         logger.info(uri)
         title = Setting.getFriendlyName()
-        meta = ET.fromstring(meta)
         titleXML = meta.find('.//{{{}}}title'.format(meta.nsmap['dc']))
         if titleXML is not None and titleXML.text is not None:
             title = titleXML.text
