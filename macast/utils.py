@@ -231,11 +231,10 @@ class Setting:
 class XMLPath(Enum):
     BASE_PATH = Setting.getPath(os.path.dirname(__file__))
     DESCRIPTION = BASE_PATH + '/xml/Description.xml'
-    ACTION_RESPONSE = BASE_PATH + '/xml/ActionResponse.xml'
     AV_TRANSPORT = BASE_PATH + '/xml/AVTransport.xml'
     CONNECTION_MANAGER = BASE_PATH + '/xml/ConnectionManager.xml'
     RENDERING_CONTROL = BASE_PATH + '/xml/RenderingControl.xml'
-    EVENT_RESPONSE = BASE_PATH + '/xml/EventResponse.xml'
+    PROTOCOL_INFO = BASE_PATH + '/xml/SinkProtocolInfo.csv'
 
 
 def loadXML(path):

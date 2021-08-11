@@ -84,6 +84,8 @@ class StateVariable:
 
     def setAllowedValueList(self, values):
         self.allowedValueList = values
+        if 'NOT_IMPLEMENTED' in values:
+            self.value = 'NOT_IMPLEMENTED'
 
     def setAllowedValueRange(self, minimum, maximum):
         self.minimum = minimum
@@ -152,6 +154,10 @@ class Render():
         self.setState('TransportStatus', 'OK')
         self.setState('RelativeCounterPosition', 2147483647)
         self.setState('AbsoluteCounterPosition', 2147483647)
+        self.setState('A_ARG_TYPE_Direction', 'Output')
+        self.setState('CurrentConnectionIDs', '0')
+        self.setState('PlaybackStorageMedium', 'None')
+        self.setState('SinkProtocolInfo', loadXML(XMLPath.PROTOCOL_INFO.value))
 
     def addSubcribe(self, service, url, timeout=1800):
         """Add a DLNA client to subcribe list
@@ -470,19 +476,23 @@ class MPVRender(Render):
 
     def AVTransport_SetAVTransportURI(self, data):
         uri = data['CurrentURI'].value
+        logger.info(uri)
         self.setState('AVTransportURI', uri)
         self.sendCommand(['loadfile', uri, 'replace'])
-        meta = ET.fromstring(data['CurrentURIMetaData'].value)
-        meta_text = ET.tostring(meta, encoding="UTF-8").decode()
-        self.setState('AVTransportURIMetaData', meta_text)
-        self.setState('CurrentTrackMetaData', meta_text)
-        logger.info(uri)
-        title = Setting.getFriendlyName()
-        titleXML = meta.find('.//{{{}}}title'.format(meta.nsmap['dc']))
-        if titleXML is not None and titleXML.text is not None:
-            title = titleXML.text
-        self.sendCommand(['set_property', 'title', title])
+        try:
+            meta = ET.fromstring(data['CurrentURIMetaData'].value.encode())
+            title = Setting.getFriendlyName()
+            titleXML = meta.find('.//{{{}}}title'.format(meta.nsmap['dc']))
+            if titleXML is not None and titleXML.text is not None:
+                title = titleXML.text
+            self.sendCommand(['set_property', 'title', title])
+            metadata = ET.tostring(
+                meta, encoding="UTF-8", xml_declaration=True)
+        except Exception as e:
+            logger.error(str(e))
         self.sendCommand(['set_property', 'pause', False])
+        self.setState('CurrentTrackMetaData', data['CurrentURIMetaData'].value)
+        self.setState('CurrentTrackURI', uri)
         self.setState('RelativeTimePosition', '00:00:00')
         self.setState('AbsoluteTimePosition', '00:00:00')
         return {}
@@ -490,6 +500,7 @@ class MPVRender(Render):
     def AVTransport_Play(self, data):
         self.sendCommand(['set_property', 'pause', False])
         self.setState('TransportState', 'PLAYING')
+        self.setState('TransportStatus', 'OK')
         return {}
 
     def AVTransport_Pause(self, data):
@@ -522,6 +533,9 @@ class MPVRender(Render):
             ['observe_property', ObserveProperty.mute.value, 'mute'])
         self.sendCommand(
             ['observe_property', ObserveProperty.duration.value, 'duration'])
+        self.sendCommand(
+            ['observe_property', ObserveProperty.track_list.value,
+             'track-list'])
 
     def updateState(self, res):
         """Update player state from mpv
@@ -552,6 +566,7 @@ class MPVRender(Render):
                     self.pause = False
                     state = "PLAYING"
                 self.setState('TransportState', state)
+                self.setState('TransportStatus', 'OK')
             elif res['id'] == ObserveProperty.mute.value:
                 self.setState('Mute', res['data'])
             elif res['id'] == ObserveProperty.duration.value:
@@ -563,21 +578,29 @@ class MPVRender(Render):
                                              (sec % 3600) // 60, sec % 60)
                     cherrypy.engine.publish('mpv_update_duration', time)
                     logger.info("update duration " + time)
+                    if self.getState('TransportState') == 'PLAYING':
+                        logger.debug("Living media")
                 self.setState('CurrentTrackDuration', time)
                 self.setState('CurrentMediaDuration', time)
-            elif res['id'] == ObserveProperty.idle.value:
-                logger.info(res)
+            elif res['id'] == ObserveProperty.track_list.value:
+                if res['data'] and res['data'] is not None:
+                    tracks = len(res['data'])
+                    self.setState('CurrentTrack', 0 if tracks == 0 else 1)
+                    self.setState('NumberOfTracks', tracks)
         elif 'event' in res:
             logger.info(res)
             if res['event'] == 'end-file':
                 cherrypy.engine.publish('mpv_av_stop')
                 self.playing = False
                 if res['reason'] == 'error':
+                    self.setState('TransportState', 'STOPPED')
                     self.setState('TransportStatus', 'ERROR_OCCURRED')
                 elif res['reason'] == 'eof':
                     self.setState('TransportState', 'NO_MEDIA_PRESENT')
+                    self.setState('TransportStatus', 'OK')
                 else:
                     self.setState('TransportState', 'STOPPED')
+                    self.setState('TransportStatus', 'OK')
                 if res.get('file_error', False):
                     cherrypy.engine.publish('app_notify',
                                             "File error",
@@ -676,6 +699,7 @@ class MPVRender(Render):
                     for msg in msgs:
                         self.updateState(msg)
                 except Exception as e:
+                    logger.error("decode error " + str(e))
                     logger.error("decode error " + str(msgs))
                 finally:
                     res = b''
