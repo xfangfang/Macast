@@ -13,7 +13,7 @@ import subprocess
 from enum import Enum
 
 logger = logging.getLogger("Utils")
-PORT = 6068
+PORT = 1068
 
 if sys.platform == 'darwin':
     from AppKit import NSBundle
