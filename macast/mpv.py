@@ -15,6 +15,7 @@ import copy
 import cherrypy
 from enum import Enum
 from lxml import etree as ET
+from queue import Queue
 
 from .utils import loadXML, XMLPath, Setting, SettingProperty
 
@@ -25,8 +26,16 @@ if os.name == 'nt':
 logger = logging.getLogger("Render")
 logger.setLevel(logging.INFO)
 SERVICE_STATE_OBSERVED = {
-    "AVTransport": ['TransportState', 'TransportStatus'],
-    "RenderingControl": ['Volume', 'Mute']
+    "AVTransport": ['TransportState',
+                    'TransportStatus',
+                    'CurrentMediaDuration',
+                    'CurrentTrackDuration',
+                    'CurrentTrack',
+                    'NumberOfTracks'],
+    "RenderingControl": ['Volume', 'Mute'],
+    "ConnectionManager": ['A_ARG_TYPE_Direction',
+                          'SinkProtocolInfo',
+                          'CurrentConnectionIDs']
 }
 
 
@@ -36,6 +45,7 @@ class ObserveProperty(Enum):
     pause = 3
     mute = 4
     duration = 5
+    track_list = 6
 
 
 class ObserveClient():
@@ -57,6 +67,48 @@ class ObserveClient():
     def update(self, timeout=1800):
         self.startTime = int(time.time())
         self.timeout = timeout
+
+    def sendEventCallback(self, data):
+        """Sending event data to client
+        """
+        headers = {"NT": "upnp:event",
+                   "NTS": "upnp:propchange",
+                   "CONTENT-TYPE": 'text/xml; charset="utf-8"',
+                   "SERVER": "{}/{} UPnP/1.0 Macast/{}".format(
+                       Setting.getSystem(), Setting.getSystemVersion(),
+                       Setting.getVersion()),
+                   "SID": self.sid,
+                   "SEQ": self.seq,
+                   "TIMEOUT": "Second-{}".format(self.timeout)
+                   }
+        namespace = 'urn:schemas-upnp-org:event-1-0'
+        root = ET.Element(ET.QName(namespace, 'propertyset'),
+                          nsmap={'e': namespace})
+        if self.service == 'ConnectionManager':
+            for i in data:
+                prop = ET.SubElement(
+                    root, '{urn:schemas-upnp-org:event-1-0}property')
+                item = ET.SubElement(prop, i)
+                item.text = str(data[i])
+        else:
+            prop = ET.SubElement(
+                root, '{urn:schemas-upnp-org:event-1-0}property')
+            lastChange = ET.SubElement(prop, 'LastChange')
+            event = ET.Element('Event')
+            event.attrib['xmlns'] = 'urn:schemas-upnp-org:metadata-1-0/AVT/'
+            instanceID = ET.SubElement(event, 'InstanceID')
+            instanceID.set('val', '0')
+            for i in data:
+                p = ET.SubElement(instanceID, i)
+                p.set('val', str(data[i]))
+            lastChange.text = ET.tostring(event, encoding="UTF-8").decode()
+        data = ET.tostring(root, encoding="UTF-8")
+        logger.debug("Prop Change---------")
+        logger.debug(data)
+        conn = http.client.HTTPConnection(self.host, timeout=5)
+        conn.request("NOTIFY", self.path, data, headers)
+        conn.close()
+        self.seq = self.seq + 1
 
 
 class DataType(Enum):
@@ -132,19 +184,13 @@ class Render():
             XMLPath.RENDERING_CONTROL.value).getroot()
         self.conection_manager = ET.parse(
             XMLPath.CONNECTION_MANAGER.value).getroot()
-        self.action_response = ET.parse(
-            XMLPath.ACTION_RESPONSE.value).getroot()
-        self.event_response = ET.parse(XMLPath.EVENT_RESPONSE.value).getroot()
         self.running = False
         self.stateList = {}
         self.actionList = {}
-        self.stateChangeList = {}
-        self.stateChangeEvent = threading.Event()
-        self.stateChangeEvent.set()
-        self.stateSetEvent = threading.Event()
-        self.stateSetEvent.clear()
         self.eventThread = None
-        self.eventSubcribes = {}
+        self.eventSubcribes = {}  # subscribe devices
+        self.stateQueue = Queue()  # states needed be send to subscribe devices
+        self.removedDeviceQueue = Queue()  # devices needed be removed
         self._buildAction('AVTransport', self.av_transport)
         self._buildAction('RenderingControl', self.rendering_control)
         self._buildAction('ConnectionManager', self.conection_manager)
@@ -187,19 +233,17 @@ class Render():
         }
 
     def _sendInitEvent(self, service, client):
-        time.sleep(1)
-        self.stateChangeEvent.wait()
+        data = {}
         for state in SERVICE_STATE_OBSERVED[service]:
-            self.stateChangeList[state] = self.stateList[state]
-        self.stateSetEvent.set()
+            data[state] = self.stateList[state].value
+        client.sendEventCallback(data)
 
     def removeSubcribe(self, sid):
         """Remove a DLNA client from subcribe list
         """
         if sid in self.eventSubcribes:
-            del self.eventSubcribes[sid]
-            return 200
-        return 412
+            self.removedDeviceQueue.put(sid)
+        return 200
 
     def renewSubcribe(self, sid, timeout=1800):
         """Renew a DLNA client in subcribe list
@@ -209,36 +253,23 @@ class Render():
             return 200
         return 412
 
-    def _sendEventCallback(self, host, path, headers, data):
-        """Sending event
-        """
-        root = copy.deepcopy(self.event_response)
-        lastChange = ET.SubElement(root[0], 'LastChange')
-        event = ET.Element('Event')
-        event.attrib['xmlns'] = 'urn:schemas-upnp-org:metadata-1-0/AVT/'
-        instanceID = ET.SubElement(event, 'InstanceID')
-        instanceID.set('val', '0')
-        for i in data:
-            p = ET.SubElement(instanceID, i)
-            p.set('val', str(data[i].value))
-        lastChange.text = ET.tostring(event, encoding="UTF-8").decode()
-        data = ET.tostring(root, encoding="UTF-8", xml_declaration=True)
-        logger.debug("Prop Change---------")
-        logger.debug(data)
-        conn = http.client.HTTPConnection(host, timeout=5)
-        conn.request("NOTIFY", path, data, headers)
-        conn.close()
-
     def _eventCallback(self, stateChangeList):
-        """Sending event to DLNA client in subcribe list
+        """Sending different states in the stateChangeList to the clients
+        that subscribe to them.
         """
         if not bool(stateChangeList):
             return
-        removeList = []
+        # remove clients
+        while not self.removedDeviceQueue.empty():
+            sid = self.removedDeviceQueue.get()
+            logger.info("Remove client: {}".format(sid))
+            del self.eventSubcribes[sid]
+            self.removedDeviceQueue.task_done()
+        # send stateChangeList to client
         for sid in self.eventSubcribes:
             client = self.eventSubcribes[sid]
             if client.isTimeout():
-                removeList.append(client.sid)
+                self.removeSubcribe(client.sid)
                 continue
             try:
                 # Only send state which within the service
@@ -248,35 +279,14 @@ class Render():
                         state[name] = stateChangeList[name]
                 if len(state) == 0:
                     continue
+                client.sendEventCallback(state)
 
-                self._sendEventCallback(
-                    client.host, client.path, {
-                        "NT":
-                        "upnp:event",
-                        "NTS":
-                        "upnp:propchange",
-                        "Content-Type":
-                        'text/xml; charset="utf-8"',
-                        "SERVER":
-                        "{}/{} UPnP/1.0 Macast/{}".format(
-                            Setting.getSystem(), Setting.getSystemVersion(),
-                            Setting.getVersion()),
-                        "SID":
-                        client.sid,
-                        "SEQ":
-                        client.seq,
-                        "TIMEOUT":
-                        "Second-{}".format(client.timeout)
-                    }, state)
-                client.seq = client.seq + 1
             except Exception as e:
                 logger.error("send event error: " + str(e))
                 client.error = client.error + 1
                 if client.error > 10:
                     logger.debug("remove " + client.sid)
-                    removeList.append(client.sid)
-        for sid in removeList:
-            self.removeSubcribe(sid)
+                    self.removeSubcribe(client.sid)
 
     def event(self):
         """Render Event thread
@@ -285,15 +295,14 @@ class Render():
         when the player state changes.
         """
         while self.running:
-            self.stateSetEvent.wait()
-            if not self.running:
-                return
-            self.stateChangeEvent.clear()
-            if bool(self.eventSubcribes):
-                self._eventCallback(self.stateChangeList)
-            self.stateChangeList = {}
-            self.stateSetEvent.clear()
-            self.stateChangeEvent.set()
+            if not self.stateQueue.empty():
+                state = {}
+                while not self.stateQueue.empty():
+                    k, v = self.stateQueue.get()
+                    state[k] = v
+                    self.stateQueue.task_done()
+                self._eventCallback(state)
+            time.sleep(1)
 
     def call(self, rawbody):
         """Processing requests from DLNA clients
@@ -308,7 +317,6 @@ class Render():
         param = {}
         for node in root:
             param[node.tag] = node.text
-        logger.debug(param)
         action = root.tag.split('}')[1]
         service = root.tag.split(":")[3]
         method = "{}_{}".format(service, action)
@@ -317,7 +325,7 @@ class Render():
             'AVTransport_GetTransportInfo',
             'RenderingControl_GetVolume'
         ]:
-            logger.info(method)
+            logger.info("{} {}".format(method, param))
         res = {}
         if hasattr(self, method):
             data = {}
@@ -335,10 +343,16 @@ class Render():
                 res[arg.name] = self.stateList[arg.state].value
 
         # build response xml
-        root = copy.deepcopy(self.action_response)
-        ns = 'urn:schemas-upnp-org:service:{}:1'.format(service)
-        response = ET.SubElement(root[0],
-                                 '{{{}}}{}Response'.format(ns, action))
+        ns = 'http://schemas.xmlsoap.org/soap/envelope/'
+        encoding = 'http://schemas.xmlsoap.org/soap/encoding/'
+        root = ET.Element(ET.QName(ns, 'Envelope'), nsmap={'s': ns})
+        root.attrib['{{{}}}encodingStyle'.format(ns)] = encoding
+        body = ET.SubElement(root, ET.QName(ns, 'Body'), nsmap={'s': ns})
+        namespace = 'urn:schemas-upnp-org:service:{}:1'.format(service)
+        response = ET.SubElement(body,
+                                 ET.QName(
+                                     namespace, '{}Response'.format(action)),
+                                 nsmap={'u': namespace})
         for key in res:
             prop = ET.SubElement(response, key)
             prop.text = str(res[key])
@@ -346,18 +360,15 @@ class Render():
 
     def setState(self, name, value):
         """Set states of the render
-        When the statistical state changes, this method will be blocked
-        Every time this method is called, the event thread will be informed
-        of the state change through self.stateSetEvent
         """
-        if self.stateList[name].value == value:
-            return
-        self.stateList[name].value = value
+        # update states which will send to DLNA Client
         if name in SERVICE_STATE_OBSERVED['AVTransport'] or \
                 name in SERVICE_STATE_OBSERVED['RenderingControl']:
-            self.stateChangeEvent.wait()
-            self.stateChangeList[name] = self.stateList[name]
-            self.stateSetEvent.set()
+            logger.debug("setState: {} {}".format(name, value))
+            self.stateQueue.put((name, value))
+        # update other states
+        if self.stateList[name].value != value:
+            self.stateList[name].value = value
 
     def getState(self, name):
         """Get various states of the render
@@ -424,8 +435,6 @@ class Render():
         """Stop render thread
         """
         self.running = False
-        self.stateChangeEvent.set()
-        self.stateSetEvent.set()
 
 
 class MPVRender(Render):

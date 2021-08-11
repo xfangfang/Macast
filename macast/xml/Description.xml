@@ -4,7 +4,7 @@ xmlns:dlna="urn:schemas-dlna-org:device-1-0"
 xmlns="urn:schemas-upnp-org:device-1-0">
 <specVersion>
     <major>1</major>
-    <minor>1</minor>
+    <minor>0</minor>
 </specVersion>
 <device>
     <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
