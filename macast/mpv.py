@@ -579,7 +579,7 @@ class MPVRender(Render):
                 else:
                     self.setState('TransportState', 'STOPPED')
                 if res.get('file_error', False):
-                    cherrypy.engine.publish('notify',
+                    cherrypy.engine.publish('app_notify',
                                             "File error",
                                             res['file_error'])
             elif res['event'] == 'start-file':
