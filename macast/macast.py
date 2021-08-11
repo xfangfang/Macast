@@ -46,7 +46,10 @@ class DLNAHandler:
         if param == 'action':
             length = cherrypy.request.headers['Content-Length']
             rawbody = cherrypy.request.body.read(int(length))
+            logger.debug(rawbody)
             res = cherrypy.engine.publish('call_render', rawbody).pop()
+            cherrypy.response.headers['EXT'] = ''
+            logger.debug(res)
             return res
         return b''
 
