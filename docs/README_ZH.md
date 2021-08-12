@@ -1,6 +1,6 @@
 # Macast
 
-<img align="right" src="https://raw.githubusercontent.com/xfangfang/Macast/main/demo.png?raw=true" alt="demo" width="256" height="auto"/> Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以通过他来接收视频、图片和音乐，支持主流视频音乐软件和其他任何符合DLNA协议的投屏.
+Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以通过他来接收发送自手机的视频、图片和音乐。支持主流视频音乐软件和其他任何符合DLNA协议的投屏软件.
 
 目前支持的平台 🖥 :
 
@@ -8,7 +8,7 @@
 - [x] Gnome (在ubuntu20.04测试通过)
 - [x] KDE (在kubuntu21.04测试通过)
 - [x] Other Linux under xorg (在Raspberry Pi OS测试通过)
-- [x] Windows (beta)
+- [x] Windows (在Windows10测试通过)
 
 
 ## 安装
@@ -28,13 +28,3 @@
 
 打开应用后，**菜单栏\状态栏** 会出现一个图标，这时你的设备就可以接收来自同一局域网的DLNA投放了。
 
-
-## 相关链接
-
-[UPnP™ Device Architecture 1.1](http://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf)
-
-[python-upnp-ssdp-example](https://github.com/ZeWaren/python-upnp-ssdp-example)
-
-[pystray](https://github.com/moses-palmer/pystray)
-
-[rumps](https://github.com/jaredks/rumps)
