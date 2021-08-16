@@ -5,7 +5,6 @@ import logging
 import webbrowser
 import subprocess
 import threading
-import pysnooper
 from abc import abstractmethod
 from enum import Enum
 
@@ -205,7 +204,6 @@ class App():
                 self.menu.insert(index, menuItem)
                 self.app.update_menu()
 
-    @ pysnooper.snoop()
     def removeMenuItemByID(self, id):
         if self.platform == Platform.Darwin:
             self.app.menu.pop(id)
