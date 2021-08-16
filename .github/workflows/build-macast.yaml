@@ -92,9 +92,9 @@ jobs:
         mkdir -p dist/usr/share/applications
         mkdir -p dist/usr/share/icons
         echo -e "Package: Macast\nVersion: ${VERSION}\nArchitecture: amd64\nMaintainer: xfangfang\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
-        echo -e "[Desktop Entry]\nName=Macast\nComment=DLNA Media Renderer\nExec=/usr/bin/macast\nIcon=/usr/share/icons/Macast.ico\nTerminal=false\nType=Application\nCategories=Video" > dist/usr/share/applications/macast.desktop
+        echo -e "[Desktop Entry]\nName=Macast\nComment=DLNA Media Renderer\nExec=/usr/bin/macast\nIcon=/usr/share/icons/Macast.png\nTerminal=false\nType=Application\nCategories=Video" > dist/usr/share/applications/macast.desktop
         mv dist/Macast dist/usr/bin/macast
-        cp assets/icon.ico dist/usr/share/icons/Macast.ico
+        cp assets/icon.png dist/usr/share/icons/Macast.png
         dpkg -b dist $DIST_AMD64_DEB
         echo "::set-output name=status::success"
 
