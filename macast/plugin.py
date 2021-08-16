@@ -6,6 +6,7 @@
 
 from cherrypy.process import plugins
 import logging
+import threading
 
 from .ssdp import SSDPServer
 from .mpv import MPVRender, Render
@@ -17,6 +18,7 @@ logger = logging.getLogger("PLUGIN")
 class RenderPlugin(plugins.SimplePlugin):
     """Run a background player thread
     """
+
     def __init__(self, bus):
         logger.info('Initializing RenderPlugin')
         super(RenderPlugin, self).__init__(bus)
@@ -56,6 +58,7 @@ class RenderPlugin(plugins.SimplePlugin):
 class MPVPlugin(RenderPlugin):
     """Using MPV as render
     """
+
     def __init__(self, bus):
         super(MPVPlugin, self).__init__(bus)
         self.render = MPVRender()
@@ -73,15 +76,20 @@ class MPVPlugin(RenderPlugin):
             self.render.sendCommand(['loadfile', uri, 'replace'])
             self.bus.unsubscribe('mpvipc_start', loadfile)
 
+        def resatrt():
+            self.render.stop()
+            self.render.start()
+
         if self.render.getState('TransportState') == 'PLAYING':
             self.bus.subscribe('mpvipc_start', loadfile)
-        self.render.stop()
-        self.render.start()
+
+        threading.Thread(target=resatrt, args=()).start()
 
 
 class SSDPPlugin(plugins.SimplePlugin):
     """Run a background SSDP thread
     """
+
     def __init__(self, bus):
         logger.info('Initializing SSDPPlugin')
         super(SSDPPlugin, self).__init__(bus)
