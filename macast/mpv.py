@@ -191,6 +191,7 @@ class Render():
         self.eventSubcribes = {}  # subscribe devices
         self.stateQueue = Queue()  # states needed be send to subscribe devices
         self.removedDeviceQueue = Queue()  # devices needed be removed
+        self.appendDeviceQueue = Queue()  # devices needed be added
         self._buildAction('AVTransport', self.av_transport)
         self._buildAction('RenderingControl', self.rendering_control)
         self._buildAction('ConnectionManager', self.conection_manager)
@@ -221,7 +222,7 @@ class Render():
                 }
         logger.error("SUBSCRIBE ADD")
         client = ObserveClient(service, url, timeout)
-        self.eventSubcribes[client.sid] = client
+        self.appendDeviceQueue.put(client)
         threading.Thread(target=self._sendInitEvent,
                          kwargs={
                              'service': service,
@@ -265,6 +266,11 @@ class Render():
             logger.info("Remove client: {}".format(sid))
             del self.eventSubcribes[sid]
             self.removedDeviceQueue.task_done()
+        # add clients
+        while not self.appendDeviceQueue.empty():
+            client = self.appendDeviceQueue.get()
+            self.eventSubcribes[client.sid] = client
+            self.appendDeviceQueue.task_done()
         # send stateChangeList to client
         for sid in self.eventSubcribes:
             client = self.eventSubcribes[sid]
