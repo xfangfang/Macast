@@ -33,12 +33,12 @@ class Macast(App):
         self.thread = None
         self.running = False
         Setting.load()
-        self.startCast()
         self.initSetting()
         super(Macast, self).__init__("Macast",
                                      Setting.getPath('assets/menu_light.png'),
                                      self.buildAppMenu()
                                      )
+        self.startCast()
         logger.debug("Macast APP started")
 
     def buildAppMenu(self):
@@ -152,12 +152,14 @@ class Macast(App):
             if item.checked:
                 # Default Hardware Decode
                 Setting.set(SettingProperty.PlayerHW, 1)
-                self.playerHWItem.items()[1].enabled = True
+                if sys.platform == 'darwin':
+                    self.playerHWItem.items()[1].enabled = True
             else:
                 # Software Decode
                 Setting.set(SettingProperty.PlayerHW, 0)
-                self.playerHWItem.items()[1].checked = False
-                self.playerHWItem.items()[1].enabled = False
+                if sys.platform == 'darwin':
+                    self.playerHWItem.items()[1].checked = False
+                    self.playerHWItem.items()[1].enabled = False
         elif item.checked:
             # Force Dedicated GPU
             Setting.set(SettingProperty.PlayerHW, 2)

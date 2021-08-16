@@ -764,11 +764,11 @@ class MPVRender(Render):
                     '--on-all-workspaces',
                     '--macos-app-activation-policy=accessory',
                 ]
-                hw = Setting.get(SettingProperty.PlayerHW, default=1)
-                if hw == 0:
-                    params.remove('--hwdec=yes')
-                elif hw == 2:
-                    params.append('--macos-force-dedicated-gpu=yes')
+            hw = Setting.get(SettingProperty.PlayerHW, default=1)
+            if hw == 0:
+                params.remove('--hwdec=yes')
+            elif hw == 2:
+                params.append('--macos-force-dedicated-gpu=yes')
             logger.error("MPV started")
             cherrypy.engine.publish('mpv_start')
             self.proc = subprocess.run(
