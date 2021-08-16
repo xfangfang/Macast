@@ -7,6 +7,7 @@ import subprocess
 import threading
 from abc import abstractmethod
 from enum import Enum
+from .utils import Setting
 
 if sys.platform == 'darwin':
     import rumps
