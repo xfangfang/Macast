@@ -3,34 +3,35 @@
 # Macast
 
 [![visitor](https://visitor-badge.glitch.me/badge?page_id=xfangfang.Macast)](https://github.com/xfangfang/Macast/releases/latest)
-[![downloads](https://img.shields.io/github/downloads/xfangfang/Macast/total?color=blue)](https://github.com/xfangfang/Macast/releases/latest)
 [![build](https://img.shields.io/github/workflow/status/xfangfang/Macast/Build%20Macast)](https://github.com/xfangfang/Macast/actions/workflows/build-macast.yaml)
 [![mac](https://img.shields.io/badge/MacOS-10.15%20and%20higher-lightgrey?logo=Apple)](https://github.com/xfangfang/Macast/releases/latest)
 [![windows](https://img.shields.io/badge/Windows-10-lightgrey?logo=Windows)](https://github.com/xfangfang/Macast/releases/latest)
 [![linux](https://img.shields.io/badge/Linux-Xorg-lightgrey?logo=Linux)](https://github.com/xfangfang/Macast/releases/latest)
 
-[中文说明](README_ZH.md)
+[README](README.md)
 
-A menu bar application using mpv as **DLNA Media Renderer**. You can push videos, pictures or musics from your mobile phone to your computer.
+Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以使用电脑接收发送自手机的视频、图片和音乐。支持主流视频音乐软件和其他任何符合DLNA协议的投屏软件.
 
 
-## Installation
+## 安装
+
+进入页面选择对应的操作系统下载即可。
 
 - ### MacOS || Windows || Debian
 
-Download link:  [Macast release latest](https://github.com/xfangfang/Macast/releases/latest)
+下载地址:  [Macast 最新发布](https://gitee.com/xfangfang/Macast/releases/)
 
-- ### Build from source
+- ### 从源码构建
 
-Please refer to: [Macast Development](docs/Development.md)
-
-
-## Usage
-
-After opening this app, a small icon will appear in the menu bar, then you can push video from a local DLNA client to your computer.
+请参阅: [Macast Development](docs/Development.md)
 
 
-## Relevant links
+## 使用方法
+
+打开应用后，**菜单栏\状态栏** 会出现一个图标，这时你的设备就可以接收来自同一局域网的DLNA投放了。
+
+
+## 相关链接
 
 [UPnP™ Device Architecture 1.1](http://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf)
 
