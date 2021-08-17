@@ -72,6 +72,7 @@ jobs:
       run: |
         pip3 install -r requirements/common.txt
         pip3 install pyinstaller
+        sudo apt update
         sudo apt install -y gettext libgtk-3-dev
 
     - name: Build
