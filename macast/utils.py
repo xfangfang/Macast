@@ -32,6 +32,7 @@ class SettingProperty(Enum):
     PlayerPosition = 3
     CheckUpdate = 4
     StartAtLogin = 5
+    MenubarIcon = 6
 
 
 class Setting:

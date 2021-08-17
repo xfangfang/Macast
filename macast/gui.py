@@ -97,12 +97,13 @@ class MenuItem():
 
 
 class App():
-    def __init__(self, name, icon, menu):
+    def __init__(self, name, icon, menu, template=True):
         self.name = name
         self.icon = icon
         self.app = None
         self.menu = menu
         self.menuDict = {}
+        self.template = template
         if sys.platform == 'darwin':
             self.platform = Platform.Darwin
             self.initPlatformDarwin()
@@ -117,7 +118,7 @@ class App():
             self.app = rumps.App(self.name,
                                  icon=self.icon,
                                  menu=self._buildMenuRumps(self.menu),
-                                 template=True,
+                                 template=self.template,
                                  quit_button=None)
             rumps.debug_mode(True)
         else:
@@ -177,6 +178,14 @@ class App():
                 menuItem.view = item
                 items.append(menuItem)
         return items
+
+    def updateIcon(self, icon, template=True):
+        self.icon = icon
+        if self.platform == Platform.Darwin:
+            self.app.template = template
+            self.app.icon = self.icon
+        else:
+            self.app.icon = Image.open(self.icon)
 
     def _findMenuItemIndexByID(self, id):
         #  TODO find all items

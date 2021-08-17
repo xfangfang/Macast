@@ -29,14 +29,21 @@ except Exception as e:
 
 
 class Macast(App):
+    ICON_MAP = ['assets/icon.png',
+                'assets/menu_light.png',
+                'assets/menu_dark.png']
+
     def __init__(self):
         self.thread = None
         self.running = False
         Setting.load()
         self.initSetting()
+        icon_path = Setting.getPath(Macast.ICON_MAP[self.setting_menubar_icon])
+        template = None if self.setting_menubar_icon == 0 else True
         super(Macast, self).__init__("Macast",
-                                     Setting.getPath('assets/menu_light.png'),
-                                     self.buildAppMenu()
+                                     icon_path,
+                                     self.buildAppMenu(),
+                                     template
                                      )
         self.startCast()
         logger.debug("Macast APP started")
@@ -70,6 +77,18 @@ class Macast(App):
             # Reset StartAtLogin to prevent the user from turning off
             # this option from the system settings
             Setting.setStartAtLogin(self.setting_start_at_login)
+            self.menubarIconItem = MenuItem(_("Menubar Icon"),
+                                            children=self._buildMenuItemGroup([
+                                                _("AppIcon"),
+                                                _("Pattern"),
+                                            ], self.menubarIcon))
+        else:
+            self.menubarIconItem = MenuItem(_("Menubar Icon"),
+                                            children=self._buildMenuItemGroup([
+                                                _("AppIcon"),
+                                                _("PatternLight"),
+                                                _("PatternDark"),
+                                            ], self.menubarIcon))
         self.playerPositionItem = MenuItem(_("Player Position"),
                                            children=self._buildMenuItemGroup([
                                                _("LeftTop"),
@@ -94,6 +113,8 @@ class Macast(App):
             self.setting_player_position].checked = True
         self.playerSizeItem.items()[
             self.setting_player_size].checked = True
+        self.menubarIconItem.items()[
+            self.setting_menubar_icon].checked = True
         if sys.platform == 'darwin':
             self.playerHWItem = MenuItem(_("Hardware Decode"),
                                          children=self._buildMenuItemGroup([
@@ -119,6 +140,7 @@ class Macast(App):
             None,
             self.playerPositionItem,
             self.playerSizeItem,
+            self.menubarIconItem,
             self.playerHWItem,
             None,
             self.autoCheckUpdateItem,
@@ -134,6 +156,18 @@ class Macast(App):
             item = MenuItem(title, callback, data=index)
             items.append(item)
         return items
+
+    def menubarIcon(self, item):
+        for i in self.menubarIconItem.items():
+            i.checked = False
+        item.checked = True
+        Setting.set(SettingProperty.MenubarIcon, item.data)
+        if item.data == 0:
+            self.updateIcon(Setting.getPath('assets/icon.png'), None)
+        elif item.data == 1:
+            self.updateIcon(Setting.getPath('assets/menu_light.png'))
+        elif item.data == 2:
+            self.updateIcon(Setting.getPath('assets/menu_dark.png'))
 
     def playerPosition(self, item):
         for i in self.playerPositionItem.items():
@@ -200,6 +234,8 @@ class Macast(App):
             SettingProperty.PlayerPosition, 2)
         self.setting_player_hw = Setting.get(
             SettingProperty.PlayerHW, 1)
+        self.setting_menubar_icon = Setting.get(
+            SettingProperty.MenubarIcon, 1 if sys.platform == 'darwin' else 0)
         if self.setting_check:
             threading.Thread(target=self.checkUpdate,
                              kwargs={
