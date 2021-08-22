@@ -84,7 +84,9 @@ Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以使用�
 
 当然也可以考虑捐赠 ~~获得贵宾售后服务（开玩笑）~~ 支持Macast和他的开发者们为了这个软件熬过的日日夜夜
 
-<img align="center" width="256" src="sponsorships.png" alt="sponsorships" height="auto"/>
+<img align="center" width="400" src="sponsorships.png" alt="sponsorships" height="auto"/>
+
+<img align="center" width="400" src="https://service-65diwogz-1252652631.bj.apigw.tencentcs.com/release/sponsor.svg" alt="sponsors" height="auto"/>
 
 ## 相关链接
 
