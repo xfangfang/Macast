@@ -58,12 +58,12 @@ class SSDPServer:
         if hasattr(socket, "SO_REUSEPORT"):
             try:
                 self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-            except socket.error as le:
-                # RHEL6 defines SO_REUSEPORT but it doesn't work
-                if le.errno == ENOPROTOOPT:
-                    pass
-                else:
-                    raise
+                logger.debug("SSDP set SO_REUSEPORT")
+            except socket.error as e:
+                logger.error("SSDP cannot set SO_REUSEPORT")
+                logger.error(str(e))
+        else:
+            logger.error("SSDP cannot set SO_REUSEPORT")
 
         addr = socket.inet_aton(SSDP_ADDR)
         interface = socket.inet_aton('0.0.0.0')
@@ -80,6 +80,7 @@ class SSDPServer:
                 continue
         self.shutdown()
         self.sock.close()
+        self.sock = None
 
     def shutdown(self):
         for st in self.known:
@@ -95,9 +96,11 @@ class SSDPServer:
         (host, port) = host_port
 
         try:
-            header, payload = data.decode().split('\r\n\r\n')[:2]
+            header = data.decode().split('\r\n\r\n')[0]
         except ValueError as err:
             logger.error(err)
+            return
+        if len(header) == 0:
             return
 
         lines = header.split('\r\n')
@@ -111,13 +114,15 @@ class SSDPServer:
         if cmd[0] != 'NOTIFY':
             logger.info('SSDP command %s %s - from %s:%d' %
                         (cmd[0], cmd[1], host, port))
-        logger.debug('with headers: {}.'.format(headers))
         if cmd[0] == 'M-SEARCH' and cmd[1] == '*':
             # SSDP discovery
+            logger.debug('M-SEARCH *')
+            logger.debug(data)
             self.discovery_request(headers, (host, port))
         elif cmd[0] == 'NOTIFY' and cmd[1] == '*':
             # SSDP presence
-            logger.debug('NOTIFY *')
+            # logger.debug('NOTIFY *')
+            pass
         else:
             logger.warning('Unknown SSDP command %s %s' % (cmd[0], cmd[1]))
 
@@ -136,7 +141,6 @@ class SSDPServer:
         self.known[usn]['EXT'] = ''
         self.known[usn]['SERVER'] = server
         self.known[usn]['CACHE-CONTROL'] = cache_control
-
         self.known[usn]['MANIFESTATION'] = manifestation
         self.known[usn]['SILENT'] = silent
         self.known[usn]['HOST'] = host
@@ -155,6 +159,7 @@ class SSDPServer:
     def send_it(self, response, destination, delay, usn):
         logger.debug('send discovery response delayed by %ds for %s to %r' %
                      (delay, usn, destination))
+        logger.debug(response)
         try:
             self.sock.sendto(response.encode(), destination)
         except (AttributeError, socket.error) as msg:
@@ -168,8 +173,6 @@ class SSDPServer:
 
         logger.info('Discovery request from (%s,%d) for %s' % (host, port,
                                                                headers['st']))
-        logger.info('Discovery request for %s' % headers['st'])
-
         # Do we know about this service?
         for i in self.known.values():
             if i['MANIFESTATION'] == 'remote':
@@ -219,9 +222,9 @@ class SSDPServer:
 
         resp.extend(map(lambda x: ': '.join(x), stcpy.items()))
         resp.extend(('', ''))
-        logger.debug('do_notify content')
-        logger.debug(resp)
         try:
+            self.sock.sendto('\r\n'.join(resp).encode(),
+                             (SSDP_ADDR, SSDP_PORT))
             self.sock.sendto('\r\n'.join(resp).encode(),
                              (SSDP_ADDR, SSDP_PORT))
         except (AttributeError, socket.error) as msg:
@@ -247,8 +250,6 @@ class SSDPServer:
             del stcpy['last-seen']
             resp.extend(map(lambda x: ': '.join(x), stcpy.items()))
             resp.extend(('', ''))
-            logger.debug('do_byebye content')
-            logger.debug(resp)
             if self.sock:
                 try:
                     self.sock.sendto('\r\n'.join(resp).encode(),
