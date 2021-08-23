@@ -19,10 +19,13 @@ on:
         description: 'Push a new release'
         required: false
         default: 'false'
+      branch:
+        description: 'Choose a branch to build'
+        required: false
+        default: 'main'
 
 env:
   REPO_URL: https://github.com/xfangfang/Macast
-  REPO_BRANCH: main
 
 jobs:
   release:
@@ -33,6 +36,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'xfangfang/Macast'
+          ref: ${{ github.event.inputs.branch }}
 
       - uses: actions/download-artifact@v2
 
@@ -44,8 +48,8 @@ jobs:
           echo "DIST_DMG=Macast-v${VERSION}.dmg" >> $GITHUB_ENV
           echo "DIST_EXE=Macast-v${VERSION}.exe" >> $GITHUB_ENV
           echo "DIST_EXE_DEBUG=Macast-v${VERSION}-debug.exe" >> $GITHUB_ENV
-          echo "DIST_AMD64=Macast-v${VERSION}-amd64" >> $GITHUB_ENV
-          echo "DIST_AMD64_DEB=Macast-v${VERSION}-amd64.deb" >> $GITHUB_ENV
+          echo "DIST_AMD64=Macast-Linux-v${VERSION}-amd64" >> $GITHUB_ENV
+          echo "DIST_AMD64_DEB=Macast-Linux-v${VERSION}-amd64.deb" >> $GITHUB_ENV
           echo $GITHUB_ENV
 
       - name: Upload
@@ -61,27 +65,29 @@ jobs:
           artifacts: ${{ env.DIST_DMG }}/${{ env.DIST_DMG }},${{ env.DIST_EXE }}/${{ env.DIST_EXE }},${{ env.DIST_EXE_DEBUG }}/${{ env.DIST_EXE_DEBUG }},${{ env.DIST_AMD64 }}/${{ env.DIST_AMD64 }},${{ env.DIST_AMD64_DEB }}/${{ env.DIST_AMD64_DEB }}
 
   build-amd64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
     - name: Checkout
       uses: actions/checkout@v2
       with:
         repository: 'xfangfang/Macast'
+        ref: ${{ github.event.inputs.branch }}
 
     - name: Install Requirement
       run: |
+        sudo apt update
+        sudo apt install -y gettext libgtk-3-dev python3-setuptools
+        pip3 install --upgrade pip
         pip3 install -r requirements/common.txt
         pip3 install pyinstaller
-        sudo apt update
-        sudo apt install -y gettext libgtk-3-dev
 
     - name: Build
       id: compile
       run: |
         msgfmt -o i18n/zh_CN/LC_MESSAGES/macast.mo i18n/zh_CN/LC_MESSAGES/macast.po
         export VERSION=`cat .version`
-        export DIST_AMD64_DEB=Macast-v${VERSION}-amd64.deb
-        export DIST_AMD64=Macast-v${VERSION}-amd64
+        export DIST_AMD64_DEB=Macast-Linux-v${VERSION}-amd64.deb
+        export DIST_AMD64=Macast-Linux-v${VERSION}-amd64
         echo "DIST_AMD64_DEB=${DIST_AMD64_DEB}" >> $GITHUB_ENV
         echo "DIST_AMD64=${DIST_AMD64}" >> $GITHUB_ENV
         echo "VERSION=v$VERSION" >> $GITHUB_ENV
@@ -127,6 +133,7 @@ jobs:
       uses: actions/checkout@v2
       with:
         repository: 'xfangfang/Macast'
+        ref: ${{ github.event.inputs.branch }}
 
     - name: Install Requirement
       run: |
@@ -173,6 +180,7 @@ jobs:
       uses: actions/checkout@v2
       with:
         repository: 'xfangfang/Macast'
+        ref: ${{ github.event.inputs.branch }}
 
     - name: install create-dmg
       run: brew install create-dmg
