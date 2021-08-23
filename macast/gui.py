@@ -251,7 +251,7 @@ class App():
             except NotImplementedError as e:
                 pass
 
-    def dialog(self, content, callback, cancel="Cancel", ok="Ok"):
+    def dialog(self, content, callback=None, cancel="Cancel", ok="Ok"):
         if self.platform == Platform.Darwin:
             try:
                 res = Setting.systemShell(
@@ -260,13 +260,14 @@ class App():
                      'display dialog "{}" buttons {{"{}","{}"}}'.format(
                          content, cancel, ok)
                      ])
-                if ok in res[1]:
+                if ok in res[1] and callback:
                     callback()
             except Exception as e:
                 self.notification("Error", "Cannot access System Events")
         else:
             self.notification("Macast", content)
-            callback()
+            if callback:
+                callback()
 
     def openBrowser(self, url):
         if self.platform == Platform.Darwin:
