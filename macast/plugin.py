@@ -120,7 +120,9 @@ class SSDPPlugin(plugins.SimplePlugin):
         for device in self.devices:
             self.ssdp.register('local', device,
                                device[43:] if device[43:] != '' else device,
-                               'http://{}:{}/description.xml'.format(ip, PORT))
+                               'http://{}:{}/description.xml'.format(ip, PORT),
+                                Setting.getServerInfo(),
+                               'max-age=66')
 
     def unregister(self):
         """unregister device

@@ -228,6 +228,12 @@ class Setting:
             Setting.base_path = os.getcwd()
         return os.path.join(Setting.base_path, path)
 
+    @staticmethod
+    def getServerInfo():
+        return '{}/{} UPnP/1.0 Macast/{}'.format(Setting.getSystem(),
+                                                Setting.getSystemVersion(),
+                                                Setting.getVersion())
+
 
 class XMLPath(Enum):
     BASE_PATH = Setting.getPath(os.path.dirname(__file__))

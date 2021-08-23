@@ -74,9 +74,7 @@ class ObserveClient():
         headers = {"NT": "upnp:event",
                    "NTS": "upnp:propchange",
                    "CONTENT-TYPE": 'text/xml; charset="utf-8"',
-                   "SERVER": "{}/{} UPnP/1.0 Macast/{}".format(
-                       Setting.getSystem(), Setting.getSystemVersion(),
-                       Setting.getVersion()),
+                   "SERVER": Setting.getServerInfo(),
                    "SID": self.sid,
                    "SEQ": self.seq,
                    "TIMEOUT": "Second-{}".format(self.timeout)

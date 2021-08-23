@@ -138,10 +138,7 @@ def run():
             True,
             'tools.response_headers.headers':
             [('Content-Type', 'text/xml; charset="utf-8"'),
-             ('Server',
-              '{}/{} UPnP/1.0 Macast/{}'.format(Setting.getSystem(),
-                                                Setting.getSystemVersion(),
-                                                Setting.getVersion()))],
+             ('Server', Setting.getServerInfo())],
         }
     }
     cherrypy.quickstart(DLNAHandler(), '/', config=cherrypy_config)
