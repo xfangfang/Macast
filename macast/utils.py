@@ -6,24 +6,19 @@ import socket
 import uuid
 import json
 import ctypes
+import appdirs
 import logging
 import platform
 import locale
 import subprocess
 from enum import Enum
+if sys.platform == 'darwin':
+    from AppKit import NSBundle
 
 logger = logging.getLogger("Utils")
 PORT = 1068
 
-if sys.platform == 'darwin':
-    from AppKit import NSBundle
-    SETTING_DIR = os.path.join(os.environ['HOME'],
-                               'Library/Application Support/Macast')
-elif sys.platform == 'win32':
-    SETTING_DIR = 'C:\\ProgramData\\Macast'
-else:
-    SETTING_DIR = os.getcwd()
-
+SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
 
 class SettingProperty(Enum):
     USN = 0
