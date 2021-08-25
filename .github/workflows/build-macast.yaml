@@ -4,7 +4,7 @@
 name: Build Macast
 
 on:
-  repository_dispatch:
+  pull_request:
   workflow_dispatch:
     inputs:
       ssh_darwin:
@@ -19,13 +19,6 @@ on:
         description: 'Push a new release'
         required: false
         default: 'false'
-      branch:
-        description: 'Choose a branch to build'
-        required: false
-        default: 'main'
-
-env:
-  REPO_URL: https://github.com/xfangfang/Macast
 
 jobs:
   release:
@@ -34,9 +27,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-        with:
-          repository: 'xfangfang/Macast'
-          ref: ${{ github.event.inputs.branch }}
 
       - uses: actions/download-artifact@v2
 
@@ -45,9 +35,9 @@ jobs:
           ls -R
           export VERSION=`cat .version`
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
-          echo "DIST_DMG=Macast-v${VERSION}.dmg" >> $GITHUB_ENV
-          echo "DIST_EXE=Macast-v${VERSION}.exe" >> $GITHUB_ENV
-          echo "DIST_EXE_DEBUG=Macast-v${VERSION}-debug.exe" >> $GITHUB_ENV
+          echo "DIST_DMG=Macast-MacOS-v${VERSION}.dmg" >> $GITHUB_ENV
+          echo "DIST_EXE=Macast-Windows-v${VERSION}.exe" >> $GITHUB_ENV
+          echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" >> $GITHUB_ENV
           echo "DIST_AMD64=Macast-Linux-v${VERSION}-amd64" >> $GITHUB_ENV
           echo "DIST_AMD64_DEB=Macast-Linux-v${VERSION}-amd64.deb" >> $GITHUB_ENV
           echo $GITHUB_ENV
@@ -69,9 +59,6 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-      with:
-        repository: 'xfangfang/Macast'
-        ref: ${{ github.event.inputs.branch }}
 
     - name: Install Requirement
       run: |
@@ -131,9 +118,6 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-      with:
-        repository: 'xfangfang/Macast'
-        ref: ${{ github.event.inputs.branch }}
 
     - name: Install Requirement
       run: |
@@ -150,8 +134,8 @@ jobs:
       run: |
         ./gettext/bin/msgfmt -o i18n/zh_CN/LC_MESSAGES/macast.mo i18n/zh_CN/LC_MESSAGES/macast.po
         $VERSION=cat .version
-        echo "DIST_EXE=Macast-v${VERSION}.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        echo "DIST_EXE_DEBUG=Macast-v${VERSION}-debug.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "DIST_EXE=Macast-Windows-v${VERSION}.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "VERSION=v${VERSION}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         pyinstaller --noconfirm -F -w --additional-hooks-dir=. --add-data=".version;." --add-data="macast/xml/*;macast/xml"  --add-data="i18n/zh_CN/LC_MESSAGES/*.mo;i18n/zh_CN/LC_MESSAGES" --add-data="assets/*;assets" --add-binary="bin/mpv.exe;bin" --icon=assets/icon.ico Macast.py
         cp dist/Macast.exe Macast-v${VERSION}.exe
@@ -178,9 +162,6 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-      with:
-        repository: 'xfangfang/Macast'
-        ref: ${{ github.event.inputs.branch }}
 
     - name: install create-dmg
       run: brew install create-dmg
@@ -196,7 +177,7 @@ jobs:
         python3 setup.py py2app
         cp -R bin dist/Macast.app/Contents/Resources/
         export VERSION=`cat .version`
-        echo "DIST_DMG=Macast-v${VERSION}.dmg" >> $GITHUB_ENV
+        echo "DIST_DMG=Macast-MacOS-v${VERSION}.dmg" >> $GITHUB_ENV
         echo "VERSION=v$VERSION" >> $GITHUB_ENV
         create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --hide-extension "Macast.app" --app-drop-link 600 185  --volname "Macast-v${VERSION} Installer" Macast-v${VERSION}.dmg "dist/"
         echo "::set-output name=status::success"
