@@ -138,9 +138,9 @@ jobs:
         echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "VERSION=v${VERSION}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         pyinstaller --noconfirm -F -w --additional-hooks-dir=. --add-data=".version;." --add-data="macast/xml/*;macast/xml"  --add-data="i18n/zh_CN/LC_MESSAGES/*.mo;i18n/zh_CN/LC_MESSAGES" --add-data="assets/*;assets" --add-binary="bin/mpv.exe;bin" --icon=assets/icon.ico Macast.py
-        cp dist/Macast.exe Macast-v${VERSION}.exe
+        cp dist/Macast.exe Macast-Windows-v${VERSION}.exe
         pyinstaller --noconfirm -F --additional-hooks-dir=. --add-data=".version;." --add-data="macast/xml/*;macast/xml"  --add-data="i18n/zh_CN/LC_MESSAGES/*.mo;i18n/zh_CN/LC_MESSAGES" --add-data="assets/*;assets" --add-binary="bin/mpv.exe;bin" --icon=assets/icon.ico Macast.py
-        cp dist/Macast.exe Macast-v${VERSION}-debug.exe
+        cp dist/Macast.exe Macast-Windows-v${VERSION}-debug.exe
         echo "::set-output name=status::success"
 
     - name: Upload dist
@@ -179,7 +179,7 @@ jobs:
         export VERSION=`cat .version`
         echo "DIST_DMG=Macast-MacOS-v${VERSION}.dmg" >> $GITHUB_ENV
         echo "VERSION=v$VERSION" >> $GITHUB_ENV
-        create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --hide-extension "Macast.app" --app-drop-link 600 185  --volname "Macast-v${VERSION} Installer" Macast-v${VERSION}.dmg "dist/"
+        create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --hide-extension "Macast.app" --app-drop-link 600 185  --volname "Macast-v${VERSION} Installer" Macast-MacOS-v${VERSION}.dmg "dist/"
         echo "::set-output name=status::success"
 
     - name: SSH connection to Actions

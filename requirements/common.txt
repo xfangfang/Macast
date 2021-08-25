@@ -4,4 +4,4 @@ lxml
 requests
 pystray
 pillow
-pyperclip
+git+https://github.com/xfangfang/pyperclip.git
