@@ -779,7 +779,8 @@ class MPVRender(Render):
                 params,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                stdin=subprocess.PIPE)
+                stdin=subprocess.PIPE,
+                env=Setting.getSystemEnv())
 
             logger.error("MPV stopped")
             if self.running and not self.ipc_once_connected:

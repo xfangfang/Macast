@@ -20,6 +20,7 @@ PORT = 1068
 
 SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
 
+
 class SettingProperty(Enum):
     USN = 0
     PlayerHW = 1
@@ -138,7 +139,10 @@ class Setting:
             windll = ctypes.windll.kernel32
             lang = locale.windows_locale[windll.GetUserDefaultUILanguage()]
         else:
-            lang = os.environ['LANG'].split('.')[0]
+            if os.environ.get('LANGUAGE') is None:
+                lang = os.environ['LANG'].split('.')[0]
+            else:
+                lang = os.environ.get('LANGUAGE').split(':')[0]
         return lang
 
     @staticmethod
@@ -214,20 +218,36 @@ class Setting:
     def getPath(path="."):
         """PyInstaller creates a temp folder and stores path in _MEIPASS
             https://stackoverflow.com/a/13790741
+            see also: https://pyinstaller.readthedocs.io/en/stable/\
+                runtime-information.html#run-time-information
         """
         if Setting.base_path is not None:
             return os.path.join(Setting.base_path, path)
-        try:
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
             Setting.base_path = sys._MEIPASS
-        except Exception:
+        else:
             Setting.base_path = os.getcwd()
         return os.path.join(Setting.base_path, path)
 
     @staticmethod
     def getServerInfo():
         return '{}/{} UPnP/1.0 Macast/{}'.format(Setting.getSystem(),
-                                                Setting.getSystemVersion(),
-                                                Setting.getVersion())
+                                                 Setting.getSystemVersion(),
+                                                 Setting.getVersion())
+
+    @staticmethod
+    def getSystemEnv():
+        # Get system env(for GNU/Linux and *BSD).
+        # https://pyinstaller.readthedocs.io/en/stable/runtime-information.html#run-time-information
+        env = dict(os.environ)
+        logger.debug(env)
+        lp_key = 'LD_LIBRARY_PATH'
+        lp_orig = env.get(lp_key + '_ORIG')
+        if lp_orig is not None:
+            env[lp_key] = lp_orig
+        else:
+            env.pop(lp_key, None)
+        return env
 
 
 class XMLPath(Enum):

@@ -1,7 +1,7 @@
 appdirs
 cherrypy
 lxml
-requests
-pystray
 pillow
+requests
+git+https://github.com/xfangfang/pystray.git
 git+https://github.com/xfangfang/pyperclip.git
