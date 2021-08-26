@@ -29,9 +29,14 @@ except Exception as e:
 
 
 class Macast(App):
-    ICON_MAP = ['assets/icon.png',
-                'assets/menu_light.png',
-                'assets/menu_dark.png']
+    if sys.platform == 'linux':
+        ICON_MAP = ['assets/icon.png',
+                    'assets/menu_light_large.png',
+                    'assets/menu_dark_large.png']
+    else:
+        ICON_MAP = ['assets/icon.png',
+                    'assets/menu_light.png',
+                    'assets/menu_dark.png']
 
     def __init__(self):
         self.thread = None
@@ -162,12 +167,9 @@ class Macast(App):
             i.checked = False
         item.checked = True
         Setting.set(SettingProperty.MenubarIcon, item.data)
-        if item.data == 0:
-            self.updateIcon(Setting.getPath('assets/icon.png'), None)
-        elif item.data == 1:
-            self.updateIcon(Setting.getPath('assets/menu_light.png'))
-        elif item.data == 2:
-            self.updateIcon(Setting.getPath('assets/menu_dark.png'))
+        icon_path = Setting.getPath(Macast.ICON_MAP[item.data])
+        template = None if item.data == 0 else True
+        self.updateIcon(icon_path, template)
 
     def playerPosition(self, item):
         for i in self.playerPositionItem.items():
