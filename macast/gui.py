@@ -271,9 +271,17 @@ class App():
 
     def openBrowser(self, url):
         if self.platform == Platform.Darwin:
-            subprocess.run(['open', url])
-        else:
+            subprocess.Popen(['open', url])
+        elif self.platform == Platform.Win32:
             webbrowser.open(url)
+        else:
+            try:
+                subprocess.Popen("sensible-browser {}".format(url),
+                                 shell=True,
+                                 env=Setting.getSystemEnv())
+            except Exception as e:
+                logger.error(e)
+                webbrowser.open(url)
 
 
 if __name__ == '__main__':
