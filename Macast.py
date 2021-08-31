@@ -12,7 +12,7 @@ import requests
 import threading
 
 import macast
-from macast import App, MenuItem, Setting, SettingProperty
+from macast import App, MenuItem, Setting, SettingProperty, Platform
 
 logger = logging.getLogger("Macast")
 logger.setLevel(logging.DEBUG)
@@ -266,8 +266,8 @@ class Macast(App):
         macast.stop()
         self.thread.join()
         self.running = False
+        cherrypy.engine.unsubscribe('start', self.backend_start)
         cherrypy.engine.unsubscribe('mpv_error', self.mpv_error)
-        cherrypy.engine.unsubscribe('mpv_start', self.mpv_start)
         cherrypy.engine.unsubscribe('mpv_av_stop', self.mpv_av_stop)
         cherrypy.engine.unsubscribe('mpv_av_uri', self.mpv_av_uri)
         cherrypy.engine.unsubscribe('ssdp_updateip', self.mpv_av_uri)
@@ -279,15 +279,21 @@ class Macast(App):
         self.thread = threading.Thread(target=macast.run, args=())
         self.thread.start()
         self.running = True
+        cherrypy.engine.subscribe('start', self.backend_start)
         cherrypy.engine.subscribe('mpv_error', self.mpv_error)
-        cherrypy.engine.subscribe('mpv_start', self.mpv_start)
         cherrypy.engine.subscribe('mpv_av_stop', self.mpv_av_stop)
         cherrypy.engine.subscribe('mpv_av_uri', self.mpv_av_uri)
         cherrypy.engine.subscribe('ssdp_updateip', self.ssdp_updateip)
         cherrypy.engine.subscribe('app_notify', self.notification)
 
-    def mpv_start(self):
-        logger.debug("mpv_start")
+    def backend_start(self):
+        if self.platform is Platform.Win32:
+            msg = _("running at task bar")
+        elif self.platform is Platform.Darwin:
+            msg = _("running at menu bar")
+        else:
+            msg = _("running at desktop panel")
+        self.notification(_("Macast is hidden"), msg, sound=False)
 
     def ssdp_updateip(self):
         logger.debug("ssdp_updateip")
