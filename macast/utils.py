@@ -130,7 +130,6 @@ class Setting:
         """Get the language settings of the system
         Default: en_US
         """
-        lang = 'en_US'
         if sys.platform == 'darwin':
             lang = subprocess.check_output(
                 ["osascript", "-e",
@@ -139,10 +138,12 @@ class Setting:
             windll = ctypes.windll.kernel32
             lang = locale.windows_locale[windll.GetUserDefaultUILanguage()]
         else:
-            if os.environ.get('LANGUAGE') is None:
-                lang = os.environ['LANG'].split('.')[0]
-            else:
-                lang = os.environ.get('LANGUAGE').split(':')[0]
+            lang = os.environ.get('LANGUAGE')
+            if lang is None:
+                lang = os.environ['LANG']
+            if lang is None:
+                return 'en_US'
+            lang = lang.split(':')[0].split('.')[0]
         return lang
 
     @staticmethod
