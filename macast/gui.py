@@ -181,6 +181,10 @@ class App:
         else:
             self.app.icon = Image.open(self.icon)
 
+    def update_menu(self):
+        if self.platform != Platform.Darwin:
+            self.app.update_menu()
+
     def _find_menu_item_index_by_id(self, id):
         #  TODO find all items
         for i, item in enumerate(self.menu):

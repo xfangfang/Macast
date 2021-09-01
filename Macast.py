@@ -68,6 +68,13 @@ class Macast(App):
                                      self.build_app_menu(),
                                      template
                                      )
+        cherrypy.engine.subscribe('start', self.service_start)
+        cherrypy.engine.subscribe('stop', self.service_stop)
+        cherrypy.engine.subscribe('renderer_start', self.renderer_start)
+        cherrypy.engine.subscribe('renderer_av_stop', self.renderer_av_stop)
+        cherrypy.engine.subscribe('renderer_av_uri', self.renderer_av_uri)
+        cherrypy.engine.subscribe('ssdp_update_ip', self.ssdp_update_ip)
+        cherrypy.engine.subscribe('app_notify', self.notification)
         self.start_cast()
         logger.debug("Macast APP started")
 
@@ -148,26 +155,12 @@ class Macast(App):
     def stop_cast(self):
         self.dlna_service.stop()
         self.thread.join()
-        cherrypy.engine.unsubscribe('start', self.service_start)
-        cherrypy.engine.unsubscribe('stop', self.service_stop)
-        cherrypy.engine.unsubscribe('renderer_start', self.renderer_start)
-        cherrypy.engine.unsubscribe('renderer_av_stop', self.renderer_av_stop)
-        cherrypy.engine.unsubscribe('renderer_av_uri', self.renderer_av_uri)
-        cherrypy.engine.unsubscribe('ssdp_update_ip', self.ssdp_update_ip)
-        cherrypy.engine.unsubscribe('app_notify', self.notification)
 
     def start_cast(self):
         if Setting.is_service_running():
             return
         self.thread = threading.Thread(target=self.dlna_service.run, name="DLNA_SERVICE_THREAD")
         self.thread.start()
-        cherrypy.engine.subscribe('start', self.service_start)
-        cherrypy.engine.subscribe('stop', self.service_stop)
-        cherrypy.engine.subscribe('renderer_start', self.renderer_start)
-        cherrypy.engine.subscribe('renderer_av_stop', self.renderer_av_stop)
-        cherrypy.engine.subscribe('renderer_av_uri', self.renderer_av_uri)
-        cherrypy.engine.subscribe('ssdp_update_ip', self.ssdp_update_ip)
-        cherrypy.engine.subscribe('app_notify', self.notification)
 
     def check_update(self, verbose=True):
         release_url = 'https://github.com/xfangfang/Macast/releases/latest'
@@ -195,6 +188,7 @@ class Macast(App):
             self.toggle_menuitem.text = _('Stop Cast')
         else:
             self.toggle_menuitem.text = _('Start Cast')
+        self.update_menu()
 
     def service_start(self):
         """This function is called every time the DLNA service is started.
