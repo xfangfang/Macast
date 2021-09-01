@@ -111,12 +111,12 @@ class SSDPPlugin(plugins.SimplePlugin):
         self.register()
         self.ssdp.start()
         self.bus.subscribe('ssdp_notify', self.notify)
-        self.bus.subscribe('ssdp_updateip', self.update_ip)
+        self.bus.subscribe('ssdp_update_ip', self.update_ip)
 
     def stop(self):
         """Stop SSDPPlugin
         """
         logger.info('Stoping SSDPPlugin')
         self.bus.unsubscribe('ssdp_notify', self.notify)
-        self.bus.unsubscribe('ssdp_updateip', self.update_ip)
+        self.bus.unsubscribe('ssdp_update_ip', self.update_ip)
         self.ssdp.stop()

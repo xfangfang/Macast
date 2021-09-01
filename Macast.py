@@ -217,6 +217,7 @@ class Macast(App):
         logger.info("ssdp_update_ip")
         if self.ip_menuitem is not None:
             self.ip_menuitem.text = "{}:{}".format(Setting.get_ip(), Setting.get_port())
+        self.update_menu()
 
     def renderer_av_stop(self):
         logger.info("renderer_av_stop")
