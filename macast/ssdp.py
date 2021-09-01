@@ -16,9 +16,10 @@ import time
 import socket
 import logging
 import threading
+import cherrypy
 from email.utils import formatdate
-from errno import ENOPROTOOPT
 
+from .utils import Setting
 
 SSDP_PORT = 1900
 SSDP_ADDR = '239.255.255.250'
@@ -35,23 +36,26 @@ class SSDPServer:
     def __init__(self):
         self.sock = None
         self.running = False
+        self.ssdp_thread = None
 
     def start(self):
         """Start ssdp background thread
         """
         if not self.running:
             self.running = True
-            self.ssdpThread = threading.Thread(target=self.run, args=())
-            self.ssdpThread.start()
+            self.ssdp_thread = threading.Thread(target=self.run, args=())
+            self.ssdp_thread.start()
 
     def stop(self):
         """Stop ssdp background thread
         """
-        self.running = False
-        # Wake up the socket, this will speed up exiting ssdp thread.
-        socket.socket(socket.AF_INET,
-                      socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
-        self.ssdpThread.join()
+        if self.running:
+            self.running = False
+            # Wake up the socket, this will speed up exiting ssdp thread.
+            socket.socket(socket.AF_INET,
+                          socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
+            if self.ssdp_thread is not None:
+                self.ssdp_thread.join()
 
     def run(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -69,7 +73,13 @@ class SSDPServer:
         interface = socket.inet_aton('0.0.0.0')
         cmd = socket.IP_ADD_MEMBERSHIP
         self.sock.setsockopt(socket.IPPROTO_IP, cmd, addr + interface)
-        self.sock.bind(('0.0.0.0', SSDP_PORT))
+        try:
+            self.sock.bind(('0.0.0.0', SSDP_PORT))
+        except Exception as e:
+            logger.error(e)
+            cherrypy.engine.publish("app_notify", "Macast", "SSDP Can't start")
+            threading.Thread(target=lambda: Setting.stop_service()).start()
+            return
         self.sock.settimeout(1)
 
         while self.running:
@@ -84,8 +94,7 @@ class SSDPServer:
 
     def shutdown(self):
         for st in self.known:
-            if self.known[st]['MANIFESTATION'] == 'local':
-                self.do_byebye(st)
+            self.do_byebye(st)
         usn = [st for st in self.known]
         for st in usn:
             self.unregister(st)
@@ -126,9 +135,8 @@ class SSDPServer:
         else:
             logger.warning('Unknown SSDP command %s %s' % (cmd[0], cmd[1]))
 
-    def register(self, manifestation, usn, st, location, server=SERVER_ID,
-                 cache_control='max-age=1800', silent=False,
-                 host=None):
+    def register(self, usn, st, location, server=SERVER_ID,
+                 cache_control='max-age=1800'):
         """Register a service or device that this SSDP server will
         respond to."""
 
@@ -141,13 +149,6 @@ class SSDPServer:
         self.known[usn]['EXT'] = ''
         self.known[usn]['SERVER'] = server
         self.known[usn]['CACHE-CONTROL'] = cache_control
-        self.known[usn]['MANIFESTATION'] = manifestation
-        self.known[usn]['SILENT'] = silent
-        self.known[usn]['HOST'] = host
-        self.known[usn]['last-seen'] = time.time()
-
-        if manifestation == 'local' and self.sock:
-            self.do_notify(usn)
 
     def unregister(self, usn):
         logger.info("Un-registering %s" % usn)
@@ -175,9 +176,7 @@ class SSDPServer:
                                                                headers['st']))
         # Do we know about this service?
         for i in self.known.values():
-            if i['MANIFESTATION'] == 'remote':
-                continue
-            if headers['st'] == 'ssdp:all' and i['SILENT']:
+            if headers['st'] == 'ssdp:all':
                 continue
             if i['ST'] == headers['st'] or headers['st'] == 'ssdp:all':
                 response = ['HTTP/1.1 200 OK']
@@ -186,8 +185,7 @@ class SSDPServer:
                 for k, v in i.items():
                     if k == 'USN':
                         usn = v
-                    if k not in ('MANIFESTATION', 'SILENT', 'HOST'):
-                        response.append('%s: %s' % (k, v))
+                    response.append('%s: %s' % (k, v))
 
                 if usn:
                     response.append('DATE: %s' % formatdate(timeval=None,
@@ -202,9 +200,6 @@ class SSDPServer:
 
     def do_notify(self, usn):
         """Do notification"""
-
-        if self.known[usn]['SILENT']:
-            return
         logger.debug('Sending alive notification for %s' % usn)
 
         resp = [
@@ -215,10 +210,6 @@ class SSDPServer:
         stcpy = dict(self.known[usn].items())
         stcpy['NT'] = stcpy['ST']
         del stcpy['ST']
-        del stcpy['MANIFESTATION']
-        del stcpy['SILENT']
-        del stcpy['HOST']
-        del stcpy['last-seen']
 
         resp.extend(map(lambda x: ': '.join(x), stcpy.items()))
         resp.extend(('', ''))
@@ -244,10 +235,7 @@ class SSDPServer:
             stcpy = dict(self.known[usn].items())
             stcpy['NT'] = stcpy['ST']
             del stcpy['ST']
-            del stcpy['MANIFESTATION']
-            del stcpy['SILENT']
-            del stcpy['HOST']
-            del stcpy['last-seen']
+
             resp.extend(map(lambda x: ': '.join(x), stcpy.items()))
             resp.extend(('', ''))
             if self.sock:
