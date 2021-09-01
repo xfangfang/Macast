@@ -1,21 +1,48 @@
 # Copyright (c) 2021 by xfangfang. All Rights Reserved.
 
-import os
 import re
-import time
-import json
-import requests
 import cherrypy
+import portend
 import logging
-import subprocess
-import threading
 from cherrypy.process.plugins import Monitor
+from cherrypy._cpserver import Server
 
-from .utils import loadXML, XMLPath, PORT, Setting
-from .plugin import SSDPPlugin, MPVPlugin
+from .utils import loadXML, XMLPath, Setting, SettingProperty
+from .plugin import SSDPPlugin, RendererPlugin
+from .renderer import Renderer
 
-logging.getLogger("cherrypy").propagate = False
 logger = logging.getLogger("main")
+logger.setLevel(logging.ERROR)
+
+
+def auto_change_port(start):
+    """See AutoPortServer"""
+
+    def wrapper(self):
+        try:
+            return start(self)
+        except portend.Timeout as e:
+            logger.error(e)
+            bind_host, bind_port = self.bind_addr
+            if bind_port == 0:
+                raise e
+            else:
+                self.httpserver = None
+                self.bind_addr = (bind_host, 0)
+                self.start()
+    return wrapper
+
+
+class AutoPortServer(Server):
+    """
+    The modified Server can give priority to the preset port (Setting.DEFAULT_PORT).
+    When the preset port or the port in the configuration file cannot be used,
+    using the port randomly assigned by the system
+    """
+
+    @auto_change_port
+    def start(self):
+        super(AutoPortServer, self).start()
 
 
 @cherrypy.expose
@@ -27,7 +54,7 @@ class DLNAHandler:
 
     def __init__(self):
         self.description = loadXML(XMLPath.DESCRIPTION.value).format(
-            friendly_name=Setting.getFriendlyName(),
+            friendly_name=Setting.get_friendly_name(),
             manufacturer="xfangfang",
             manufacturer_url="https://github.com/xfangfang",
             model_description="AVTransport Media Renderer",
@@ -98,63 +125,86 @@ class DLNAHandler:
         raise cherrypy.HTTPError(status=412)
 
 
-def notify():
-    """ssdp do notify
-    Using cherrypy builtin plugin Monitor to trigger this method
-    see also: plugin.py -> class SSDPPlugin -> notify
-    """
-    if Setting.isIPChanged():
-        cherrypy.engine.publish('ssdp_updateip')
-    cherrypy.engine.publish('ssdp_notify')
+class Service:
 
-
-def run():
-    """Start macast thread
-    """
-    Setting.load()
-    ssdpPlugin = SSDPPlugin(cherrypy.engine)
-    ssdpPlugin.subscribe()
-    mpvPlugin = MPVPlugin(cherrypy.engine)
-    mpvPlugin.subscribe()
-    ssdpMonitor = Monitor(cherrypy.engine, notify, 3)
-    ssdpMonitor.subscribe()
-    cherrypy_config = {
-        'global': {
-            'server.socket_host': '0.0.0.0',
-            'server.socket_port': PORT,
+    def __init__(self, renderer=Renderer()):
+        Setting.load()
+        # Replace the default server
+        cherrypy.server.unsubscribe()
+        cherrypy.server = AutoPortServer()
+        cherrypy.server.bind_addr = ('0.0.0.0', Setting.get_port())
+        cherrypy.server.subscribe()
+        # start plugins
+        self.ssdp_plugin = SSDPPlugin(cherrypy.engine)
+        self.ssdp_plugin.subscribe()
+        self._renderer = renderer
+        self.renderer_plugin = RendererPlugin(cherrypy.engine, renderer)
+        self.renderer_plugin.subscribe()
+        self.ssdp_monitor = Monitor(cherrypy.engine, self.notify, 3)
+        self.ssdp_monitor.subscribe()
+        cherrypy.config.update({
             'log.screen': False,
             'log.access_file': "",
-            'log.error_file': ""
-        },
-        '/dlna': {
-            'tools.staticdir.root': XMLPath.BASE_PATH.value,
-            'tools.staticdir.on': True,
-            'tools.staticdir.dir': "xml"
-        },
-        '/': {
-            'request.dispatch':
-            cherrypy.dispatch.MethodDispatcher(),
-            'tools.response_headers.on':
-            True,
-            'tools.response_headers.headers':
-            [('Content-Type', 'text/xml; charset="utf-8"'),
-             ('Server', Setting.getServerInfo())],
+            'log.error_file': "",
+        })
+        cherrypy_config = {
+            '/dlna': {
+                'tools.staticdir.root': XMLPath.BASE_PATH.value,
+                'tools.staticdir.on': True,
+                'tools.staticdir.dir': "xml"
+            },
+            '/': {
+                'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
+                'tools.response_headers.on': True,
+                'tools.response_headers.headers':
+                    [('Content-Type', 'text/xml; charset="utf-8"'),
+                     ('Server', Setting.get_server_info())],
+            }
         }
-    }
-    cherrypy.quickstart(DLNAHandler(), '/', config=cherrypy_config)
-    ssdpPlugin.unsubscribe()
-    mpvPlugin.unsubscribe()
-    ssdpMonitor.unsubscribe()
-    logger.error("Cherrypy stopped")
 
+        cherrypy.tree.mount(DLNAHandler(), '/', config=cherrypy_config)
+        cherrypy.engine.signals.subscribe()
 
-def stop():
-    """Stop macast thread
-    """
-    while cherrypy.engine.state != cherrypy.engine.states.STARTED:
-        time.sleep(0.5)
-    cherrypy.engine.exit()
+    @property
+    def renderer(self):
+        return self._renderer
+
+    @renderer.setter
+    def renderer(self, value):
+        self.renderer_plugin.stop()
+        self.renderer_plugin.unsubscribe()
+        self._renderer = value
+        self.renderer_plugin = RendererPlugin(cherrypy.engine, self._renderer)
+        self.renderer_plugin.subscribe()
+
+    def notify(self):
+        """ssdp do notify
+        Using cherrypy builtin plugin Monitor to trigger this method
+        see also: plugin.py -> class SSDPPlugin -> notify
+        """
+        if Setting.is_ip_changed():
+            cherrypy.engine.publish('ssdp_update_ip')
+        cherrypy.engine.publish('ssdp_notify')
+
+    def run(self):
+        """Start macast thread
+        """
+        cherrypy.engine.start()
+        # update current port
+        _, port = cherrypy.server.bound_addr
+        logger.info("Server current run on port: {}".format(port))
+        Setting.set(SettingProperty.ApplicationPort, port)
+        cherrypy.engine.publish('ssdp_update_ip')
+        # service started
+        cherrypy.engine.block()
+        # service stopped
+        logger.info("Service stopped")
+
+    def stop(self):
+        """Stop macast thread
+        """
+        Setting.stop_service()
 
 
 if __name__ == '__main__':
-    run()
+    Service().run()
