@@ -5,38 +5,38 @@ import sys
 import socket
 import uuid
 import json
+import time
 import ctypes
 import appdirs
 import logging
 import platform
 import locale
+import cherrypy
 import subprocess
 from enum import Enum
 if sys.platform == 'darwin':
     from AppKit import NSBundle
 
 logger = logging.getLogger("Utils")
-PORT = 1068
-
+DEFAULT_PORT = 1068
 SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
 
 
 class SettingProperty(Enum):
     USN = 0
-    PlayerHW = 1
-    PlayerSize = 2
-    PlayerPosition = 3
-    CheckUpdate = 4
-    StartAtLogin = 5
-    MenubarIcon = 6
+    CheckUpdate = 1
+    StartAtLogin = 2
+    MenubarIcon = 3
+    ApplicationPort = 4
+    DLNA_FriendlyName = 5
 
 
 class Setting:
     setting = {}
-    version = 'v0'
+    version = None
     setting_path = os.path.join(SETTING_DIR, "macast_setting.json")
     last_ip = None
-    mpv_path = 'mpv'
+    renderer_path = 'mpv'
     base_path = None
     friendly_name = "Macast({})".format(platform.node())
 
@@ -54,23 +54,25 @@ class Setting:
         """Load user settings
         """
         logger.info("Load Setting")
-        with open(Setting.getPath('.version'), 'r') as f:
-            Setting.version = f.read().strip()
-        if not os.path.exists(Setting.setting_path):
-            Setting.setting = {}
-        else:
-            with open(Setting.setting_path, "r") as f:
-                Setting.setting = json.load(fp=f)
+        if Setting.version is None:
+            with open(Setting.get_base_path('.version'), 'r') as f:
+                Setting.version = f.read().strip()
+        if bool(Setting.setting) is False:
+            if not os.path.exists(Setting.setting_path):
+                Setting.setting = {}
+            else:
+                with open(Setting.setting_path, "r") as f:
+                    Setting.setting = json.load(fp=f)
         return Setting.setting
 
     @staticmethod
-    def getSystemVersion():
+    def get_system_version():
         """Get system version
         """
         return str(platform.release())
 
     @staticmethod
-    def getSystem():
+    def get_system():
         """Get system name
         """
         return str(platform.system())
@@ -82,15 +84,16 @@ class Setting:
         return Setting.version
 
     @staticmethod
-    def getFriendlyName():
+    def get_friendly_name():
         """Get application friendly name
         This name will show in the device search list of the DLNA client
         and as player window default name.
         """
-        return Setting.friendly_name
+        return Setting.get(SettingProperty.DLNA_FriendlyName,
+                           Setting.friendly_name)
 
     @staticmethod
-    def setFriendlyName(name):
+    def set_friendly_name(name):
         """Set application friendly name
         This name will show in the device search list of the DLNA client
         and as player window default name.
@@ -108,12 +111,13 @@ class Setting:
         return Setting.setting['USN']
 
     @staticmethod
-    def isIPChanged():
-        return Setting.last_ip != Setting.getIP()
+    def is_ip_changed():
+        return Setting.last_ip != Setting.get_ip()
 
     @staticmethod
-    def getIP():
+    def get_ip():
         ip = None
+        s = None
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(('1.1.1.1', 80))
@@ -121,12 +125,19 @@ class Setting:
         except Exception as e:
             logger.error("Cannot get ip")
         finally:
-            s.close()
+            if s is not None:
+                s.close()
         Setting.last_ip = ip
         return ip
 
     @staticmethod
-    def getLocale():
+    def get_port():
+        """Get application port
+        """
+        return Setting.get(SettingProperty.ApplicationPort, DEFAULT_PORT)
+
+    @staticmethod
+    def get_locale():
         """Get the language settings of the system
         Default: en_US
         """
@@ -147,13 +158,13 @@ class Setting:
         return lang
 
     @staticmethod
-    def setMpvPath(path):
-        """Set mpv path
+    def set_renderer_path(path):
+        """Set renderer path
         MacOS default: bin/MacOS/mpv
         Windows default: bin/mpv.exe
         Others Default: mpv
         """
-        Setting.mpv_path = path
+        Setting.renderer_path = path
 
     @staticmethod
     def get(property, default=1):
@@ -172,18 +183,18 @@ class Setting:
         Setting.save()
 
     @staticmethod
-    def systemShell(shell):
+    def system_shell(shell):
         result = subprocess.run(shell, stdout=subprocess.PIPE)
-        return (result.returncode, result.stdout.decode('UTF-8').strip())
+        return result.returncode, result.stdout.decode('UTF-8').strip()
 
     @staticmethod
-    def setStartAtLogin(launch):
+    def set_start_at_login(launch):
         if sys.platform == 'darwin':
             app_path = NSBundle.mainBundle().bundlePath()
             if not app_path.startswith("/Applications"):
                 return (1, "You need move Macast.app to Applications folder.")
             app_name = app_path.split("/")[-1].split(".")[0]
-            res = Setting.systemShell(
+            res = Setting.system_shell(
                 ['osascript',
                  '-e',
                  'tell application "System Events" ' +
@@ -195,7 +206,7 @@ class Setting:
             if launch:
                 if app_name in apps:
                     return (0, "Macast is already in login items.")
-                res = Setting.systemShell(
+                res = Setting.system_shell(
                     ['osascript',
                      '-e',
                      'tell application "System Events" ' +
@@ -206,7 +217,7 @@ class Setting:
             else:
                 if app_name not in apps:
                     return (0, "Macast is already not in login items.")
-                res = Setting.systemShell(
+                res = Setting.system_shell(
                     ['osascript',
                      '-e',
                      'tell application "System Events" ' +
@@ -216,7 +227,7 @@ class Setting:
             return (1, 'Not support current platform.')
 
     @staticmethod
-    def getPath(path="."):
+    def get_base_path(path="."):
         """PyInstaller creates a temp folder and stores path in _MEIPASS
             https://stackoverflow.com/a/13790741
             see also: https://pyinstaller.readthedocs.io/en/stable/\
@@ -231,13 +242,13 @@ class Setting:
         return os.path.join(Setting.base_path, path)
 
     @staticmethod
-    def getServerInfo():
-        return '{}/{} UPnP/1.0 Macast/{}'.format(Setting.getSystem(),
-                                                 Setting.getSystemVersion(),
+    def get_server_info():
+        return '{}/{} UPnP/1.0 Macast/{}'.format(Setting.get_system(),
+                                                 Setting.get_system_version(),
                                                  Setting.getVersion())
 
     @staticmethod
-    def getSystemEnv():
+    def get_system_env():
         # Get system env(for GNU/Linux and *BSD).
         # https://pyinstaller.readthedocs.io/en/stable/runtime-information.html#run-time-information
         env = dict(os.environ)
@@ -250,9 +261,32 @@ class Setting:
             env.pop(lp_key, None)
         return env
 
+    @staticmethod
+    def stop_service():
+        """Stop all DLNA threads
+        stop MPV
+        stop DLNA HTTP Server
+        stop SSDP
+        stop SSDP notify thread
+        """
+        if cherrypy.engine.state in [cherrypy.engine.states.STOPPED,
+                                     cherrypy.engine.states.STOPPING,
+                                     cherrypy.engine.states.EXITING,
+                                     ]:
+            return
+        while cherrypy.engine.state != cherrypy.engine.states.STARTED:
+            time.sleep(0.5)
+        cherrypy.engine.exit()
+
+    @staticmethod
+    def is_service_running():
+        return cherrypy.engine.state in [cherrypy.engine.states.STARTING,
+                                         cherrypy.engine.states.STARTED,
+                                         ]
+
 
 class XMLPath(Enum):
-    BASE_PATH = Setting.getPath(os.path.dirname(__file__))
+    BASE_PATH = Setting.get_base_path(os.path.dirname(__file__))
     DESCRIPTION = BASE_PATH + '/xml/Description.xml'
     AV_TRANSPORT = BASE_PATH + '/xml/AVTransport.xml'
     CONNECTION_MANAGER = BASE_PATH + '/xml/ConnectionManager.xml'
