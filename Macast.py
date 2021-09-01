@@ -159,7 +159,7 @@ class Macast(App):
     def start_cast(self):
         if Setting.is_service_running():
             return
-        self.thread = threading.Thread(target=self.dlna_service.run)
+        self.thread = threading.Thread(target=self.dlna_service.run, name="DLNA_SERVICE_THREAD")
         self.thread.start()
         cherrypy.engine.subscribe('start', self.service_start)
         cherrypy.engine.subscribe('stop', self.service_stop)

@@ -359,9 +359,9 @@ class MPVRenderer(Renderer):
         """
         super(MPVRenderer, self).start()
         logger.info("starting mpv and mpv ipc")
-        self.mpv_thread = threading.Thread(target=self.start_mpv, args=())
+        self.mpv_thread = threading.Thread(target=self.start_mpv, name="MPV_THREAD")
         self.mpv_thread.start()
-        self.ipc_thread = threading.Thread(target=self.start_ipc, args=())
+        self.ipc_thread = threading.Thread(target=self.start_ipc, name="MPV_IPC_THREAD")
         self.ipc_thread.start()
 
     def stop(self):

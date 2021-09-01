@@ -140,7 +140,7 @@ class Service:
         self._renderer = renderer
         self.renderer_plugin = RendererPlugin(cherrypy.engine, renderer)
         self.renderer_plugin.subscribe()
-        self.ssdp_monitor = Monitor(cherrypy.engine, self.notify, 3)
+        self.ssdp_monitor = Monitor(cherrypy.engine, self.notify, 3, name="SSDP_NOTIFY_THREAD")
         self.ssdp_monitor.subscribe()
         cherrypy.config.update({
             'log.screen': False,
