@@ -373,7 +373,10 @@ class MPVRenderer(Renderer):
         self.send_command(['quit'])
         if self.proc is not None:
             self.proc.terminate()
+        try:
             os.waitpid(-1, 1)
+        except Exception as e:
+            logger.error(e)
         self.mpv_thread.join()
         # stop mpv ipc
         self.ipc_running = False
