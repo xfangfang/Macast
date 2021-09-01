@@ -4,6 +4,9 @@
 name: Build Macast
 
 on:
+  push:
+    branches:
+      - linux_test
   pull_request:
   workflow_dispatch:
     inputs:
