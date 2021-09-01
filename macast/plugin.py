@@ -6,25 +6,23 @@
 
 from cherrypy.process import plugins
 import logging
-import threading
 
 from .ssdp import SSDPServer
-from .mpv import MPVRender, Render
-from .utils import PORT, Setting
+from .utils import Setting
 
 logger = logging.getLogger("PLUGIN")
 
 
-class RenderPlugin(plugins.SimplePlugin):
+class RendererPlugin(plugins.SimplePlugin):
     """Run a background player thread
     """
 
-    def __init__(self, bus):
+    def __init__(self, bus, render):
         logger.info('Initializing RenderPlugin')
-        super(RenderPlugin, self).__init__(bus)
-        self.render = Render()
+        super(RendererPlugin, self).__init__(bus)
+        self.render = render
 
-    def reloadRender(self):
+    def reload_render(self):
         """Reload Render
           In some cases, you need to adjust the player's parameters,
         then you need to call this method to reload player.
@@ -38,52 +36,21 @@ class RenderPlugin(plugins.SimplePlugin):
         logger.info('starting RenderPlugin')
         self.render.start()
         self.bus.subscribe('call_render', self.render.call)
-        self.bus.subscribe('add_subscribe', self.render.addSubcribe)
-        self.bus.subscribe('renew_subscribe', self.render.renewSubcribe)
-        self.bus.subscribe('remove_subscribe', self.render.removeSubcribe)
-        self.bus.subscribe('reloadRender', self.reloadRender)
+        self.bus.subscribe('add_subscribe', self.render.add_subscribe)
+        self.bus.subscribe('renew_subscribe', self.render.renew_subcribe)
+        self.bus.subscribe('remove_subscribe', self.render.remove_subscribe)
+        self.bus.subscribe('reloadRender', self.render.reload)
 
     def stop(self):
         """Stop RenderPlugin
         """
         logger.info('Stoping RenderPlugin')
         self.bus.unsubscribe('call_render', self.render.call)
-        self.bus.unsubscribe('add_subscribe', self.render.addSubcribe)
-        self.bus.unsubscribe('renew_subscribe', self.render.renewSubcribe)
-        self.bus.unsubscribe('remove_subscribe', self.render.removeSubcribe)
-        self.bus.unsubscribe('reloadRender', self.reloadRender)
+        self.bus.unsubscribe('add_subscribe', self.render.add_subscribe)
+        self.bus.unsubscribe('renew_subscribe', self.render.renew_subcribe)
+        self.bus.unsubscribe('remove_subscribe', self.render.remove_subscribe)
+        self.bus.unsubscribe('reloadRender', self.render.reload)
         self.render.stop()
-
-
-class MPVPlugin(RenderPlugin):
-    """Using MPV as render
-    """
-
-    def __init__(self, bus):
-        super(MPVPlugin, self).__init__(bus)
-        self.render = MPVRender()
-
-    def reloadRender(self):
-        """Reload MPV
-        If the MPV is playing content before reloading the player,
-        then continue playing the previous content after the reload
-        """
-        uri = self.render.getState('AVTransportURI')
-        position = self.render.getState('AbsoluteTimePosition')
-
-        def loadfile():
-            logger.debug("mpv loadfile")
-            self.render.sendCommand(['loadfile', uri, 'replace'])
-            self.bus.unsubscribe('mpvipc_start', loadfile)
-
-        def resatrt():
-            self.render.stop()
-            self.render.start()
-
-        if self.render.getState('TransportState') == 'PLAYING':
-            self.bus.subscribe('mpvipc_start', loadfile)
-
-        threading.Thread(target=resatrt, args=()).start()
 
 
 class SSDPPlugin(plugins.SimplePlugin):
@@ -116,12 +83,13 @@ class SSDPPlugin(plugins.SimplePlugin):
     def register(self):
         """register device
         """
-        ip = Setting.getIP()
+        ip = Setting.get_ip()
         for device in self.devices:
-            self.ssdp.register('local', device,
+            self.ssdp.register(device,
                                device[43:] if device[43:] != '' else device,
-                               'http://{}:{}/description.xml'.format(ip, PORT),
-                                Setting.getServerInfo(),
+                               'http://{}:{}/description.xml'.format(
+                                   ip, Setting.get_port()),
+                               Setting.get_server_info(),
                                'max-age=66')
 
     def unregister(self):
@@ -130,7 +98,7 @@ class SSDPPlugin(plugins.SimplePlugin):
         for device in self.devices:
             self.ssdp.unregister(device)
 
-    def updateIP(self):
+    def update_ip(self):
         """Update the device ip address
         """
         self.unregister()
@@ -143,12 +111,12 @@ class SSDPPlugin(plugins.SimplePlugin):
         self.register()
         self.ssdp.start()
         self.bus.subscribe('ssdp_notify', self.notify)
-        self.bus.subscribe('ssdp_updateip', self.updateIP)
+        self.bus.subscribe('ssdp_updateip', self.update_ip)
 
     def stop(self):
         """Stop SSDPPlugin
         """
         logger.info('Stoping SSDPPlugin')
         self.bus.unsubscribe('ssdp_notify', self.notify)
-        self.bus.unsubscribe('ssdp_updateip', self.updateIP)
+        self.bus.unsubscribe('ssdp_updateip', self.update_ip)
         self.ssdp.stop()
