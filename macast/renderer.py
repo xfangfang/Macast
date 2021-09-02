@@ -3,6 +3,7 @@
 import re
 import time
 import uuid
+import gettext
 import http.client
 import logging
 import threading
@@ -158,7 +159,9 @@ class Renderer:
     """
     support_platform = set()
 
-    def __init__(self):
+    def __init__(self, lang=gettext.gettext):
+        global _
+        _ = lang
         self.av_transport = etree.parse(XMLPath.AV_TRANSPORT.value).getroot()
         self.rendering_control = etree.parse(
             XMLPath.RENDERING_CONTROL.value).getroot()

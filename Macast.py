@@ -59,7 +59,7 @@ class Macast(App):
         self.setting_menubar_icon = None
 
         self.init_setting()
-        self.renderer = MPVRenderer()
+        self.renderer = MPVRenderer(_)
         self.dlna_service = Service(self.renderer)
         icon_path = Setting.get_base_path(Macast.ICON_MAP[self.setting_menubar_icon])
         template = None if self.setting_menubar_icon == 0 else True

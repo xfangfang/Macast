@@ -25,7 +25,6 @@ if os.name == 'nt':
 
 logger = logging.getLogger("MPVRenderer")
 logger.setLevel(logging.INFO)
-_ = gettext.gettext
 
 
 class ObserveProperty(Enum):
@@ -47,8 +46,8 @@ class MPVRenderer(Renderer):
     automatically directed to these methods
     """
 
-    def __init__(self):
-        super(MPVRenderer, self).__init__()
+    def __init__(self, lang=gettext.gettext):
+        super(MPVRenderer, self).__init__(lang)
         if os.name == 'nt':
             self.mpv_sock = Setting.get_base_path(r"\\.\pipe\macast_mpvsocket")
         else:
