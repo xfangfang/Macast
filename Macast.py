@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import json
+import time
 import logging
 import cherrypy
 import gettext
@@ -201,7 +202,15 @@ class Macast(App):
             msg = _("running at menu bar")
         else:
             msg = _("running at desktop panel")
-        self.notification(_("Macast is hidden"), msg, sound=False)
+        if self.platform == Platform.Darwin:
+            self.notification(_("Macast is hidden"), msg, sound=False)
+        else:
+            # Pystray may fail to send notifications due to incomplete initialization
+            # during the startup, so wait a moment
+            threading.Thread(target=lambda: (
+                time.sleep(1),
+                self.notification(_("Macast is hidden"), msg, sound=False),
+            )).start()
         self.update_service_status()
 
     def service_stop(self):
