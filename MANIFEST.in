@@ -1,0 +1,8 @@
+include *.md
+recursive-include macast .version
+recursive-include macast/xml *.xml
+recursive-include macast/xml *.csv
+recursive-include macast/scripts *.lua
+recursive-include macast/assets *.png
+recursive-include macast/assets *.icns
+recursive-include macast/assets *.ico

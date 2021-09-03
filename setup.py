@@ -18,29 +18,10 @@ with open('README.md', 'r', encoding='utf-8') as f:
 OPTIONS = {}
 INSTALL = ["requests", "appdirs", "cherrypy", "lxml"]
 PACKAGES = find_packages()
-DATA_FILES = [('xml',
-               ['macast/xml/SinkProtocolInfo.csv',
-                'macast/xml/AVTransport.xml',
-                'macast/xml/ConnectionManager.xml',
-                'macast/xml/Description.xml',
-                'macast/xml/RenderingControl.xml'
-                ]),
-              ('assets',
-               ["macast/assets/icon.icns",
-                "macast/assets/icon.ico",
-                "macast/assets/icon.png",
-                "macast/assets/menu_dark_large.png",
-                "macast/assets/menu_dark.png",
-                "macast/assets/menu_light_large.png",
-                "macast/assets/menu_light.png"
-                ]),
-              ('',
-               ['macast/.version',
-                ])
-              ]
 
 if sys.platform == 'darwin':
-    INSTALL.append("rumps")
+    INSTALL += ["rumps",
+                "pyperclip"]
 else:
     INSTALL += ["pillow",
                 "pystray @ git+https://github.com/xfangfang/pystray.git",
@@ -63,12 +44,15 @@ setup(
                  'Programming Language :: Python :: 3.7',
                  'Programming Language :: Python :: 3.8',
                  'Programming Language :: Python :: 3.9',
+                 'Operating System :: MacOS :: MacOS X',
+                 'Operating System :: Microsoft :: Windows :: Windows NT/2000',
+                 'Operating System :: POSIX',
                  ],
+    platforms=["MacOS X", "Windows", "POSIX"],
     keywords=["mpv", "dlna", "renderer"],
     options=OPTIONS,
     install_requires=INSTALL,
     packages=PACKAGES,
-    data_files=DATA_FILES,
     include_package_data=True,
     entry_points={
         'console_scripts': [
