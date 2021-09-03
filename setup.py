@@ -42,9 +42,9 @@ DATA_FILES = [('xml',
 if sys.platform == 'darwin':
     INSTALL.append("rumps")
 else:
-    INSTALL.append("pillow",
-                   "git+https://github.com/xfangfang/pystray.git",
-                   "git+https://github.com/xfangfang/pyperclip.git")
+    INSTALL += ["pillow",
+                "pystray @ git+https://github.com/xfangfang/pystray.git",
+                "pyperclip @ git+https://github.com/xfangfang/pyperclip.git"]
 
 setup(
     name="macast",
