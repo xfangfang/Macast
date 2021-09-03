@@ -24,18 +24,6 @@ from macast_renderer.mpv import MPVRenderer
 logger = logging.getLogger("main")
 logger.setLevel(logging.DEBUG)
 
-try:
-    locale = Setting.get_locale()
-    lang = gettext.translation(
-        'macast', localedir=Setting.get_base_path('../i18n'), languages=[locale])
-    lang.install()
-    logger.error("Macast Loading Language: {}".format(locale))
-except Exception as e:
-    import builtins
-    builtins.__dict__['_'] = gettext.gettext
-    logger.error(Setting.get_base_path('i18n'))
-    logger.error("Macast Loading Default Language en_US")
-
 
 def auto_change_port(start):
     """See AutoPortServer"""
@@ -238,7 +226,9 @@ class Macast(App):
                     'assets/menu_light.png',
                     'assets/menu_dark.png']
 
-    def __init__(self):
+    def __init__(self, renderer, lang=gettext.gettext):
+        global _
+        _ = lang
         # menu items
         self.toggle_menuitem = None
         self.setting_menuitem = None
@@ -258,7 +248,7 @@ class Macast(App):
         self.setting_menubar_icon = None
 
         self.init_setting()
-        self.renderer = MPVRenderer(_)
+        self.renderer = renderer
         self.dlna_service = Service(self.renderer)
         icon_path = Setting.get_base_path(Macast.ICON_MAP[self.setting_menubar_icon])
         template = None if self.setting_menubar_icon == 0 else True
@@ -345,12 +335,6 @@ class Macast(App):
                              kwargs={
                                  'verbose': False
                              }).start()
-
-    def init_platform_darwin(self):
-        Setting.set_renderer_path(Setting.get_base_path('../bin/MacOS/mpv'))
-
-    def init_platform_win32(self):
-        Setting.set_renderer_path(Setting.get_base_path('../bin/mpv.exe'))
 
     def stop_cast(self):
         self.dlna_service.stop()
@@ -486,13 +470,14 @@ class Macast(App):
         super(Macast, self).quit(item)
 
 
-def gui():
-    Macast().start()
+def gui(renderer=None, lang=gettext.gettext):
+    if renderer is None:
+        renderer = MPVRenderer(lang)
+    Macast(renderer, lang).start()
 
 
-def cli():
-    Service(MPVRenderer(_)).run()
+def cli(renderer=None):
+    if renderer is None:
+        renderer = MPVRenderer()
+    Service(renderer).run()
 
-
-if __name__ == '__main__':
-    Service().run()

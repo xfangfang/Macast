@@ -9,7 +9,7 @@ import os
 from setuptools import setup
 
 APP = ['Macast.py']
-DATA_FILES = ['macast/.version', 'i18n', 'macast/assets']
+DATA_FILES = ['i18n']
 VERSION = "0.0.0"
 with open('macast/.version', 'r') as f:
     VERSION = f.read().strip()
@@ -24,7 +24,7 @@ OPTIONS = {
         'CFBundleShortVersionString': str(VERSION),
         'CFBundleVersion': str(VERSION),
     },
-    'packages': ['rumps', 'macast'],
+    'packages': ['rumps', 'macast', 'macast_renderer'],
     'iconfile': os.path.abspath('macast/assets/icon.icns')
 }
 

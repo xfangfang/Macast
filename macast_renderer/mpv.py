@@ -46,7 +46,7 @@ class MPVRenderer(Renderer):
     automatically directed to these methods
     """
 
-    def __init__(self, lang=gettext.gettext):
+    def __init__(self, lang=gettext.gettext, path="mpv"):
         super(MPVRenderer, self).__init__(lang)
         global _
         _ = lang
@@ -54,6 +54,7 @@ class MPVRenderer(Renderer):
             self.mpv_sock = Setting.get_base_path(r"\\.\pipe\macast_mpvsocket")
         else:
             self.mpv_sock = '/tmp/macast_mpvsocket'
+        self.path = path
         self.proc = None
         self.mpv_thread = None
         self.ipc_thread = None
@@ -289,7 +290,7 @@ class MPVRenderer(Renderer):
             x = player_position_data[player_position][0]
             y = player_position_data[player_position][1]
             params = [
-                Setting.renderer_path,
+                self.path,
                 '--input-ipc-server={}'.format(self.mpv_sock),
                 '--image-display-duration=inf',
                 '--idle=yes',
@@ -349,7 +350,6 @@ class MPVRenderer(Renderer):
                 time.sleep(1)
                 error_time -= 1
                 logger.error("MPV restarting")
-                Setting.set_renderer_path("mpv")
         if error_time <= 0:
             # some thing wrong with mpv
             cherrypy.engine.publish("app_notify", "Macast", "MPV Can't start")
