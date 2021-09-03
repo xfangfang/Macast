@@ -48,6 +48,8 @@ class MPVRenderer(Renderer):
 
     def __init__(self, lang=gettext.gettext):
         super(MPVRenderer, self).__init__(lang)
+        global _
+        _ = lang
         if os.name == 'nt':
             self.mpv_sock = Setting.get_base_path(r"\\.\pipe\macast_mpvsocket")
         else:
@@ -347,6 +349,7 @@ class MPVRenderer(Renderer):
                 time.sleep(1)
                 error_time -= 1
                 logger.error("MPV restarting")
+                Setting.set_renderer_path("mpv")
         if error_time <= 0:
             # some thing wrong with mpv
             cherrypy.engine.publish("app_notify", "Macast", "MPV Can't start")

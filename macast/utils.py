@@ -55,8 +55,11 @@ class Setting:
         """
         logger.info("Load Setting")
         if Setting.version is None:
-            with open(Setting.get_base_path('.version'), 'r') as f:
-                Setting.version = f.read().strip()
+            try:
+                with open(Setting.get_base_path('.version'), 'r') as f:
+                    Setting.version = f.read().strip()
+            except FileNotFoundError as e:
+                Setting.version = "0.0"
         if bool(Setting.setting) is False:
             if not os.path.exists(Setting.setting_path):
                 Setting.setting = {}
@@ -238,7 +241,7 @@ class Setting:
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
             Setting.base_path = sys._MEIPASS
         else:
-            Setting.base_path = os.getcwd()
+            Setting.base_path = os.path.join(os.path.dirname(__file__), '.')
         return os.path.join(Setting.base_path, path)
 
     @staticmethod
@@ -286,7 +289,7 @@ class Setting:
 
 
 class XMLPath(Enum):
-    BASE_PATH = Setting.get_base_path(os.path.dirname(__file__))
+    BASE_PATH = os.path.dirname(__file__)
     DESCRIPTION = BASE_PATH + '/xml/Description.xml'
     AV_TRANSPORT = BASE_PATH + '/xml/AVTransport.xml'
     CONNECTION_MANAGER = BASE_PATH + '/xml/ConnectionManager.xml'
