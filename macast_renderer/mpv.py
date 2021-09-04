@@ -283,12 +283,6 @@ class MPVRenderer(Renderer):
         """
         error_time = 3
         while self.running and error_time > 0:
-            player_position = Setting.get(SettingProperty.PlayerPosition,
-                                          default=2)
-            player_position_data = [[2, 5], [2, 98], [98, 5], [98, 98],
-                                    [50, 50]]
-            x = player_position_data[player_position][0]
-            y = player_position_data[player_position][1]
             params = [
                 self.path,
                 '--input-ipc-server={}'.format(self.mpv_sock),
@@ -298,41 +292,58 @@ class MPVRenderer(Renderer):
                 '--ontop',
                 '--on-all-workspaces',
                 '--hwdec=yes',
-                '--geometry={}%:{}%'.format(x, y),
                 '--save-position-on-quit=yes',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
                 'osc-title=${title},osc-showwindowed=no,' +
                 'osc-seekbarstyle=bar,osc-visibility=auto'
             ]
-            scripts_path = Setting.get_base_path(
-                os.path.join(os.path.dirname(__file__), '../macast/scripts'))
+
+            # set player position
+            player_position = Setting.get(SettingProperty.PlayerPosition,
+                                          default=SettingProperty.PlayerPosition_RightTop.value)
+            player_position_data = [[2, 5], [2, 98], [98, 5], [98, 98], [50, 50]]
+            x = player_position_data[player_position][0]
+            y = player_position_data[player_position][1]
+            params.append('--geometry={}%:{}%'.format(x, y))
+
+            # set lua scripts
+            scripts_path = Setting.get_base_path('scripts')
             if os.path.exists(scripts_path):
                 scripts = os.listdir(scripts_path)
                 scripts = filter(lambda s: s.endswith('.lua'), scripts)
                 for script in scripts:
                     path = os.path.join(scripts_path, script)
                     params.append('--script={}'.format(path))
-            player_size = Setting.get(
-                SettingProperty.PlayerSize, default=1)
-            if player_size <= 2:
+
+            # set player size
+            player_size = Setting.get(SettingProperty.PlayerSize,
+                                      default=SettingProperty.PlayerSize_Normal.value)
+            if player_size <= SettingProperty.PlayerSize_Large.value:
                 params.append('--autofit={}%'.format(
                     int(15 - 2.5 * player_size + 7.5 * player_size**2)))
-            elif player_size == 3:
+            elif player_size == SettingProperty.PlayerSize_Auto.value:
                 params.append('--autofit-larger=90%')
-            elif player_size == 4:
+            elif player_size == SettingProperty.PlayerSize_FullScreen.value:
                 params.append('--fullscreen')
+
+            # set darwin only options
             if sys.platform == 'darwin':
                 params += [
                     '--ontop-level=system',
                     '--on-all-workspaces',
                     '--macos-app-activation-policy=accessory',
                 ]
-            hw = Setting.get(SettingProperty.PlayerHW, default=1)
-            if hw == 0:
+
+            # set hardware
+            hw = Setting.get(SettingProperty.PlayerHW,
+                             default=SettingProperty.PlayerHW_Enable.value)
+            if hw == SettingProperty.PlayerHW_Disable.value:
                 params.remove('--hwdec=yes')
-            elif hw == 2:
+            elif hw == SettingProperty.PlayerHW_Force.value:
                 params.append('--macos-force-dedicated-gpu=yes')
-            logger.error("MPV started")
+
+            # start mpv
+            logger.info("mpv starting")
             cherrypy.engine.publish('mpv_start')
             try:
                 self.proc = subprocess.Popen(
@@ -344,17 +355,17 @@ class MPVRenderer(Renderer):
                 self.proc.communicate()
             except Exception as e:
                 logger.error(e)
-            logger.info("MPV stopped")
+            logger.info("mpv stopped")
             if self.running and not self.ipc_once_connected:
                 # There should be a problem with the MPV startup parameters
                 time.sleep(1)
                 error_time -= 1
-                logger.error("MPV restarting")
+                logger.error("mpv restarting")
         if error_time <= 0:
             # some thing wrong with mpv
             cherrypy.engine.publish("app_notify", "Macast", "MPV Can't start")
-            logger.error("MPV cannot start")
-            threading.Thread(target=lambda: Setting.stop_service()).start()
+            logger.error("mpv cannot start")
+            threading.Thread(target=lambda: Setting.stop_service(), name="MPV_STOP_SERVICE").start()
 
     def start(self):
         """Start mpv and mpv ipc
