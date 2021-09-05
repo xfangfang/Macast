@@ -334,7 +334,9 @@ class Macast(App):
             threading.Thread(target=self.check_update,
                              kwargs={
                                  'verbose': False
-                             }).start()
+                             },
+                             daemon=True,
+                             name="CHECKUPDATE_THREAD").start()
 
     def stop_cast(self):
         self.dlna_service.stop()
@@ -361,7 +363,7 @@ class Macast(App):
                             ok="Update")
             else:
                 if verbose:
-                    self.alert(_("You're up to date."))
+                    self.notification("Macast", _("You're up to date."))
         except Exception as e:
             logger.error("get update info error: {}".format(e))
 
@@ -430,7 +432,9 @@ class Macast(App):
     # The followings are the callback function of menu click
 
     def on_check_click(self, item):
-        self.check_update()
+        threading.Thread(target=self.check_update,
+                         daemon=True,
+                         name="CHECKUPDATE_M_THREAD").start()
 
     def on_auto_check_update_click(self, item):
         item.checked = not item.checked
@@ -480,4 +484,3 @@ def cli(renderer=None):
     if renderer is None:
         renderer = MPVRenderer()
     Service(renderer).run()
-
