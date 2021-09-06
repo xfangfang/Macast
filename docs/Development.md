@@ -1,10 +1,10 @@
 # Macast Development
 
-On windows and Linux, We use **pystray**  to Add menubar icon support,and use **pyinstaller** to package application.
+On windows and Linux, we use **pystray**  to add menubar icon support, and use **pyinstaller** to package application.
 We use **rumps** and **py2app** on MacOS which have better performance and smaller package size.
 
 
-## Development upder MacOS
+## Development under MacOS
 
 ### 1. download mpv
 
