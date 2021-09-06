@@ -18,16 +18,34 @@ A menu bar application using mpv as **DLNA Media Renderer**. You can push videos
 
 - ### MacOS || Windows || Debian
 
-Download link:  [Macast release latest](https://github.com/xfangfang/Macast/releases/latest)
+  Download link:  [Macast release latest](https://github.com/xfangfang/Macast/releases/latest)
+
+- ### Package manager
+
+  ```shell
+  pip install git+https://github.com/xfangfang/Macast.git@dev
+  ```
+
+  Please see our wiki for more information: [Macast/wiki/Installation#package-manager](https://github.com/xfangfang/Macast/wiki/Installation#package-manager)
 
 - ### Build from source
 
-Please refer to: [Macast Development](docs/Development.md)
+  Please refer to: [Macast Development](docs/Development.md)
 
 
 ## Usage
 
-After opening this app, a small icon will appear in the menu bar, then you can push video from a local DLNA client to your computer.
+- **For ordinary users**  
+After opening this app, a small icon will appear in the menu bar, then you can push your media files from a local DLNA client to your computer.
+
+- **For developer**  
+Macast uses MPV as the default video player. After installing macast through pip, you can use a few lines of code to add support for other players like IINA and PotPlayer.  
+Tutorials and examples are shown in: [Macast/wiki/Custom-Renderer](https://github.com/xfangfang/Macast/wiki/Custom-Renderer)  
+Fell free to submit a pull request that creates support for any of the video players not yet supported. 
+
+## FAQ
+If you have any questions about this application, please check: [Macast/wiki/FAQ](https://github.com/xfangfang/Macast/wiki/FAQ).  
+If this does not solve your problem, please open a new issue to notify us, we are willing to help you solve the problem.
 
 
 ## Relevant links
