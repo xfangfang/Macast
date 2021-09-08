@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-08-17 14:53+0800\n"
+"POT-Creation-Date: 2021-09-08 17:22+0800\n"
 "PO-Revision-Date: 2021-06-12 04:23+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -33,6 +33,9 @@ msgstr "自动检查更新"
 msgid "Start At Login"
 msgstr "开机自启"
 
+msgid "Renderers"
+msgstr "选择播放器"
+
 msgid "Menubar Icon"
 msgstr "状态栏图标"
 
@@ -47,6 +50,48 @@ msgstr "浅色图案"
 
 msgid "PatternDark"
 msgstr "深色图案"
+
+msgid "Open Config Directory"
+msgstr "打开配置目录"
+
+msgid "Check For Updates"
+msgstr "检查更新"
+
+msgid "About"
+msgstr "关于"
+
+msgid "Macast New Update {}"
+msgstr "Macast有新版本 {}"
+
+msgid "You're up to date."
+msgstr "现在已经是最新版"
+
+msgid "Start Cast"
+msgstr "开始接受投屏"
+
+msgid "running at task bar"
+msgstr "运行在任务栏"
+
+msgid "running at menu bar"
+msgstr "运行在菜单栏"
+
+msgid "running at desktop panel"
+msgstr "运行在状态栏"
+
+msgid "Macast is hidden"
+msgstr "Macast进入后台"
+
+msgid "Copy Video URI"
+msgstr "复制视频链接"
+
+msgid "Info"
+msgstr "通知"
+
+msgid "Change Renderer to {}."
+msgstr "播放器更换到 {}"
+
+msgid "Error"
+msgstr "错误"
 
 msgid "Player Position"
 msgstr "播放器位置"
@@ -84,12 +129,6 @@ msgstr "自动"
 msgid "Fullscreen"
 msgstr "全屏"
 
-msgid "Check For Updates"
-msgstr "检查更新"
-
-msgid "About"
-msgstr "关于"
-
 msgid "Hardware Decode"
 msgstr "硬件解码"
 
@@ -102,23 +141,8 @@ msgstr "重载播放器"
 msgid "please wait"
 msgstr "请等待"
 
-msgid "Macast New Update {}"
-msgstr "Macast有新版本 {}"
-
 msgid "Cannot start player"
 msgstr "无法启动播放器"
-
-msgid "Copy Video URI"
-msgstr "复制视频链接"
-
-msgid "You're up to date."
-msgstr "现在已经是最新版"
-
-msgid "Error"
-msgstr "错误"
-
-msgid "Start Cast"
-msgstr "开始接受投屏"
 
 msgid "You need move Macast.app to Applications folder."
 msgstr "你需要把Macast.app放置在系统应用文件夹下"
