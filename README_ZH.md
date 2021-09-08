@@ -3,6 +3,7 @@
 # Macast
 
 [![visitor](https://visitor-badge.glitch.me/badge?page_id=xfangfang.Macast)](https://github.com/xfangfang/Macast/releases/latest)
+[![stars](https://img.shields.io/badge/dynamic/json?label=github%20stars&query=stargazers_count&url=https%3A%2F%2Fapi.github.com%2Frepos%2Fxfangfang%2FMacast)](https://github.com/xfangfang/Macast)
 [![build](https://img.shields.io/github/workflow/status/xfangfang/Macast/Build%20Macast)](https://github.com/xfangfang/Macast/actions/workflows/build-macast.yaml)
 [![mac](https://img.shields.io/badge/MacOS-10.15%20and%20higher-lightgrey?logo=Apple)](https://github.com/xfangfang/Macast/releases/latest)
 [![windows](https://img.shields.io/badge/Windows-10-lightgrey?logo=Windows)](https://github.com/xfangfang/Macast/releases/latest)
@@ -15,11 +16,11 @@ Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以使用�
 
 ## 安装
 
-进入页面选择对应的操作系统下载即可。
+进入页面选择对应的操作系统下载即可，应用使用方法及截图见下方。
 
 - ### MacOS || Windows || Debian
 
-  下载地址1:  [Macast 最新正式版github下载](https://github.com/xfangfang/Macast/releases/latest)
+  下载地址1:  [Macast 最新正式版 github下载](https://github.com/xfangfang/Macast/releases/latest)
 
   下载地址2:  [Macast 最新正式版 gitee下载（推荐国内用户使用此链接）](https://gitee.com/xfangfang/Macast/releases/)
 
@@ -45,6 +46,10 @@ Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以使用�
 
 - **普通用户**  
 打开应用后，**菜单栏\状态栏** 会出现一个图标，这时你的设备就可以接收来自同一局域网的DLNA投放了。
+
+- **进阶用户**  
+通过加载 [Macast插件](https://github.com/xfangfang/Macast-plugins), Macast可以支持调用其他第三方应用，如：IINA、PotPlayer等等.  
+更多信息请见: [Macast/wiki/FAQ#how-to-use-third-party-player-plug-in](https://github.com/xfangfang/Macast/wiki/FAQ#how-to-use-third-party-player-plug-in)
 
 - **程序员**  
 Macast使用MPV作为默认的播放器，很多朋友反馈说可不可以支持其他的播放器，比如Mac上的IINA或者是Windows上的PotPlayer。  
@@ -122,6 +127,16 @@ Macast使用MPV作为默认的播放器，很多朋友反馈说可不可以支�
 <img align="center" width="400" src="sponsorships.png" alt="sponsorships" height="auto"/>
 
 <img align="center" width="400" src="https://service-65diwogz-1252652631.bj.apigw.tencentcs.com/release/sponsor.svg" alt="sponsors" height="auto"/>
+
+## 使用截图
+*如果系统设置为中文，Macast会自动切换中文界面*  
+
+在投放视频或其他媒体文件后，可以点击应用图标复制媒体下载链接  
+<img align="center" width="400" src="https://github.com/xfangfang/xfangfang.github.io/raw/master/assets/img/macast/copy_uri.png" alt="copy_uri" height="auto"/>
+
+支持选择第三方播放器 (目前只有[测试版](https://github.com/xfangfang/Macast/actions)可用)  
+<img align="center" width="400" src="https://github.com/xfangfang/xfangfang.github.io/raw/master/assets/img/macast/select_renderer.png" alt="select_renderer" height="auto"/>
+
 
 ## 相关链接
 
