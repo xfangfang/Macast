@@ -219,10 +219,12 @@ class Service:
 
 
 class RendererConfig:
-    def __init__(self, path, title='Renderer', renderer=Renderer, platform='none'):
+    def __init__(self, path, title='Renderer', renderer_instance=None, platform='none'):
         # path is allowed to be set to None only when renderer is macast official renderer
         self.path = path
-        self.renderer = renderer
+        self.title = "None"
+        self.renderer = None
+        self.renderer_instance = renderer_instance
         self.platform = platform
         self.title = title
         if path is not None:
@@ -231,6 +233,12 @@ class RendererConfig:
             except Exception as e:
                 cherrypy.engine.publish('app_notify', 'ERROR', 'Custom renderer load error.')
                 logger.error(str(e))
+
+    def get_instance(self):
+        if self.renderer_instance is None and self.renderer is not None:
+            self.renderer_instance = self.renderer()
+
+        return self.renderer_instance
 
     def check(self):
         """ Check if this renderer can run on your device
@@ -296,7 +304,7 @@ class Macast(App):
         self.renderer_menuitem = None
         # dlna renderers
         RendererConfig.create_renderer_dir()
-        self.renderer_list = [RendererConfig(None, _('MPV (default)'), MPVRenderer, 'darwin,win32,linux')]
+        self.renderer_list = [RendererConfig(None, 'Default', renderer, 'darwin,win32,linux')]
         self.load_custom_renderers()
         print('Load renderer MPVRenderer done')
         # dlna service thread
@@ -305,8 +313,9 @@ class Macast(App):
         self.setting_start_at_login = None
         self.setting_check = None
         self.setting_menubar_icon = None
+        self.setting_dlna_renderer = None
         self.init_setting()
-        self.dlna_service = Service(renderer)
+        self.dlna_service = Service(self.get_renderer_from_title(self.setting_dlna_renderer))
         icon_path = Setting.get_base_path(Macast.ICON_MAP[self.setting_menubar_icon])
         template = None if self.setting_menubar_icon == 0 else True
         self.copy_menuitem = None
@@ -366,6 +375,12 @@ class Macast(App):
                                               children=App.build_menu_item_group(renderer_names,
                                                                                  self.on_renderer_change_click))
             renderer_select = [self.renderer_menuitem]
+            for i in self.renderer_menuitem.children:
+                if i.text == self.setting_dlna_renderer:
+                    i.checked = True
+                    break
+            else:
+                self.renderer_menuitem.children[0].checked = True
 
         platform_options = []
         if sys.platform == 'darwin':
@@ -402,12 +417,10 @@ class Macast(App):
 
     def init_setting(self):
         Setting.load()
-        self.setting_start_at_login = Setting.get(
-            SettingProperty.StartAtLogin, 0)
-        self.setting_check = Setting.get(
-            SettingProperty.CheckUpdate, 1)
-        self.setting_menubar_icon = Setting.get(
-            SettingProperty.MenubarIcon, 1 if sys.platform == 'darwin' else 0)
+        self.setting_start_at_login = Setting.get(SettingProperty.StartAtLogin, 0)
+        self.setting_check = Setting.get(SettingProperty.CheckUpdate, 1)
+        self.setting_menubar_icon = Setting.get(SettingProperty.MenubarIcon, 1 if sys.platform == 'darwin' else 0)
+        self.setting_dlna_renderer =  Setting.get(SettingProperty.DLNA_Renderer, 'Default')
         if self.setting_check:
             threading.Thread(target=self.check_update,
                              kwargs={
@@ -415,6 +428,16 @@ class Macast(App):
                              },
                              daemon=True,
                              name="CHECKUPDATE_THREAD").start()
+
+    def get_renderer_from_title(self, title):
+        for i in self.renderer_list:
+            if title == i.title:
+                print("using renderer: {}".format(title))
+                return i.get_instance()
+        else:
+            print("using default renderer")
+            Setting.set(SettingProperty.DLNA_Renderer, 'Default')
+            return self.renderer_list[0].get_instance()
 
     def stop_cast(self):
         self.dlna_service.stop()
@@ -511,14 +534,13 @@ class Macast(App):
 
     def on_renderer_change_click(self, item):
         renderer_config = self.renderer_list[item.data]
-        if renderer_config.renderer.__name__ == self.dlna_service.renderer.__class__.__name__:
-            cherrypy.engine.publish('app_notify', _('Info'), _(
-                'Macast has already set to {}.'.format(self.dlna_service.renderer.__class__.__name__)))
-            return
-        self.dlna_service.renderer = renderer_config.renderer(_)
+        self.dlna_service.renderer = renderer_config.get_instance()
+        Setting.set(SettingProperty.DLNA_Renderer, renderer_config.title)
+        self.setting_dlna_renderer = renderer_config.title
         self.setting_menuitem.children = self.build_setting_menu()
         # reload menu
         self.set_menu(self.menu)
+        cherrypy.engine.publish('app_notify', _('Info'), _('Change Renderer to {}.').format(renderer_config.title))
 
     def on_open_config_click(self, item):
         self.open_directory(SETTING_DIR)

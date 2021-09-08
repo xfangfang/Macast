@@ -29,6 +29,7 @@ class SettingProperty(Enum):
     MenubarIcon = 3
     ApplicationPort = 4
     DLNA_FriendlyName = 5
+    DLNA_Renderer = 6
 
 
 class Setting:
