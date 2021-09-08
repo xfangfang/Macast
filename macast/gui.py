@@ -182,8 +182,19 @@ class App:
             self.app.icon = Image.open(self.icon)
 
     def update_menu(self):
+        """ refresh current menu
+            only windows and linux needed
+        """
         if self.platform != Platform.Darwin:
             self.app.update_menu()
+
+    def set_menu(self, menu):
+        self.menu = menu
+        if self.platform == Platform.Darwin:
+            self.app.menu.clear()
+            self.app.menu = self._build_menu_rumps(menu)
+        else:
+            self.app.menu = pystray.Menu(lambda: self._build_menu_pystray(menu))
 
     def _find_menu_item_index_by_id(self, id):
         #  TODO find all items
@@ -281,6 +292,17 @@ class App:
                 logger.error(e)
                 webbrowser.open(url)
 
+    def open_directory(self, path):
+        if self.platform == Platform.Darwin:
+            subprocess.Popen(['open', path])
+        elif self.platform == Platform.Win32:
+            subprocess.Popen(['explorer.exe', path])
+        else:
+            try:
+                subprocess.Popen(['nautilus', path])
+            except Exception as e:
+                logger.error(str(e))
+
     @staticmethod
     def build_menu_item_group(titles, callback):
         items = []
@@ -299,11 +321,27 @@ if __name__ == '__main__':
                                                     self.add,
                                                     data=1,
                                                     key="a"),
+                                           MenuItem("Remove",
+                                                    self.remove,
+                                                    data=1,
+                                                    key="b"),
                                            MenuItem("Quit", self.quit)])
 
         def test_call(self, item):
             print("testCall: ", item)
             item.text = "123"
+
+        def remove(self, item):
+            menu = [MenuItem("Add",
+                             self.add,
+                             data=1,
+                             key="a"),
+                    MenuItem("Remove",
+                             self.remove,
+                             data=1,
+                             key="r"),
+                    MenuItem("Quit", self.quit)]
+            self.set_menu(menu)
 
         def add(self, item):
             print("add", item.data)

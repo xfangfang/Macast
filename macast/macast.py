@@ -12,10 +12,11 @@ import threading
 import requests
 import pyperclip
 import gettext
+import importlib
 from cherrypy.process.plugins import Monitor
 from cherrypy._cpserver import Server
 
-from .utils import loadXML, XMLPath, Setting, SettingProperty
+from .utils import loadXML, XMLPath, Setting, SettingProperty, SETTING_DIR, notify_error
 from .plugin import SSDPPlugin, RendererPlugin
 from .renderer import Renderer
 from .gui import App, MenuItem, Platform
@@ -186,6 +187,7 @@ class Service:
         self._renderer = value
         self.renderer_plugin = RendererPlugin(cherrypy.engine, self._renderer)
         self.renderer_plugin.subscribe()
+        self.renderer_plugin.start()
 
     def notify(self):
         """ssdp do notify
@@ -216,6 +218,56 @@ class Service:
         Setting.stop_service()
 
 
+class RendererConfig:
+    def __init__(self, path, title='Renderer', renderer=Renderer, platform='none'):
+        # path is allowed to be set to None only when renderer is macast official renderer
+        self.path = path
+        self.renderer = renderer
+        self.platform = platform
+        self.title = title
+        if path is not None:
+            try:
+                self.load_from_file(path)
+            except Exception as e:
+                cherrypy.engine.publish('app_notify', 'ERROR', 'Custom renderer load error.')
+                logger.error(str(e))
+
+    def check(self):
+        """ Check if this renderer can run on your device
+        """
+        if sys.platform in self.platform:
+            if self.path is not None and os.path.exists(self.path) or self.path is None:
+                return True
+
+        logger.error("{} support platform: {}".format(self.title, self.platform))
+        logger.error("{} is not suit for this system.".format(self.title))
+        return False
+
+    def load_from_file(self, path):
+        base_name = os.path.basename(path).split('.')[0]
+        with open(path, 'r', encoding='utf-8') as f:
+            renderer_file = f.read()
+            metadata = re.findall("<macast.(.*?)>(.*?)</macast", renderer_file)
+            print("<Load Renderer from {}".format(base_name))
+            for key, value in metadata:
+                print('%-10s: %s' % (key, value))
+                setattr(self, key, str(value))
+            module = importlib.import_module('renderer.{}'.format(base_name))
+            print('Load renderer {} done />'.format(self.renderer))
+            self.renderer = getattr(module, self.renderer)
+
+    @staticmethod
+    @notify_error('Cannot create custom renderer dir.')
+    def create_renderer_dir():
+        sys.path.append(SETTING_DIR)
+        custom_module_path = os.path.join(SETTING_DIR, 'renderer')
+        if not os.path.exists(custom_module_path):
+            os.makedirs(custom_module_path)
+        init_file_path = os.path.join(custom_module_path, '__init__.py')
+        if not os.path.exists(init_file_path):
+            open(init_file_path, 'a').close()
+
+
 class Macast(App):
     if sys.platform == 'linux':
         ICON_MAP = ['assets/icon.png',
@@ -240,16 +292,21 @@ class Macast(App):
         self.menubar_icon_menuitem = None
         self.check_update_menuitem = None
         self.about_menuitem = None
+        self.open_config_menuitem = None
+        self.renderer_menuitem = None
+        # dlna renderers
+        RendererConfig.create_renderer_dir()
+        self.renderer_list = [RendererConfig(None, _('MPV (default)'), MPVRenderer, 'darwin,win32,linux')]
+        self.load_custom_renderers()
+        print('Load renderer MPVRenderer done')
         # dlna service thread
         self.thread = None
         # setting items
         self.setting_start_at_login = None
         self.setting_check = None
         self.setting_menubar_icon = None
-
         self.init_setting()
-        self.renderer = renderer
-        self.dlna_service = Service(self.renderer)
+        self.dlna_service = Service(renderer)
         icon_path = Setting.get_base_path(Macast.ICON_MAP[self.setting_menubar_icon])
         template = None if self.setting_menubar_icon == 0 else True
         self.copy_menuitem = None
@@ -279,6 +336,17 @@ class Macast(App):
             self.quit_menuitem
         ]
 
+    def load_custom_renderers(self):
+        renderers_path = os.path.join(SETTING_DIR, 'renderer')
+        if os.path.exists(renderers_path):
+            renderers = os.listdir(renderers_path)
+            renderers = filter(lambda s: s.endswith('.py') and s != '__init__.py', renderers)
+            for renderer in renderers:
+                path = os.path.join(renderers_path, renderer)
+                renderer_config = RendererConfig(path)
+                if renderer_config.check():
+                    self.renderer_list.append(renderer_config)
+
     def build_setting_menu(self):
         self.ip_menuitem = MenuItem("{}:{}".format(
             Setting.get_ip(), Setting.get_port()), enabled=False)
@@ -290,6 +358,15 @@ class Macast(App):
         self.start_at_login_menuitem = MenuItem(_("Start At Login"),
                                                 self.on_start_at_login_click,
                                                 checked=self.setting_start_at_login)
+
+        renderer_names = [r.title for r in self.renderer_list]
+        renderer_select = []
+        if len(renderer_names) > 1:
+            self.renderer_menuitem = MenuItem(_("Renderers"),
+                                              children=App.build_menu_item_group(renderer_names,
+                                                                                 self.on_renderer_change_click))
+            renderer_select = [self.renderer_menuitem]
+
         platform_options = []
         if sys.platform == 'darwin':
             platform_options = [self.start_at_login_menuitem]
@@ -308,19 +385,20 @@ class Macast(App):
                                                       _("PatternLight"),
                                                       _("PatternDark"),
                                                   ], self.on_menubar_icon_change_click))
+        self.open_config_menuitem = MenuItem(_("Open Config Directory"), self.on_open_config_click)
         self.check_update_menuitem = MenuItem(_("Check For Updates"), self.on_check_click)
         self.about_menuitem = MenuItem(_("About"), self.on_about_click)
 
         self.menubar_icon_menuitem.items()[self.setting_menubar_icon].checked = True
-        player_settings = self.renderer.renderer_setting.build_menu()
+        player_settings = self.dlna_service.renderer.renderer_setting.build_menu()
         if len(player_settings) > 0:
             player_settings.append(None)
 
-        return [self.version_menuitem, self.ip_menuitem, None] + \
+        return [self.version_menuitem, self.ip_menuitem] + renderer_select + [None] + \
             player_settings + \
                [self.menubar_icon_menuitem, self.auto_check_update_menuitem] + \
             platform_options + \
-               [None, self.check_update_menuitem, self.about_menuitem]
+               [None, self.open_config_menuitem, self.check_update_menuitem, self.about_menuitem]
 
     def init_setting(self):
         Setting.load()
@@ -430,6 +508,20 @@ class Macast(App):
         self.append_menu_item_after(self.toggle_menuitem.id, self.copy_menuitem)
 
     # The followings are the callback function of menu click
+
+    def on_renderer_change_click(self, item):
+        renderer_config = self.renderer_list[item.data]
+        if renderer_config.renderer.__name__ == self.dlna_service.renderer.__class__.__name__:
+            cherrypy.engine.publish('app_notify', _('Info'), _(
+                'Macast has already set to {}.'.format(self.dlna_service.renderer.__class__.__name__)))
+            return
+        self.dlna_service.renderer = renderer_config.renderer(_)
+        self.setting_menuitem.children = self.build_setting_menu()
+        # reload menu
+        self.set_menu(self.menu)
+
+    def on_open_config_click(self, item):
+        self.open_directory(SETTING_DIR)
 
     def on_check_click(self, item):
         threading.Thread(target=self.check_update,

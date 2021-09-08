@@ -301,3 +301,22 @@ def loadXML(path):
     with open(path) as f:
         xml = f.read()
     return xml
+
+
+def notify_error(msg=None):
+    """publish a notification when error occured
+    """
+    def wrapper_fun(fun):
+        def wrapper(*args, **kwargs):
+            nonlocal msg
+            try:
+                return fun(*args, **kwargs)
+            except Exception as e:
+                logger.error(str(e))
+                if msg is None:
+                    msg = str(e)
+                else:
+                    logger.error(msg)
+                cherrypy.engine.publish('app_notify', _('Error'), msg)
+        return wrapper
+    return wrapper_fun
