@@ -11,8 +11,8 @@
 # Implementation of a SSDP server.
 #
 
+import sys
 import random
-import time
 import socket
 import logging
 import threading
@@ -26,6 +26,29 @@ SSDP_ADDR = '239.255.255.250'
 SERVER_ID = 'SSDP Server'
 logger = logging.getLogger("SSDPServer")
 
+class Sock:
+    def __init__(self, ip):
+        self.ip = ip
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.ssdp_addr = socket.inet_aton(SSDP_ADDR)
+        self.interface = socket.inet_aton(self.ip)
+        self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(ip) + self.interface)
+        self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, self.ssdp_addr + self.interface)
+        self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 0)
+        # self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 10)
+
+    def send_it(self, response, destination):
+        try:
+            self.sock.sendto(response.format(self.ip).encode(), destination)
+        except (AttributeError, socket.error) as msg:
+            logger.warning("failure sending out byebye notification: %r" % msg)
+
+    def close(self):
+        try:
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP,  self.ssdp_addr + self.interface)
+        except Exception:
+            pass
+        self.sock.close()
 
 class SSDPServer:
     """A class implementing a SSDP server.  The notify_received and
@@ -34,6 +57,9 @@ class SSDPServer:
     known = {}
 
     def __init__(self):
+        self.ip_list = []
+        self.sock_list = []
+        self.sock_lock = threading.RLock()
         self.sock = None
         self.running = False
         self.ssdp_thread = None
@@ -58,21 +84,34 @@ class SSDPServer:
                 self.ssdp_thread.join()
 
     def run(self):
+        # create UDP server
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        if hasattr(socket, "SO_REUSEPORT"):
+
+        # set IP_MULTICAST_LOOP to false
+        self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 0)
+
+        # set SO_REUSEADDR or SO_REUSEPORT
+        if sys.platform == 'win32':
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        elif sys.platform == 'darwin':
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        elif hasattr(socket, "SO_REUSEPORT"):
             try:
                 self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
                 logger.debug("SSDP set SO_REUSEPORT")
             except socket.error as e:
                 logger.error("SSDP cannot set SO_REUSEPORT")
                 logger.error(str(e))
-        else:
-            logger.error("SSDP cannot set SO_REUSEPORT")
+        elif hasattr(socket, "SO_REUSEADDR"):
+            try:
+                self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                logger.debug("SSDP set SO_REUSEADDR")
+            except socket.error as e:
+                logger.error("SSDP cannot set SO_REUSEADDR")
+                logger.error(str(e))
 
-        addr = socket.inet_aton(SSDP_ADDR)
-        interface = socket.inet_aton('0.0.0.0')
-        cmd = socket.IP_ADD_MEMBERSHIP
-        self.sock.setsockopt(socket.IPPROTO_IP, cmd, addr + interface)
+        # self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 10)
+
         try:
             self.sock.bind(('0.0.0.0', SSDP_PORT))
         except Exception as e:
@@ -89,6 +128,13 @@ class SSDPServer:
             except socket.timeout:
                 continue
         self.shutdown()
+        for ip, mask in self.ip_list:
+            print("drop", ip)
+            mreq = socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ip)
+            try:
+                self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, mreq)
+            except Exception:
+                continue
         self.sock.close()
         self.sock = None
 
@@ -157,14 +203,31 @@ class SSDPServer:
     def is_known(self, usn):
         return usn in self.known
 
-    def send_it(self, response, destination, delay, usn):
-        logger.debug('send discovery response delayed by %ds for %s to %r' %
-                     (delay, usn, destination))
-        logger.debug(response)
-        try:
-            self.sock.sendto(response.encode(), destination)
-        except (AttributeError, socket.error) as msg:
-            logger.warning("failure sending out byebye notification: %r" % msg)
+    def update_ip(self):
+        """Update the device ip address
+        """
+        with self.sock_lock:
+            for sock in self.sock_list:
+                sock.close()
+            new_ip_list = Setting.get_ip()
+            self.sock_list = []
+            for ip, mask in new_ip_list:
+                self.sock_list.append(Sock(ip))
+                if (ip, mask) not in self.ip_list:
+                    print('add membership',ip)
+                    mreq = socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ip)
+                    self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+            self.ip_list = new_ip_list
+
+    def send_it(self, response, destination):
+        with self.sock_lock:
+            for sock in self.sock_list:
+                sock.send_it(response, destination)
+
+    def get_subnet_ip(self, ip, mask):
+        a = [int(n) for n in mask.split('.')]
+        b = [int(n) for n in ip.split('.')]
+        return [a[i] & b[i] for i in range(4)]
 
     def discovery_request(self, headers, host_port):
         """Process a discovery request.  The response must be sent to
@@ -176,8 +239,6 @@ class SSDPServer:
                                                                headers['st']))
         # Do we know about this service?
         for i in self.known.values():
-            if headers['st'] == 'ssdp:all':
-                continue
             if i['ST'] == headers['st'] or headers['st'] == 'ssdp:all':
                 response = ['HTTP/1.1 200 OK']
 
@@ -194,9 +255,15 @@ class SSDPServer:
 
                     response.extend(('', ''))
                     delay = random.randint(0, int(headers['mx']))
-
-                    self.send_it('\r\n'.join(response),
-                                 (host, port), delay, usn)
+                    destination = (host, port)
+                    logger.debug('send discovery response delayed by %ds for %s to %r' % (delay, usn, destination))
+                    # logger.debug(response)
+                    # asyncio.sleep(delay)
+                    with self.sock_lock:
+                        for ip, mask in self.ip_list:
+                            if self.get_subnet_ip(ip, mask) == self.get_subnet_ip(host, mask):
+                                self.sock.sendto('\r\n'.join(response).format(ip).encode(), destination)
+                                break
 
     def do_notify(self, usn):
         """Do notification"""
@@ -214,10 +281,12 @@ class SSDPServer:
         resp.extend(map(lambda x: ': '.join(x), stcpy.items()))
         resp.extend(('', ''))
         try:
-            self.sock.sendto('\r\n'.join(resp).encode(),
-                             (SSDP_ADDR, SSDP_PORT))
-            self.sock.sendto('\r\n'.join(resp).encode(),
-                             (SSDP_ADDR, SSDP_PORT))
+            # self.sock.sendto('\r\n'.join(resp).encode(),
+            #                  (SSDP_ADDR, SSDP_PORT))
+            # self.sock.sendto('\r\n'.join(resp).encode(),
+            #                  (SSDP_ADDR, SSDP_PORT))
+            self.send_it('\r\n'.join(resp), (SSDP_ADDR, SSDP_PORT))
+            self.send_it('\r\n'.join(resp), (SSDP_ADDR, SSDP_PORT))
         except (AttributeError, socket.error) as msg:
             logger.warning("failure sending out alive notification: %r" % msg)
 
@@ -240,8 +309,9 @@ class SSDPServer:
             resp.extend(('', ''))
             if self.sock:
                 try:
-                    self.sock.sendto('\r\n'.join(resp).encode(),
-                                     (SSDP_ADDR, SSDP_PORT))
+                    # self.sock.sendto('\r\n'.join(resp).encode(),
+                                    #  (SSDP_ADDR, SSDP_PORT))
+                    self.send_it('\r\n'.join(resp), (SSDP_ADDR, SSDP_PORT))
                 except (AttributeError, socket.error) as msg:
                     logger.error("error sending byebye notification: %r" % msg)
         except KeyError as msg:

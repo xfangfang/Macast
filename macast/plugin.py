@@ -83,12 +83,10 @@ class SSDPPlugin(plugins.SimplePlugin):
     def register(self):
         """register device
         """
-        ip = Setting.get_ip()
         for device in self.devices:
             self.ssdp.register(device,
                                device[43:] if device[43:] != '' else device,
-                               'http://{}:{}/description.xml'.format(
-                                   ip, Setting.get_port()),
+                               'http://{{}}:{}/description.xml'.format(Setting.get_port()),
                                Setting.get_server_info(),
                                'max-age=66')
 
@@ -98,11 +96,6 @@ class SSDPPlugin(plugins.SimplePlugin):
         for device in self.devices:
             self.ssdp.unregister(device)
 
-    def update_ip(self):
-        """Update the device ip address
-        """
-        self.unregister()
-        self.register()
 
     def start(self):
         """Start SSDPPlugin
@@ -111,12 +104,12 @@ class SSDPPlugin(plugins.SimplePlugin):
         self.register()
         self.ssdp.start()
         self.bus.subscribe('ssdp_notify', self.notify)
-        self.bus.subscribe('ssdp_update_ip', self.update_ip)
+        self.bus.subscribe('ssdp_update_ip', self.ssdp.update_ip)
 
     def stop(self):
         """Stop SSDPPlugin
         """
         logger.info('Stoping SSDPPlugin')
         self.bus.unsubscribe('ssdp_notify', self.notify)
-        self.bus.unsubscribe('ssdp_update_ip', self.update_ip)
+        self.bus.unsubscribe('ssdp_update_ip', self.ssdp.update_ip)
         self.ssdp.stop()

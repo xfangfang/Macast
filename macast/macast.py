@@ -357,8 +357,9 @@ class Macast(App):
                     self.renderer_list.append(renderer_config)
 
     def build_setting_menu(self):
-        self.ip_menuitem = MenuItem("{}:{}".format(
-            Setting.get_ip(), Setting.get_port()), enabled=False)
+        ip_text = "/".join([ip for ip,_ in Setting.get_ip()])
+        port =  Setting.get_port()
+        self.ip_menuitem = MenuItem("{}:{}".format(ip_text, port), enabled=False)
         self.version_menuitem = MenuItem(
             "Macast (v{})".format(Setting.getVersion()), enabled=False)
         self.auto_check_update_menuitem = MenuItem(_("Auto Check Updates"),
@@ -511,7 +512,9 @@ class Macast(App):
         """
         logger.info("ssdp_update_ip")
         if self.ip_menuitem is not None:
-            self.ip_menuitem.text = "{}:{}".format(Setting.get_ip(), Setting.get_port())
+            ip_text = "/".join([ip for ip,_ in Setting.get_ip()])
+            port =  Setting.get_port()
+            self.ip_menuitem.text = "{}:{}".format(ip_text, port)
         self.update_menu()
 
     def renderer_av_stop(self):

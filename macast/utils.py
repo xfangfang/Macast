@@ -14,6 +14,7 @@ import locale
 import cherrypy
 import subprocess
 from enum import Enum
+import netifaces as ni
 if sys.platform == 'darwin':
     from AppKit import NSBundle
 
@@ -120,19 +121,11 @@ class Setting:
 
     @staticmethod
     def get_ip():
-        ip = None
-        s = None
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(('1.1.1.1', 80))
-            ip = s.getsockname()[0]
-        except Exception as e:
-            logger.error("Cannot get ip")
-        finally:
-            if s is not None:
-                s.close()
-        Setting.last_ip = ip
-        return ip
+        Setting.last_ip = []
+        for i in ni.gateways()[ni.AF_INET]:
+            for j in ni.ifaddresses(i[1])[ni.AF_INET]:
+                Setting.last_ip.append((j['addr'],j['netmask']))
+        return Setting.last_ip
 
     @staticmethod
     def get_port():
@@ -318,6 +311,6 @@ def notify_error(msg=None):
                     msg = str(e)
                 else:
                     logger.error(msg)
-                cherrypy.engine.publish('app_notify', _('Error'), msg)
+                cherrypy.engine.publish('app_notify', 'Error', msg)
         return wrapper
     return wrapper_fun
