@@ -2,10 +2,7 @@
 
 import sys
 import logging
-import webbrowser
 import subprocess
-import threading
-from abc import abstractmethod
 from enum import Enum
 from .utils import Setting
 
@@ -15,7 +12,6 @@ else:
     import pystray
     import webbrowser
     from PIL import Image
-
 
 logger = logging.getLogger("gui")
 logger.setLevel(logging.INFO)
@@ -27,7 +23,7 @@ class Platform(Enum):
     Others = 2
 
 
-class MenuItem():
+class MenuItem:
     def __init__(self, text, callback=None, checked=None, enabled=True,
                  children=None, data=None, key=None):
         self.view = None
@@ -96,7 +92,7 @@ class MenuItem():
         self.callback(self)
 
 
-class App():
+class App:
     def __init__(self, name, icon, menu, template=True):
         self.name = name
         self.icon = icon
@@ -106,18 +102,18 @@ class App():
         self.template = template
         if sys.platform == 'darwin':
             self.platform = Platform.Darwin
-            self.initPlatformDarwin()
+            self.init_platform_darwin()
         elif sys.platform == 'win32':
             self.platform = Platform.Win32
-            self.initPlatformWin32()
+            self.init_platform_win32()
         else:
             self.platform = Platform.Others
-            self.initPlatformOthers()
+            self.init_platform_others()
 
         if self.platform == Platform.Darwin:
             self.app = rumps.App(self.name,
                                  icon=self.icon,
-                                 menu=self._buildMenuRumps(self.menu),
+                                 menu=self._build_menu_rumps(self.menu),
                                  template=self.template,
                                  quit_button=None)
             rumps.debug_mode(True)
@@ -126,60 +122,58 @@ class App():
                                     Image.open(self.icon),
                                     menu=pystray.Menu(
                                         lambda:
-                                            self._buildMenuPystray(self.menu)))
+                                        self._build_menu_pystray(self.menu)))
 
-    def initPlatformDarwin(self):
+    def init_platform_darwin(self):
         pass
 
-    def initPlatformWin32(self):
+    def init_platform_win32(self):
         pass
 
-    def initPlatformOthers(self):
+    def init_platform_others(self):
         pass
 
-    def _buildMenuRumps(self, menu):
+    def _build_menu_rumps(self, menu):
         items = []
         for item in menu:
             if item is None:
                 items.append(None)
             elif item.children is not None:
-                menuItem = rumps.MenuItem(item.text)
-                items.append([menuItem, self._buildMenuRumps(item.children)])
+                menu_item = rumps.MenuItem(item.text)
+                items.append([menu_item, self._build_menu_rumps(item.children)])
             else:
-                items.append(self._buildMenuItemRumps(item))
+                items.append(self._build_menu_item_rumps(item))
         return items
 
-    def _buildMenuItemRumps(self, item):
+    def _build_menu_item_rumps(self, item):
         callback = item._rumpsCallback if item.enabled else None
-        menuItem = rumps.MenuItem(item.text,
-                                  callback,
-                                  item.key)
-        menuItem.state = 1 if item.checked else 0
-        item.view = menuItem
-        return menuItem
+        menu_item = rumps.MenuItem(item.text, callback, item.key)
+        menu_item.state = 1 if item.checked else 0
+        item.view = menu_item
+        return menu_item
 
-    def _buildMenuPystray(self, menu):
+    def _build_menu_pystray(self, menu):
         items = []
         for item in menu:
             if item is None:
                 items.append(pystray.Menu.SEPARATOR)
             elif item.children is not None and len(item.children) > 0:
-                menuItem = pystray.MenuItem(
+                menu_item = pystray.MenuItem(
                     item.text, pystray.Menu(
-                        *self._buildMenuPystray(item.children)))
-                items.append(menuItem)
+                        *self._build_menu_pystray(item.children)))
+                items.append(menu_item)
             else:
-                menuItem = pystray.MenuItem(lambda i: i.view.text,
-                                            item._pystrayCallback,
-                                            lambda i: True if i.view.checked
-                                            else None,
-                                            enabled=lambda i: i.view.enabled)
-                item.view = menuItem
-                menuItem.view = item
-                items.append(menuItem)
+                menu_item = pystray.MenuItem(lambda i: i.view.text,
+                                             item._pystrayCallback,
+                                             lambda i: True if i.view.checked
+                                             else None,
+                                             enabled=lambda i: i.view.enabled)
+                item.view = menu_item
+                menu_item.view = item
+                items.append(menu_item)
         return items
 
-    def updateIcon(self, icon, template=True):
+    def update_icon(self, icon, template=True):
         self.icon = icon
         if self.platform == Platform.Darwin:
             self.app.template = template
@@ -187,7 +181,22 @@ class App():
         else:
             self.app.icon = Image.open(self.icon)
 
-    def _findMenuItemIndexByID(self, id):
+    def update_menu(self):
+        """ refresh current menu
+            only windows and linux needed
+        """
+        if self.platform != Platform.Darwin:
+            self.app.update_menu()
+
+    def set_menu(self, menu):
+        self.menu = menu
+        if self.platform == Platform.Darwin:
+            self.app.menu.clear()
+            self.app.menu = self._build_menu_rumps(menu)
+        else:
+            self.app.menu = pystray.Menu(lambda: self._build_menu_pystray(menu))
+
+    def _find_menu_item_index_by_id(self, id):
         #  TODO find all items
         for i, item in enumerate(self.menu):
             if item.id is not None and item.id == id:
@@ -195,30 +204,30 @@ class App():
         logger.error("Canot find id:{}.".format(id))
         return -1
 
-    def appendMenuItemAfter(self, id, menuItem):
+    def append_menu_item_after(self, id, menu_item):
         if self.platform == Platform.Darwin:
-            self.app.menu.insert_after(id, self._buildMenuItemRumps(menuItem))
+            self.app.menu.insert_after(id, self._build_menu_item_rumps(menu_item))
         else:
-            index = self._findMenuItemIndexByID(id)
+            index = self._find_menu_item_index_by_id(id)
             print("index: ", index)
             if index != -1:
-                self.menu.insert(index + 1, menuItem)
+                self.menu.insert(index + 1, menu_item)
                 self.app.update_menu()
 
-    def appendMenuItemBefore(self, id, menuItem):
+    def append_menu_item_before(self, id, menu_item):
         if self.platform == Platform.Darwin:
-            self.app.menu.insert_before(id, self._buildMenuItemRumps(menuItem))
+            self.app.menu.insert_before(id, self._build_menu_item_rumps(menu_item))
         else:
-            index = self._findMenuItemIndexByID(id)
+            index = self._find_menu_item_index_by_id(id)
             if index != -1:
-                self.menu.insert(index, menuItem)
+                self.menu.insert(index, menu_item)
                 self.app.update_menu()
 
-    def removeMenuItemByID(self, id):
+    def remove_menu_item_by_id(self, id):
         if self.platform == Platform.Darwin:
             self.app.menu.pop(id)
         else:
-            index = self._findMenuItemIndexByID(id)
+            index = self._find_menu_item_index_by_id(id)
             if index != -1:
                 self.menu.pop(index)
                 self.app.update_menu()
@@ -254,7 +263,7 @@ class App():
     def dialog(self, content, callback=None, cancel="Cancel", ok="Ok"):
         if self.platform == Platform.Darwin:
             try:
-                res = Setting.systemShell(
+                res = Setting.system_shell(
                     ['osascript',
                      '-e',
                      'display dialog "{}" buttons {{"{}","{}"}}'.format(
@@ -269,7 +278,7 @@ class App():
             if callback:
                 callback()
 
-    def openBrowser(self, url):
+    def open_browser(self, url):
         if self.platform == Platform.Darwin:
             subprocess.Popen(['open', url])
         elif self.platform == Platform.Win32:
@@ -278,10 +287,29 @@ class App():
             try:
                 subprocess.Popen("sensible-browser {}".format(url),
                                  shell=True,
-                                 env=Setting.getSystemEnv())
+                                 env=Setting.get_system_env())
             except Exception as e:
                 logger.error(e)
                 webbrowser.open(url)
+
+    def open_directory(self, path):
+        if self.platform == Platform.Darwin:
+            subprocess.Popen(['open', path])
+        elif self.platform == Platform.Win32:
+            subprocess.Popen(['explorer.exe', path])
+        else:
+            try:
+                subprocess.Popen(['nautilus', path])
+            except Exception as e:
+                logger.error(str(e))
+
+    @staticmethod
+    def build_menu_item_group(titles, callback):
+        items = []
+        for index, title in enumerate(titles):
+            item = MenuItem(title, callback, data=index)
+            items.append(item)
+        return items
 
 
 if __name__ == '__main__':
@@ -293,21 +321,37 @@ if __name__ == '__main__':
                                                     self.add,
                                                     data=1,
                                                     key="a"),
+                                           MenuItem("Remove",
+                                                    self.remove,
+                                                    data=1,
+                                                    key="b"),
                                            MenuItem("Quit", self.quit)])
 
-        def testCall(self, item):
+        def test_call(self, item):
             print("testCall: ", item)
             item.text = "123"
+
+        def remove(self, item):
+            menu = [MenuItem("Add",
+                             self.add,
+                             data=1,
+                             key="a"),
+                    MenuItem("Remove",
+                             self.remove,
+                             data=1,
+                             key="r"),
+                    MenuItem("Quit", self.quit)]
+            self.set_menu(menu)
 
         def add(self, item):
             print("add", item.data)
             item = MenuItem("Test", None, children=[
-                MenuItem("Test1", self.testCall, data=1),
+                MenuItem("Test1", self.test_call, data=1),
                 None,
-                MenuItem("Test2", self.testCall, data=2),
-                MenuItem("Test3", self.testCall, data=3),
+                MenuItem("Test2", self.test_call, data=2),
+                MenuItem("Test3", self.test_call, data=3),
             ])
-            self.appendMenuItemAfter("Add", item)
+            self.append_menu_item_after("Add", item)
 
         def quit(self, _):
             super(DemoApp, self).quit(_)

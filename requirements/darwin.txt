@@ -4,3 +4,4 @@ lxml
 requests
 rumps
 pyperclip
+netifaces
