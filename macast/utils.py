@@ -122,7 +122,13 @@ class Setting:
     @staticmethod
     def get_ip():
         Setting.last_ip = []
-        for i in ni.gateways()[ni.AF_INET]:
+        gateways = ni.gateways()
+        interfaces = []
+        if ni.AF_INET in gateways:
+            interfaces += gateways[ni.AF_INET]
+        if ni.AF_LINK in gateways:
+            interfaces += gateways[ni.AF_LINK]
+        for i in interfaces:
             for j in ni.ifaddresses(i[1])[ni.AF_INET]:
                 Setting.last_ip.append((j['addr'], j['netmask']))
         return Setting.last_ip
