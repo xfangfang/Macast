@@ -205,8 +205,9 @@ class Service:
         # update current port
         _, port = cherrypy.server.bound_addr
         logger.info("Server current run on port: {}".format(port))
-        Setting.set(SettingProperty.ApplicationPort, port)
-        cherrypy.engine.publish('ssdp_update_ip')
+        if port != Setting.get(SettingProperty.ApplicationPort, 0):
+            Setting.set(SettingProperty.ApplicationPort, port)
+            cherrypy.engine.publish('ssdp_update_ip')
         # service started
         cherrypy.engine.block()
         # service stopped
@@ -357,8 +358,8 @@ class Macast(App):
                     self.renderer_list.append(renderer_config)
 
     def build_setting_menu(self):
-        ip_text = "/".join([ip for ip,_ in Setting.get_ip()])
-        port =  Setting.get_port()
+        ip_text = "/".join([ip for ip, _ in Setting.get_ip()])
+        port = Setting.get_port()
         self.ip_menuitem = MenuItem("{}:{}".format(ip_text, port), enabled=False)
         self.version_menuitem = MenuItem(
             "Macast (v{})".format(Setting.getVersion()), enabled=False)
@@ -421,7 +422,7 @@ class Macast(App):
         self.setting_start_at_login = Setting.get(SettingProperty.StartAtLogin, 0)
         self.setting_check = Setting.get(SettingProperty.CheckUpdate, 1)
         self.setting_menubar_icon = Setting.get(SettingProperty.MenubarIcon, 1 if sys.platform == 'darwin' else 0)
-        self.setting_dlna_renderer =  Setting.get(SettingProperty.DLNA_Renderer, 'Default')
+        self.setting_dlna_renderer = Setting.get(SettingProperty.DLNA_Renderer, 'Default')
         if self.setting_check:
             threading.Thread(target=self.check_update,
                              kwargs={
@@ -512,8 +513,8 @@ class Macast(App):
         """
         logger.info("ssdp_update_ip")
         if self.ip_menuitem is not None:
-            ip_text = "/".join([ip for ip,_ in Setting.get_ip()])
-            port =  Setting.get_port()
+            ip_text = "/".join([ip for ip, _ in Setting.get_ip()])
+            port = Setting.get_port()
             self.ip_menuitem.text = "{}:{}".format(ip_text, port)
         self.update_menu()
 

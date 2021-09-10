@@ -124,7 +124,7 @@ class Setting:
         Setting.last_ip = []
         for i in ni.gateways()[ni.AF_INET]:
             for j in ni.ifaddresses(i[1])[ni.AF_INET]:
-                Setting.last_ip.append((j['addr'],j['netmask']))
+                Setting.last_ip.append((j['addr'], j['netmask']))
         return Setting.last_ip
 
     @staticmethod

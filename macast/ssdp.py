@@ -50,6 +50,7 @@ class Sock:
             pass
         self.sock.close()
 
+
 class SSDPServer:
     """A class implementing a SSDP server.  The notify_received and
     searchReceived methods are called when the appropriate type of
@@ -112,6 +113,14 @@ class SSDPServer:
 
         # self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 10)
 
+        self.ip_list = Setting.get_ip()
+        self.sock_list = []
+        for ip, mask in self.ip_list:
+            self.sock_list.append(Sock(ip))
+            logger.error('add membership {}'.format(ip))
+            mreq = socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ip)
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+
         try:
             self.sock.bind(('0.0.0.0', SSDP_PORT))
         except Exception as e:
@@ -129,7 +138,7 @@ class SSDPServer:
                 continue
         self.shutdown()
         for ip, mask in self.ip_list:
-            print("drop", ip)
+            logger.error("drop membership {}".format(ip))
             mreq = socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ip)
             try:
                 self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, mreq)
@@ -203,22 +212,6 @@ class SSDPServer:
     def is_known(self, usn):
         return usn in self.known
 
-    def update_ip(self):
-        """Update the device ip address
-        """
-        with self.sock_lock:
-            for sock in self.sock_list:
-                sock.close()
-            new_ip_list = Setting.get_ip()
-            self.sock_list = []
-            for ip, mask in new_ip_list:
-                self.sock_list.append(Sock(ip))
-                if (ip, mask) not in self.ip_list:
-                    print('add membership',ip)
-                    mreq = socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ip)
-                    self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-            self.ip_list = new_ip_list
-
     def send_it(self, response, destination):
         with self.sock_lock:
             for sock in self.sock_list:
@@ -269,6 +262,9 @@ class SSDPServer:
         """Do notification"""
         logger.debug('Sending alive notification for %s' % usn)
 
+        if usn not in self.known:
+            return
+
         resp = [
             'NOTIFY * HTTP/1.1',
             'HOST: %s:%d' % (SSDP_ADDR, SSDP_PORT),
@@ -281,10 +277,6 @@ class SSDPServer:
         resp.extend(map(lambda x: ': '.join(x), stcpy.items()))
         resp.extend(('', ''))
         try:
-            # self.sock.sendto('\r\n'.join(resp).encode(),
-            #                  (SSDP_ADDR, SSDP_PORT))
-            # self.sock.sendto('\r\n'.join(resp).encode(),
-            #                  (SSDP_ADDR, SSDP_PORT))
             self.send_it('\r\n'.join(resp), (SSDP_ADDR, SSDP_PORT))
             self.send_it('\r\n'.join(resp), (SSDP_ADDR, SSDP_PORT))
         except (AttributeError, socket.error) as msg:
@@ -309,8 +301,6 @@ class SSDPServer:
             resp.extend(('', ''))
             if self.sock:
                 try:
-                    # self.sock.sendto('\r\n'.join(resp).encode(),
-                                    #  (SSDP_ADDR, SSDP_PORT))
                     self.send_it('\r\n'.join(resp), (SSDP_ADDR, SSDP_PORT))
                 except (AttributeError, socket.error) as msg:
                     logger.error("error sending byebye notification: %r" % msg)
