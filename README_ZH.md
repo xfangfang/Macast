@@ -1,4 +1,4 @@
-<img align="center" src="macast_slogan.png" alt="slogan" height="auto"/>
+<img align="center" src="https://github.com/xfangfang/Macast/raw/main/macast_slogan.png" alt="slogan" height="auto"/>
 
 # Macast
 
@@ -10,7 +10,6 @@
 [![windows](https://img.shields.io/badge/Windows-10-lightgrey?logo=Windows)](https://github.com/xfangfang/Macast/releases/latest)
 [![linux](https://img.shields.io/badge/Linux-Xorg-lightgrey?logo=Linux)](https://github.com/xfangfang/Macast/releases/latest)
 
-[README_EN](README.md)
 
 Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以使用电脑接收发送自手机的视频、图片和音乐，支持主流视频音乐软件和其他任何符合DLNA协议的投屏软件。
 

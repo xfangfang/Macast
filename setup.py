@@ -40,8 +40,8 @@ elif sys.platform == 'win32':
                 "pystray"]
 else:
     INSTALL += ["pillow",
-                "pystray @ git+https://github.com/xfangfang/pystray.git",
-                "pyperclip @ git+https://github.com/xfangfang/pyperclip.git"]
+                "pystray",
+                "pyperclip"]
 
 
 class SDist(CompileCatalogMixin, sdist):

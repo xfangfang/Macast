@@ -1,4 +1,4 @@
-<img align="center" src="macast_slogan.png" alt="slogan" height="auto"/>
+<img align="center" src="https://github.com/xfangfang/Macast/raw/main/macast_slogan.png" alt="slogan" height="auto"/>
 
 # Macast
 
@@ -13,9 +13,6 @@
 [![windows](https://img.shields.io/badge/Windows-7%20and%20higher-lightgrey?logo=Windows)](https://github.com/xfangfang/Macast/releases/latest)
 [![linux](https://img.shields.io/badge/Linux-Xorg-lightgrey?logo=Linux)](https://github.com/xfangfang/Macast/releases/latest)
 
-
-
-[中文说明](README_ZH.md)
 
 A menu bar application using mpv as **DLNA Media Renderer**. You can push videos, pictures or musics from your mobile phone to your computer.
 
@@ -45,7 +42,7 @@ A menu bar application using mpv as **DLNA Media Renderer**. You can push videos
 
 - ### Build from source
 
-  Please refer to: [Macast Development](docs/Development.md)
+  Please refer to: [Macast Development](https://github.com/xfangfang/Macast/blob/main/docs/Development.md)
 
 
 ## Usage
