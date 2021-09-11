@@ -281,7 +281,7 @@ class App:
     def get_env(self):
         # https://github.com/pyinstaller/pyinstaller/issues/3668#issuecomment-742547785
         env = Setting.get_system_env()
-        toDelete = [] 
+        toDelete = []
         for (k, v) in env.items():
             if k != 'PATH' and 'tmp' in v:
                 toDelete.append(k)
@@ -295,7 +295,7 @@ class App:
         elif self.platform == Platform.Win32:
             webbrowser.open(url)
         else:
-            subprocess.Popen(["xdg-open",url], env=self.get_env())
+            subprocess.Popen(["xdg-open", url], env=self.get_env())
 
     def open_directory(self, path):
         if self.platform == Platform.Darwin:
