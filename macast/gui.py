@@ -278,19 +278,24 @@ class App:
             if callback:
                 callback()
 
+    def get_env(self):
+        # https://github.com/pyinstaller/pyinstaller/issues/3668#issuecomment-742547785
+        env = Setting.get_system_env()
+        toDelete = [] 
+        for (k, v) in env.items():
+            if k != 'PATH' and 'tmp' in v:
+                toDelete.append(k)
+        for k in toDelete:
+            env.pop(k, None)
+        return env
+
     def open_browser(self, url):
         if self.platform == Platform.Darwin:
             subprocess.Popen(['open', url])
         elif self.platform == Platform.Win32:
             webbrowser.open(url)
         else:
-            try:
-                subprocess.Popen("sensible-browser {}".format(url),
-                                 shell=True,
-                                 env=Setting.get_system_env())
-            except Exception as e:
-                logger.error(e)
-                webbrowser.open(url)
+            subprocess.Popen(["xdg-open",url], env=self.get_env())
 
     def open_directory(self, path):
         if self.platform == Platform.Darwin:
@@ -298,10 +303,7 @@ class App:
         elif self.platform == Platform.Win32:
             subprocess.Popen(['explorer.exe', path])
         else:
-            try:
-                subprocess.Popen(['xdg-open', path])
-            except Exception as e:
-                logger.error(str(e))
+            subprocess.Popen(["xdg-open", path], env=self.get_env())
 
     @staticmethod
     def build_menu_item_group(titles, callback):
