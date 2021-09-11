@@ -26,6 +26,7 @@ SSDP_ADDR = '239.255.255.250'
 SERVER_ID = 'SSDP Server'
 logger = logging.getLogger("SSDPServer")
 
+
 class Sock:
     def __init__(self, ip):
         self.ip = ip
@@ -33,7 +34,10 @@ class Sock:
         self.ssdp_addr = socket.inet_aton(SSDP_ADDR)
         self.interface = socket.inet_aton(self.ip)
         self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(ip) + self.interface)
-        self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, self.ssdp_addr + self.interface)
+        try:
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, self.ssdp_addr + self.interface)
+        except Exception as e:
+            logger.error(e)
         self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 0)
         # self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 10)
 
@@ -119,7 +123,10 @@ class SSDPServer:
             self.sock_list.append(Sock(ip))
             logger.error('add membership {}'.format(ip))
             mreq = socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ip)
-            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+            try:
+                self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+            except Exception as e:
+                logger.error(e)
 
         try:
             self.sock.bind(('0.0.0.0', SSDP_PORT))

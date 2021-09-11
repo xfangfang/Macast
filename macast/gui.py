@@ -299,7 +299,7 @@ class App:
             subprocess.Popen(['explorer.exe', path])
         else:
             try:
-                subprocess.Popen(['nautilus', path])
+                subprocess.Popen(['xdg-open', path])
             except Exception as e:
                 logger.error(str(e))
 
