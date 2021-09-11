@@ -128,9 +128,12 @@ class Setting:
             interfaces += gateways[ni.AF_INET]
         if ni.AF_LINK in gateways:
             interfaces += gateways[ni.AF_LINK]
+        logger.error(interfaces)
         for i in interfaces:
-            for j in ni.ifaddresses(i[1])[ni.AF_INET]:
-                Setting.last_ip.append((j['addr'], j['netmask']))
+            if ni.AF_INET in ni.ifaddresses(i[1]):
+                for j in ni.ifaddresses(i[1])[ni.AF_INET]:
+                    Setting.last_ip.append((j['addr'], j['netmask']))
+        logger.error(Setting.last_ip)
         return Setting.last_ip
 
     @staticmethod
