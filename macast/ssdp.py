@@ -33,8 +33,8 @@ class Sock:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.ssdp_addr = socket.inet_aton(SSDP_ADDR)
         self.interface = socket.inet_aton(self.ip)
-        self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(ip) + self.interface)
         try:
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, self.interface)
             self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, self.ssdp_addr + self.interface)
         except Exception as e:
             logger.error(e)
@@ -64,7 +64,6 @@ class SSDPServer:
     def __init__(self):
         self.ip_list = []
         self.sock_list = []
-        self.sock_lock = threading.RLock()
         self.sock = None
         self.running = False
         self.ssdp_thread = None
@@ -83,8 +82,10 @@ class SSDPServer:
         if self.running:
             self.running = False
             # Wake up the socket, this will speed up exiting ssdp thread.
-            socket.socket(socket.AF_INET,
-                          socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
+            try:
+                socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
+            except Exception as e:
+                pass
             if self.ssdp_thread is not None:
                 self.ssdp_thread.join()
 
@@ -118,13 +119,15 @@ class SSDPServer:
         # self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 10)
 
         self.ip_list = Setting.get_ip()
+        if sys.platform == 'win32':
+            self.ip_list.append(('192.168.137.1', '255.255.255.0'))
         self.sock_list = []
         for ip, mask in self.ip_list:
-            self.sock_list.append(Sock(ip))
-            logger.error('add membership {}'.format(ip))
-            mreq = socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ip)
             try:
+                logger.error('add membership {}'.format(ip))
+                mreq = socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ip)
                 self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+                self.sock_list.append(Sock(ip))
             except Exception as e:
                 logger.error(e)
 
@@ -220,9 +223,8 @@ class SSDPServer:
         return usn in self.known
 
     def send_it(self, response, destination):
-        with self.sock_lock:
-            for sock in self.sock_list:
-                sock.send_it(response, destination)
+        for sock in self.sock_list:
+            sock.send_it(response, destination)
 
     def get_subnet_ip(self, ip, mask):
         a = [int(n) for n in mask.split('.')]
@@ -259,11 +261,10 @@ class SSDPServer:
                     logger.debug('send discovery response delayed by %ds for %s to %r' % (delay, usn, destination))
                     # logger.debug(response)
                     # asyncio.sleep(delay)
-                    with self.sock_lock:
-                        for ip, mask in self.ip_list:
-                            if self.get_subnet_ip(ip, mask) == self.get_subnet_ip(host, mask):
-                                self.sock.sendto('\r\n'.join(response).format(ip).encode(), destination)
-                                break
+                    for ip, mask in self.ip_list:
+                        if self.get_subnet_ip(ip, mask) == self.get_subnet_ip(host, mask):
+                            self.sock.sendto('\r\n'.join(response).format(ip).encode(), destination)
+                            break
 
     def do_notify(self, usn):
         """Do notification"""
