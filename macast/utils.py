@@ -2,7 +2,6 @@
 
 import os
 import sys
-import socket
 import uuid
 import json
 import time
@@ -31,6 +30,8 @@ class SettingProperty(Enum):
     ApplicationPort = 4
     DLNA_FriendlyName = 5
     DLNA_Renderer = 6
+    Blocked_Interfaces = 7
+    Additional_Interfaces = 8
 
 
 class Setting:
@@ -66,8 +67,12 @@ class Setting:
             if not os.path.exists(Setting.setting_path):
                 Setting.setting = {}
             else:
-                with open(Setting.setting_path, "r") as f:
-                    Setting.setting = json.load(fp=f)
+                try:
+                    with open(Setting.setting_path, "r") as f:
+                        Setting.setting = json.load(fp=f)
+                    logger.error(Setting.setting)
+                except Exception as e:
+                    logger.error(e)
         return Setting.setting
 
     @staticmethod
@@ -122,18 +127,28 @@ class Setting:
     @staticmethod
     def get_ip():
         Setting.last_ip = []
-        gateways = ni.gateways()
-        interfaces = []
-        if ni.AF_INET in gateways:
-            interfaces += gateways[ni.AF_INET]
-        if ni.AF_LINK in gateways:
-            interfaces += gateways[ni.AF_LINK]
-        logger.error(interfaces)
+        gateways = ni.gateways()  # {type: [{ip, interface, default},{},...], type: []}
+        interfaces = set(Setting.get(SettingProperty.Additional_Interfaces, []))
+        interface_type = [ni.AF_INET, ni.AF_LINK]
+        for t in interface_type:
+            if t in gateways:
+                for i in gateways[t]:
+                    if len(i) > 1:
+                        interfaces.add(i[1])
+        for i in Setting.get(SettingProperty.Blocked_Interfaces, []):
+            if i in interfaces:
+                interfaces.remove(i)
+        logger.debug(interfaces)
         for i in interfaces:
-            if ni.AF_INET in ni.ifaddresses(i[1]):
-                for j in ni.ifaddresses(i[1])[ni.AF_INET]:
-                    Setting.last_ip.append((j['addr'], j['netmask']))
-        logger.error(Setting.last_ip)
+            try:
+                iface = ni.ifaddresses(i)
+            except ValueError as e:
+                continue
+            if ni.AF_INET in iface:
+                for j in iface[ni.AF_INET]:
+                    if 'addr' in j and 'netmask' in j:
+                        Setting.last_ip.append((j['addr'], j['netmask']))
+        logger.debug(Setting.last_ip)
         return Setting.last_ip
 
     @staticmethod
