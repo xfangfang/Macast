@@ -528,6 +528,8 @@ class Macast(App):
 
     def renderer_av_uri(self, uri):
         logger.info("renderer_av_uri: " + uri)
+        if self.copy_menuitem is not None:
+            return
         self.copy_menuitem = MenuItem(
             _("Copy Video URI"),
             key="c",

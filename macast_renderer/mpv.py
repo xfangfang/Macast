@@ -409,6 +409,7 @@ class MPVRenderer(Renderer):
 
         def resatrt():
             self.stop()
+            cherrypy.engine.publish('renderer_av_stop')
             self.start()
 
         if self.get_state('TransportState') == 'PLAYING':
