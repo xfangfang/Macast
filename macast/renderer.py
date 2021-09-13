@@ -464,7 +464,7 @@ class Renderer:
             logger.error(str(e))
             self.set_state('CurrentTrackMetaData', data['CurrentURIMetaData'].value)
         else:
-            self.set_state('CurrentTrackMetaData', metadata)
+            self.set_state('CurrentTrackMetaData', metadata.decode())
         self.set_media_resume()
         self.set_state('CurrentTrackURI', uri)
         self.set_state('RelativeTimePosition', '00:00:00')
