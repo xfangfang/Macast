@@ -45,7 +45,7 @@ class Sock:
         try:
             self.sock.sendto(response.format(self.ip).encode(), destination)
         except (AttributeError, socket.error) as msg:
-            logger.warning("failure sending out byebye notification: %r" % msg)
+            logger.warning("failure sending out data: from {} to {}".format(self.ip, destination))
 
     def close(self):
         try:
@@ -67,16 +67,20 @@ class SSDPServer:
         self.sock = None
         self.running = False
         self.ssdp_thread = None
+        self.sending_byebye = True
+        # when ip is changed, we need SSDP thread to restart
+        # But we don't like SSDP sending any byebye data
 
     def start(self):
         """Start ssdp background thread
         """
         if not self.running:
             self.running = True
+            self.sending_byebye = True
             self.ssdp_thread = threading.Thread(target=self.run, name="SSDP_THREAD")
             self.ssdp_thread.start()
 
-    def stop(self):
+    def stop(self, byebye=True):
         """Stop ssdp background thread
         """
         if self.running:
@@ -86,6 +90,7 @@ class SSDPServer:
                 socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
             except Exception as e:
                 pass
+            self.sending_byebye = byebye
             if self.ssdp_thread is not None:
                 self.ssdp_thread.join()
 
@@ -118,7 +123,7 @@ class SSDPServer:
 
         # self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 10)
 
-        self.ip_list = Setting.get_ip()
+        self.ip_list = list(Setting.get_ip())
         if sys.platform == 'win32':
             self.ip_list.append(('192.168.137.1', '255.255.255.0'))
         self.sock_list = []
@@ -292,6 +297,8 @@ class SSDPServer:
 
     def do_byebye(self, usn):
         """Do byebye"""
+        if not self.sending_byebye:
+            return
 
         logger.info('Sending byebye notification for %s' % usn)
 

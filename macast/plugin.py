@@ -6,6 +6,7 @@
 
 from cherrypy.process import plugins
 import logging
+import threading
 
 from .ssdp import SSDPServer
 from .utils import Setting
@@ -60,18 +61,23 @@ class SSDPPlugin(plugins.SimplePlugin):
     def __init__(self, bus):
         logger.info('Initializing SSDPPlugin')
         super(SSDPPlugin, self).__init__(bus)
+        self.restart_lock = threading.Lock()
         self.ssdp = SSDPServer()
+        self.devices = []
+        self.build_device_info()
+
+    def build_device_info(self):
         self.devices = [
-            'uuid:{}::upnp:rootdevice'.format(Setting.getUSN()),
-            'uuid:{}'.format(Setting.getUSN()),
+            'uuid:{}::upnp:rootdevice'.format(Setting.get_usn()),
+            'uuid:{}'.format(Setting.get_usn()),
             'uuid:{}::urn:schemas-upnp-org:device:MediaRenderer:1'.format(
-                Setting.getUSN()),
+                Setting.get_usn()),
             'uuid:{}::urn:schemas-upnp-org:service:RenderingControl:1'.format(
-                Setting.getUSN()),
+                Setting.get_usn()),
             'uuid:{}::urn:schemas-upnp-org:service:ConnectionManager:1'.format(
-                Setting.getUSN()),
+                Setting.get_usn()),
             'uuid:{}::urn:schemas-upnp-org:service:AVTransport:1'.format(
-                Setting.getUSN())
+                Setting.get_usn())
         ]
 
     def notify(self):
@@ -99,8 +105,11 @@ class SSDPPlugin(plugins.SimplePlugin):
     def update_ip(self):
         """Update the device ip address
         """
-        self.stop()
-        self.start()
+        with self.restart_lock:
+            self.ssdp.stop(byebye=False)
+            self.build_device_info()
+            self.register()
+            self.ssdp.start()
 
     def start(self):
         """Start SSDPPlugin
@@ -117,4 +126,5 @@ class SSDPPlugin(plugins.SimplePlugin):
         logger.info('Stoping SSDPPlugin')
         self.bus.unsubscribe('ssdp_notify', self.notify)
         self.bus.unsubscribe('ssdp_update_ip', self.update_ip)
-        self.ssdp.stop()
+        with self.restart_lock:
+            self.ssdp.stop(byebye=True)

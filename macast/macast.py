@@ -5,6 +5,7 @@ import re
 import sys
 import time
 import json
+import random
 import cherrypy
 import portend
 import logging
@@ -16,7 +17,7 @@ import importlib
 from cherrypy.process.plugins import Monitor
 from cherrypy._cpserver import Server
 
-from .utils import loadXML, XMLPath, Setting, SettingProperty, SETTING_DIR, notify_error
+from .utils import load_xml, XMLPath, Setting, SettingProperty, SETTING_DIR, notify_error
 from .plugin import SSDPPlugin, RendererPlugin
 from .renderer import Renderer
 from .gui import App, MenuItem, Platform
@@ -64,15 +65,19 @@ class DLNAHandler:
     """
 
     def __init__(self):
-        self.description = loadXML(XMLPath.DESCRIPTION.value).format(
+        self.description = None
+        self.build_description()
+
+    def build_description(self):
+        self.description = load_xml(XMLPath.DESCRIPTION.value).format(
             friendly_name=Setting.get_friendly_name(),
             manufacturer="xfangfang",
             manufacturer_url="https://github.com/xfangfang",
             model_description="AVTransport Media Renderer",
             model_name="Macast",
             model_url="https://xfangfang.github.io/Macast",
-            model_number=Setting.getVersion(),
-            uuid=Setting.getUSN()).encode()
+            model_number=Setting.get_version(),
+            uuid=Setting.get_usn()).encode()
 
     def GET(self, param=None):
         if param == 'description.xml':
@@ -151,6 +156,7 @@ class Service:
         self._renderer = renderer
         self.renderer_plugin = RendererPlugin(cherrypy.engine, renderer)
         self.renderer_plugin.subscribe()
+        self.ssdp_monitor_counter = 0  # restart ssdp every 30s
         self.ssdp_monitor = Monitor(cherrypy.engine, self.notify, 3, name="SSDP_NOTIFY_THREAD")
         self.ssdp_monitor.subscribe()
         cherrypy.config.update({
@@ -172,8 +178,8 @@ class Service:
                      ('Server', Setting.get_server_info())],
             }
         }
-
-        cherrypy.tree.mount(DLNAHandler(), '/', config=cherrypy_config)
+        self.dlna_handler = DLNAHandler()
+        cherrypy.tree.mount(self.dlna_handler, '/', config=cherrypy_config)
         cherrypy.engine.signals.subscribe()
 
     @property
@@ -194,7 +200,9 @@ class Service:
         Using cherrypy builtin plugin Monitor to trigger this method
         see also: plugin.py -> class SSDPPlugin -> notify
         """
-        if Setting.is_ip_changed():
+        self.ssdp_monitor_counter += 1
+        if Setting.is_ip_changed() or self.ssdp_monitor_counter == 10:
+            self.ssdp_monitor_counter = 0
             cherrypy.engine.publish('ssdp_update_ip')
         cherrypy.engine.publish('ssdp_notify')
 
@@ -206,7 +214,13 @@ class Service:
         _, port = cherrypy.server.bound_addr
         logger.info("Server current run on port: {}".format(port))
         if port != Setting.get(SettingProperty.ApplicationPort, 0):
+            usn = Setting.get_usn(refresh=True)
+            logger.error("Change usn to: {}".format(usn))
             Setting.set(SettingProperty.ApplicationPort, port)
+            name = "Macast({0:04d})".format(random.randint(0, 9999))
+            logger.error("Change name to: {}".format(name))
+            Setting.setting[SettingProperty.DLNA_FriendlyName.name] = name
+            self.dlna_handler.build_description()
             cherrypy.engine.publish('ssdp_update_ip')
         # service started
         cherrypy.engine.block()
@@ -362,7 +376,7 @@ class Macast(App):
         port = Setting.get_port()
         self.ip_menuitem = MenuItem("{}:{}".format(ip_text, port), enabled=False)
         self.version_menuitem = MenuItem(
-            "Macast (v{})".format(Setting.getVersion()), enabled=False)
+            "{} v{}".format(Setting.get_friendly_name(), Setting.get_version()), enabled=False)
         self.auto_check_update_menuitem = MenuItem(_("Auto Check Updates"),
                                                    self.on_auto_check_update_click,
                                                    checked=self.setting_check)
@@ -460,7 +474,7 @@ class Macast(App):
 
             logger.info("tag_name: {}".format(res['tag_name']))
 
-            if float(Setting.getVersion()) < float(online_version):
+            if float(Setting.get_version()) < float(online_version):
                 self.dialog(_("Macast New Update {}").format(res['tag_name']),
                             lambda _: self.open_browser(release_url),
                             ok="Update")
@@ -516,6 +530,7 @@ class Macast(App):
             ip_text = "/".join([ip for ip, _ in Setting.get_ip()])
             port = Setting.get_port()
             self.ip_menuitem.text = "{}:{}".format(ip_text, port)
+        self.version_menuitem.text = "{} v{}".format(Setting.get_friendly_name(), Setting.get_version())
         self.update_menu()
 
     def renderer_av_stop(self):

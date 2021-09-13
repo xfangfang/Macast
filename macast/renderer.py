@@ -11,7 +11,7 @@ from lxml import etree
 from queue import Queue
 from enum import Enum
 
-from .utils import loadXML, XMLPath, Setting
+from .utils import load_xml, XMLPath, Setting
 
 
 logger = logging.getLogger("Renderer")
@@ -188,7 +188,7 @@ class Renderer:
         self.set_state('A_ARG_TYPE_Direction', 'Output')
         self.set_state('CurrentConnectionIDs', '0')
         self.set_state('PlaybackStorageMedium', 'None')
-        self.set_state('SinkProtocolInfo', loadXML(XMLPath.PROTOCOL_INFO.value))
+        self.set_state('SinkProtocolInfo', load_xml(XMLPath.PROTOCOL_INFO.value))
 
     def add_subscribe(self, service, url, timeout=1800):
         """Add a DLNA client to subscribe list

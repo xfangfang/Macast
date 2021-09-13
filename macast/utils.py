@@ -39,7 +39,6 @@ class Setting:
     version = None
     setting_path = os.path.join(SETTING_DIR, "macast_setting.json")
     last_ip = None
-    renderer_path = 'mpv'
     base_path = None
     friendly_name = "Macast({})".format(platform.node())
 
@@ -88,7 +87,7 @@ class Setting:
         return str(platform.system())
 
     @staticmethod
-    def getVersion():
+    def get_version():
         """Get application version
         """
         return Setting.version
@@ -99,8 +98,7 @@ class Setting:
         This name will show in the device search list of the DLNA client
         and as player window default name.
         """
-        return Setting.get(SettingProperty.DLNA_FriendlyName,
-                           Setting.friendly_name)
+        return Setting.get(SettingProperty.DLNA_FriendlyName, Setting.friendly_name)
 
     @staticmethod
     def set_friendly_name(name):
@@ -109,12 +107,13 @@ class Setting:
         and as player window default name.
         """
         Setting.friendly_name = name
+        Setting.save()
 
     @staticmethod
-    def getUSN():
+    def get_usn(refresh=False):
         """Get device Unique identification
         """
-        if 'USN' in Setting.setting:
+        if 'USN' in Setting.setting and not refresh:
             return Setting.setting['USN']
         Setting.setting['USN'] = str(uuid.uuid4())
         Setting.save()
@@ -122,7 +121,12 @@ class Setting:
 
     @staticmethod
     def is_ip_changed():
-        return Setting.last_ip != Setting.get_ip()
+        last_ip = sorted(Setting.last_ip)
+        current_ip = sorted(Setting.get_ip())
+        if last_ip != current_ip:
+            logger.error("ip: {} - {}".format(last_ip, current_ip))
+            return True
+        return False
 
     @staticmethod
     def get_ip():
@@ -177,15 +181,6 @@ class Setting:
                 return 'en_US'
             lang = lang.split(':')[0].split('.')[0]
         return lang
-
-    @staticmethod
-    def set_renderer_path(path):
-        """Set renderer path
-        MacOS default: bin/MacOS/mpv
-        Windows default: bin/mpv.exe
-        Others Default: mpv
-        """
-        Setting.renderer_path = path
 
     @staticmethod
     def get(property, default=1):
@@ -266,7 +261,7 @@ class Setting:
     def get_server_info():
         return '{}/{} UPnP/1.0 Macast/{}'.format(Setting.get_system(),
                                                  Setting.get_system_version(),
-                                                 Setting.getVersion())
+                                                 Setting.get_version())
 
     @staticmethod
     def get_system_env():
@@ -315,7 +310,7 @@ class XMLPath(Enum):
     PROTOCOL_INFO = BASE_PATH + '/xml/SinkProtocolInfo.csv'
 
 
-def loadXML(path):
+def load_xml(path):
     with open(path) as f:
         xml = f.read()
     return xml

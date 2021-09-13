@@ -8,6 +8,7 @@ import sys
 import json
 import time
 import socket
+import random
 import subprocess
 import logging
 import threading
@@ -50,10 +51,11 @@ class MPVRenderer(Renderer):
         super(MPVRenderer, self).__init__(lang)
         global _
         _ = lang
+        mpv_rand = random.randint(0, 9999)
         if os.name == 'nt':
-            self.mpv_sock = Setting.get_base_path(r"\\.\pipe\macast_mpvsocket")
+            self.mpv_sock = Setting.get_base_path(r"\\.\pipe\macast_mpvsocket{}".format(mpv_rand))
         else:
-            self.mpv_sock = '/tmp/macast_mpvsocket'
+            self.mpv_sock = '/tmp/macast_mpvsocket{}'.format(mpv_rand)
         self.path = path
         self.proc = None
         self.mpv_thread = None
