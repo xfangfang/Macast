@@ -188,7 +188,7 @@ class Renderer:
         self.set_state('A_ARG_TYPE_Direction', 'Output')
         self.set_state('CurrentConnectionIDs', '0')
         self.set_state('PlaybackStorageMedium', 'None')
-        self.set_state('SinkProtocolInfo', load_xml(XMLPath.PROTOCOL_INFO.value))
+        self.set_state('SinkProtocolInfo', load_xml(XMLPath.PROTOCOL_INFO.value).strip())
 
     def add_subscribe(self, service, url, timeout=1800):
         """Add a DLNA client to subscribe list
@@ -349,7 +349,7 @@ class Renderer:
         for key in res:
             prop = etree.SubElement(response, key)
             prop.text = str(res[key])
-        return etree.tostring(root, encoding="UTF-8", xml_declaration=True)
+        return etree.tostring(root, encoding="UTF-8", xml_declaration=False)
 
     def set_state(self, name, value):
         """Set states of the render
@@ -458,8 +458,7 @@ class Renderer:
             if title_xml is not None and title_xml.text is not None:
                 title = title_xml.text
             self.set_media_title(title)
-            metadata = etree.tostring(
-                meta, encoding="UTF-8", xml_declaration=True)
+            metadata = etree.tostring(meta, encoding="UTF-8", xml_declaration=False)
         except Exception as e:
             logger.error(str(e))
             self.set_state('CurrentTrackMetaData', data['CurrentURIMetaData'].value)

@@ -186,10 +186,11 @@ class MPVRenderer(Renderer):
                                             res['file_error'])
             elif res['event'] == 'start-file':
                 self.playing = True
-                self.set_state_transport('TRANSITIONING')
+                # self.set_state_transport('TRANSITIONING')
                 cherrypy.engine.publish('renderer_av_uri', self.get_state('AVTransportURI'))
             elif res['event'] == 'seek':
-                self.set_state_transport('TRANSITIONING')
+                pass
+                # self.set_state_transport('TRANSITIONING')
             elif res['event'] == 'idle':
                 # video comes to end
                 self.playing = False
