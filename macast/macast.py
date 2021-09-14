@@ -86,13 +86,13 @@ class DLNAHandler:
         return "hello world {}".format(param).encode()
 
     def POST(self, service, param):
+        length = cherrypy.request.headers['Content-Length']
+        rawbody = cherrypy.request.body.read(int(length))
+        logger.debug('RAW: {}'.format(rawbody))
         if param == 'action':
-            length = cherrypy.request.headers['Content-Length']
-            rawbody = cherrypy.request.body.read(int(length))
-            logger.debug(rawbody)
             res = cherrypy.engine.publish('call_render', rawbody).pop()
             cherrypy.response.headers['EXT'] = ''
-            logger.debug(res)
+            logger.debug('RES: {}'.format(res))
             return res
         return b''
 

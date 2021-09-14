@@ -334,6 +334,10 @@ class Renderer:
             output = self.action_list[service][action].output
             for arg in output:
                 res[arg.name] = self.state_list[arg.state].value
+        if method not in ['ConnectionManager_GetProtocolInfo', 'AVTransport_GetPositionInfo']:
+            logger.info("{}res: {}".format("*" * 20, res))
+        else:
+            logger.info("{}res: {}".format("*" * 20, method))
 
         # build response xml
         ns = 'http://schemas.xmlsoap.org/soap/envelope/'
@@ -551,8 +555,7 @@ class Renderer:
         self.set_state('CurrentMediaDuration', data)
 
     def set_state_transport(self, data):
-        """data : string in [PLAYING, PAUSED_PLAYBACK, STOPPED,
-                    NO_MEDIA_PRESENT, TRANSITIONING]
+        """data : string in [PLAYING, PAUSED_PLAYBACK, STOPPED, NO_MEDIA_PRESENT]
         """
         self.set_state('TransportState', data)
         self.set_state('TransportStatus', 'OK')
