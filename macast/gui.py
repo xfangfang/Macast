@@ -273,6 +273,8 @@ class App:
                     callback()
             except Exception as e:
                 self.notification("Error", "Cannot access System Events")
+                logger.error(e)
+                callback()
         else:
             self.notification("Macast", content)
             if callback:

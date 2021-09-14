@@ -476,7 +476,7 @@ class Macast(App):
 
             if float(Setting.get_version()) < float(online_version):
                 self.dialog(_("Macast New Update {}").format(res['tag_name']),
-                            lambda _: self.open_browser(release_url),
+                            lambda: self.open_browser(release_url),
                             ok="Update")
             else:
                 if verbose:
