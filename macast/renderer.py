@@ -455,19 +455,19 @@ class Renderer:
         logger.info(uri)
         self.set_state('AVTransportURI', uri)
         self.set_media_url(uri)
+        title = Setting.get_friendly_name()
         try:
             meta = etree.fromstring(data['CurrentURIMetaData'].value.encode())
-            title = Setting.get_friendly_name()
             title_xml = meta.find('.//{{{}}}title'.format(meta.nsmap['dc']))
             if title_xml is not None and title_xml.text is not None:
                 title = title_xml.text
-            self.set_media_title(title)
             metadata = etree.tostring(meta, encoding="UTF-8", xml_declaration=False)
         except Exception as e:
             logger.error(str(e))
             self.set_state('CurrentTrackMetaData', data['CurrentURIMetaData'].value)
         else:
             self.set_state('CurrentTrackMetaData', metadata.decode())
+        self.set_media_title(title)
         self.set_media_resume()
         self.set_state('CurrentTrackURI', uri)
         self.set_state('RelativeTimePosition', '00:00:00')

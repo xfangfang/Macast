@@ -121,16 +121,14 @@ class Setting:
 
     @staticmethod
     def is_ip_changed():
-        last_ip = sorted(Setting.last_ip)
-        current_ip = sorted(Setting.get_ip())
-        if last_ip != current_ip:
+        if Setting.last_ip != Setting.get_ip():
             logger.error("ip: {} - {}".format(last_ip, current_ip))
             return True
         return False
 
     @staticmethod
     def get_ip():
-        Setting.last_ip = []
+        last_ip = []
         gateways = ni.gateways()  # {type: [{ip, interface, default},{},...], type: []}
         interfaces = set(Setting.get(SettingProperty.Additional_Interfaces, []))
         interface_type = [ni.AF_INET, ni.AF_LINK]
@@ -151,7 +149,8 @@ class Setting:
             if ni.AF_INET in iface:
                 for j in iface[ni.AF_INET]:
                     if 'addr' in j and 'netmask' in j:
-                        Setting.last_ip.append((j['addr'], j['netmask']))
+                        last_ip.append((j['addr'], j['netmask']))
+        Setting.last_ip = set(last_ip)
         logger.debug(Setting.last_ip)
         return Setting.last_ip
 

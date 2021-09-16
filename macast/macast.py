@@ -535,7 +535,8 @@ class Macast(App):
 
     def renderer_av_stop(self):
         logger.info("renderer_av_stop")
-        self.remove_menu_item_by_id(self.copy_menuitem.id)
+        if self.copy_menuitem:
+            self.remove_menu_item_by_id(self.copy_menuitem.id)
         self.copy_menuitem = None
 
     def renderer_start(self):
@@ -544,6 +545,7 @@ class Macast(App):
     def renderer_av_uri(self, uri):
         logger.info("renderer_av_uri: " + uri)
         if self.copy_menuitem is not None:
+            self.copy_menuitem.callback = lambda _: pyperclip.copy(uri)
             return
         self.copy_menuitem = MenuItem(
             _("Copy Video URI"),
