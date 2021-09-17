@@ -225,7 +225,8 @@ class App:
 
     def remove_menu_item_by_id(self, id):
         if self.platform == Platform.Darwin:
-            self.app.menu.pop(id)
+            if id in self.app.menu:
+                self.app.menu.pop(id)
         else:
             index = self._find_menu_item_index_by_id(id)
             if index != -1:

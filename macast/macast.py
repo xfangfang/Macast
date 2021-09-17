@@ -613,11 +613,13 @@ class Macast(App):
 
 def gui(renderer=None, lang=gettext.gettext):
     if renderer is None:
+        Setting.load()
         renderer = MPVRenderer(lang)
     Macast(renderer, lang).start()
 
 
 def cli(renderer=None):
     if renderer is None:
+        Setting.load()
         renderer = MPVRenderer()
     Service(renderer).run()
