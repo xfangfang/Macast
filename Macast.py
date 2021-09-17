@@ -11,12 +11,14 @@ from macast_renderer.mpv import MPVRenderer
 logger = logging.getLogger("Macast")
 logger.setLevel(logging.DEBUG)
 
+
 def get_base_path(path="."):
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         base_path = sys._MEIPASS
     else:
         base_path = os.getcwd()
     return os.path.join(base_path, path)
+
 
 try:
     locale = Setting.get_locale()
@@ -29,6 +31,7 @@ except Exception as e:
     logger.error("Macast Loading Default Language en_US")
 
 if __name__ == '__main__':
+    Setting.load()
     mpv_path = 'mpv'
     if sys.platform == 'darwin':
         mpv_path = get_base_path('bin/MacOS/mpv')

@@ -49,7 +49,7 @@ class Setting:
         if not os.path.exists(SETTING_DIR):
             os.makedirs(SETTING_DIR)
         with open(Setting.setting_path, "w") as f:
-            json.dump(obj=Setting.setting, fp=f)
+            json.dump(obj=Setting.setting, fp=f, sort_keys=True, indent=4)
 
     @staticmethod
     def load():

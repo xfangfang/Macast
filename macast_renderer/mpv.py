@@ -58,6 +58,7 @@ class MPVRenderer(Renderer):
             self.mpv_sock = '/tmp/macast_mpvsocket{}'.format(mpv_rand)
         self.path = path
         self.proc = None
+        self.title = Setting.get_friendly_name()
         self.mpv_thread = None
         self.ipc_thread = None
         self.ipc_sock = None
@@ -99,6 +100,7 @@ class MPVRenderer(Renderer):
     def set_media_title(self, data):
         """ data : string
         """
+        self.title = data
         self.send_command(['set_property', 'title', data])
 
     def set_media_position(self, data):
@@ -408,6 +410,7 @@ class MPVRenderer(Renderer):
         def loadfile():
             logger.debug("mpv loadfile")
             self.send_command(['loadfile', uri, 'replace'])
+            self.send_command(['set_property', 'title', self.title])
             cherrypy.engine.unsubscribe('mpvipc_start', loadfile)
 
         def resatrt():

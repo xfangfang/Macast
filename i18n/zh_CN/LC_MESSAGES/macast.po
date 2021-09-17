@@ -57,8 +57,8 @@ msgstr "打开配置目录"
 msgid "Check For Updates"
 msgstr "检查更新"
 
-msgid "About"
-msgstr "关于"
+msgid "Help"
+msgstr "帮助"
 
 msgid "Macast New Update {}"
 msgstr "Macast有新版本 {}"

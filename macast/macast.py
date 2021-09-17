@@ -418,7 +418,7 @@ class Macast(App):
                                                   ], self.on_menubar_icon_change_click))
         self.open_config_menuitem = MenuItem(_("Open Config Directory"), self.on_open_config_click)
         self.check_update_menuitem = MenuItem(_("Check For Updates"), self.on_check_click)
-        self.about_menuitem = MenuItem(_("About"), self.on_about_click)
+        self.about_menuitem = MenuItem(_("Help"), self.on_about_click)
 
         self.menubar_icon_menuitem.items()[self.setting_menubar_icon].checked = True
         player_settings = self.dlna_service.renderer.renderer_setting.build_menu()
@@ -588,7 +588,7 @@ class Macast(App):
             self.notification(_("Error"), _(res[1]))
 
     def on_about_click(self, _):
-        self.open_browser('https://github.com/xfangfang/Macast')
+        self.open_browser('https://xfangfang.github.io/Macast/')
 
     def on_toggle_service_click(self, item):
         if Setting.is_service_running():
