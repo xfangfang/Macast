@@ -425,19 +425,19 @@ class MPVRenderer(Renderer):
 
 
 class SettingProperty(Enum):
-    PlayerHW = 1
+    PlayerHW = 100
     PlayerHW_Disable = 0
     PlayerHW_Enable = 1
     PlayerHW_Force = 2
 
-    PlayerSize = 2
+    PlayerSize = 200
     PlayerSize_Small = 0
     PlayerSize_Normal = 1
     PlayerSize_Large = 2
     PlayerSize_Auto = 3
     PlayerSize_FullScreen = 4
 
-    PlayerPosition = 3
+    PlayerPosition = 300
     PlayerPosition_LeftTop = 0
     PlayerPosition_LeftBottom = 1
     PlayerPosition_RightTop = 2

@@ -14,7 +14,7 @@ LONG_DESCRIPTION = ""
 with open('README.md', 'r', encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 OPTIONS = {}
-INSTALL = ["requests", "appdirs", "cherrypy", "lxml"]
+INSTALL = ["requests", "appdirs", "cherrypy", "lxml", "netifaces"]
 PACKAGES = find_packages()
 
 if sys.platform == 'darwin':
