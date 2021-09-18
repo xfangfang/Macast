@@ -122,7 +122,6 @@ class Setting:
     @staticmethod
     def is_ip_changed():
         if Setting.last_ip != Setting.get_ip():
-            logger.error("ip: {} - {}".format(last_ip, current_ip))
             return True
         return False
 
