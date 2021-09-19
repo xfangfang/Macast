@@ -16,6 +16,8 @@ from enum import Enum
 import netifaces as ni
 if sys.platform == 'darwin':
     from AppKit import NSBundle
+elif sys.platform == 'win32':
+    import win32com.client as client
 
 logger = logging.getLogger("Utils")
 DEFAULT_PORT = 1068
@@ -237,6 +239,28 @@ class Setting:
                      'tell application "System Events" ' +
                      'to delete login item "{}"'.format(app_name)])
             return res
+        elif sys.platform == 'win32':
+            """Find the path of Macast.exe so as to create shortcut.
+            """
+            shell = client.Dispatch("WScript.Shell")
+            startup_path = r'%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup'
+            if launch:
+                try:
+                    os.remove(os.path.join(startup_path, 'Macast.lnk'))
+                except IOError:
+                    pass
+
+                macast_path = sys.executable
+                macast_shortcut = shell.CreateShortCut(os.path.join(startup_path, 'Macast.lnk'))
+                macast_shortcut.TargetPath = macast_path
+                macast_shortcut.save()
+                return 0, 1
+            else:
+                try:
+                    os.remove(os.path.join(startup_path, 'Macast.lnk'))
+                except IOError:
+                    return (0, "there's no macast shortcut.")
+                return 0, 1
         else:
             return (1, 'Not support current platform.')
 

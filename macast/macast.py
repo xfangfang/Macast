@@ -399,11 +399,14 @@ class Macast(App):
                 self.renderer_menuitem.children[0].checked = True
 
         platform_options = []
-        if sys.platform == 'darwin':
+        """To judge whether Macast was launched by scripts or by packaged app.
+        """
+        if sys.platform != 'linux' and "python" not in os.path.basename(sys.executable).lower():
             platform_options = [self.start_at_login_menuitem]
             # Reset StartAtLogin to prevent the user from turning off
             # this option from the system settings
             Setting.set_start_at_login(self.setting_start_at_login)
+        if sys.platform == 'darwin':
             self.menubar_icon_menuitem = MenuItem(_("Menubar Icon"),
                                                   children=App.build_menu_item_group([
                                                       _("AppIcon"),
