@@ -6,6 +6,7 @@ import uuid
 import gettext
 import http.client
 import logging
+import cherrypy
 import threading
 from lxml import etree
 from queue import Queue
@@ -433,6 +434,7 @@ class Renderer:
         """Stop render thread
         """
         self.running = False
+        cherrypy.engine.publish('renderer_av_stop')
 
     # The following method names are defined by the XML file
 
@@ -472,6 +474,8 @@ class Renderer:
         self.set_state('CurrentTrackURI', uri)
         self.set_state('RelativeTimePosition', '00:00:00')
         self.set_state('AbsoluteTimePosition', '00:00:00')
+        self.set_state('TransportState', 'PAUSED_PLAYBACK')
+        self.set_state('TransportStatus', 'OK')
         return {}
 
     def AVTransport_Play(self, data):
