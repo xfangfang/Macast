@@ -225,7 +225,10 @@ class Renderer:
         data = {}
         for state in SERVICE_STATE_OBSERVED[service]:
             data[state] = self.state_list[state].value
-        client.send_event_callback(data)
+        try:
+            client.send_event_callback(data)
+        except Exception as e:
+            logger.error(str(e))
 
     def remove_subscribe(self, sid):
         """Remove a DLNA client from subscribe list
