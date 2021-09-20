@@ -401,10 +401,13 @@ class Macast(App):
         platform_options = []
         """To judge whether Macast was launched by scripts or by packaged app.
         """
-        if sys.platform != 'linux' and "python" not in os.path.basename(sys.executable).lower():
+        if sys.platform == 'darwin' and sys.executable.endswith("Contents/MacOS/python"):
             platform_options = [self.start_at_login_menuitem]
             # Reset StartAtLogin to prevent the user from turning off
             # this option from the system settings
+            Setting.set_start_at_login(self.setting_start_at_login)
+        elif sys.platform == 'win32' and "python" not in os.path.basename(sys.executable).lower():
+            platform_options = [self.start_at_login_menuitem]
             Setting.set_start_at_login(self.setting_start_at_login)
         if sys.platform == 'darwin':
             self.menubar_icon_menuitem = MenuItem(_("Menubar Icon"),

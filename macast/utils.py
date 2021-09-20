@@ -242,6 +242,8 @@ class Setting:
         elif sys.platform == 'win32':
             """Find the path of Macast.exe so as to create shortcut.
             """
+            if "python" in os.path.basename(sys.executable).lower():
+                return (1, "Not support to set start at login.")
             shell = client.Dispatch("WScript.Shell")
             startup_path = r'%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup'
             if launch:
