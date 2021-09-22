@@ -144,7 +144,6 @@ class DLNAHandler:
 class Service:
 
     def __init__(self, renderer=Renderer()):
-        Setting.load()
         # Replace the default server
         cherrypy.server.unsubscribe()
         cherrypy.server = AutoPortServer()
@@ -438,7 +437,6 @@ class Macast(App):
                [None, self.open_config_menuitem, self.check_update_menuitem, self.about_menuitem]
 
     def init_setting(self):
-        Setting.load()
         self.setting_start_at_login = Setting.get(SettingProperty.StartAtLogin, 0)
         self.setting_check = Setting.get(SettingProperty.CheckUpdate, 1)
         self.setting_menubar_icon = Setting.get(SettingProperty.MenubarIcon, 1 if sys.platform == 'darwin' else 0)
@@ -619,13 +617,11 @@ class Macast(App):
 
 def gui(renderer=None, lang=gettext.gettext):
     if renderer is None:
-        Setting.load()
         renderer = MPVRenderer(lang)
     Macast(renderer, lang).start()
 
 
 def cli(renderer=None):
     if renderer is None:
-        Setting.load()
         renderer = MPVRenderer()
     Service(renderer).run()

@@ -31,7 +31,6 @@ except Exception as e:
     logger.error("Macast Loading Default Language en_US")
 
 if __name__ == '__main__':
-    Setting.load()
     mpv_path = 'mpv'
     if sys.platform == 'darwin':
         mpv_path = get_base_path('bin/MacOS/mpv')

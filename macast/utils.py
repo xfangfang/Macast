@@ -103,23 +103,14 @@ class Setting:
         return Setting.get(SettingProperty.DLNA_FriendlyName, Setting.friendly_name)
 
     @staticmethod
-    def set_friendly_name(name):
-        """Set application friendly name
-        This name will show in the device search list of the DLNA client
-        and as player window default name.
-        """
-        Setting.friendly_name = name
-        Setting.save()
-
-    @staticmethod
     def get_usn(refresh=False):
-        """Get device Unique identification
+        """Get device unique identification
         """
-        if 'USN' in Setting.setting and not refresh:
-            return Setting.setting['USN']
-        Setting.setting['USN'] = str(uuid.uuid4())
-        Setting.save()
-        return Setting.setting['USN']
+        id = str(uuid.uuid4())
+        if not refresh:
+            id = Setting.get(SettingProperty.USN, id)
+        Setting.set(SettingProperty.USN, id)
+        return id
 
     @staticmethod
     def is_ip_changed():
@@ -186,6 +177,8 @@ class Setting:
     def get(property, default=1):
         """Get application settings
         """
+        if not bool(Setting.setting):
+            Setting.load()
         if property.name in Setting.setting:
             return Setting.setting[property.name]
         Setting.setting[property.name] = default
