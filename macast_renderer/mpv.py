@@ -176,7 +176,9 @@ class MPVRenderer(Renderer):
             if res['event'] == 'end-file':
                 cherrypy.engine.publish('renderer_av_stop')
                 self.playing = False
-                if res['reason'] == 'error':
+                if 'reason' not in res:
+                    self.set_state_transport('STOPPED')
+                elif res['reason'] == 'error':
                     self.set_state_transport_error()
                 elif res['reason'] == 'eof':
                     self.set_state_transport('NO_MEDIA_PRESENT')
@@ -276,8 +278,9 @@ class MPVRenderer(Renderer):
                     for msg in msgs:
                         self.update_state(msg)
                 except Exception as e:
-                    logger.error("decode error " + str(e))
-                    logger.error("decode error " + str(msgs))
+                    logger.error("decode error: {}".format(e))
+                    logger.error("decode error data1: {}".format(msg))
+                    logger.error("decode error datas: {}".format(msgs))
                 finally:
                     res = b''
             self.ipc_sock.close()
