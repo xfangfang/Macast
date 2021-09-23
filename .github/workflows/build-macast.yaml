@@ -192,7 +192,7 @@ jobs:
         wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
         mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
         msgfmt -o i18n/zh_CN/LC_MESSAGES/macast.mo i18n/zh_CN/LC_MESSAGES/macast.po
-        python3 setup_py2app.py py2app
+        python3 setup_py2app.py py2app --arch=universal2
         cp -R bin dist/Macast.app/Contents/Resources/
         export VERSION=`cat macast/.version`
         echo "DIST_DMG=Macast-MacOS-v${VERSION}.dmg" >> $GITHUB_ENV

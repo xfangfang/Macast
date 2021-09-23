@@ -6,6 +6,7 @@ Usage:
 """
 
 import os
+import datetime
 from setuptools import setup
 
 APP = ['Macast.py']
@@ -13,17 +14,19 @@ DATA_FILES = ['i18n']
 VERSION = "0.0.0"
 with open('macast/.version', 'r') as f:
     VERSION = f.read().strip()
+copyright = 'Copyright {} xfangfang and the Macast contributors.'.format(datetime.datetime.now().year)
 OPTIONS = {
     'argv_emulation': True,
     'plist': {
         'LSUIElement': True,
         'NSHighResolutionCapable': True,
-        'LSMinimumSystemVersion': '10.15.0',
+        'LSMinimumSystemVersion': '10.12.0',
         'CFBundleIdentifier': 'cn.xfangfang.Macast',
-        'NSHumanReadableCopyright': 'Copyright 2021 xfangfang and the Macast contributors.',
+        'NSHumanReadableCopyright': copyright,
         'CFBundleShortVersionString': str(VERSION),
         'CFBundleVersion': str(VERSION),
     },
+    'excludes': ['PIL', 'tkinter'],
     'packages': ['rumps', 'macast', 'macast_renderer'],
     'iconfile': os.path.abspath('macast/assets/icon.icns')
 }
