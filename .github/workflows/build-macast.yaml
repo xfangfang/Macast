@@ -171,13 +171,18 @@ jobs:
         path: ${{ env.DIST_EXE_DEBUG }}
 
   build-darwin:
-    runs-on: macos-10.15
+    runs-on: macos-11
     steps:
     - name: Checkout
       uses: actions/checkout@v2
 
     - name: install create-dmg
       run: brew install create-dmg
+
+    - name: install universal python
+      run: |
+        wget https://www.python.org/ftp/python/3.9.7/python-3.9.7-macos11.pkg
+        sudo installer -pkg python-3.9.7-macos11.pkg -target /
 
     - name: Build
       id: compile
