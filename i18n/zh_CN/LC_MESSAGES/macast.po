@@ -1,5 +1,5 @@
-# Macast Language File.
-# Copyright (C) 2021 Macast
+# Macast kielitiedosto.
+# Tekijänoikeus (C) 2021 Macast
 # xfangfang <github.com/xfangfang>, 2021.
 #
 msgid ""
@@ -10,7 +10,7 @@ msgstr ""
 "PO-Revision-Date: 2021-06-12 04:23+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
-"Language: zh_CN\n"
+"Language: fi_FI\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -19,148 +19,148 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 msgid "Stop Cast"
-msgstr "停止接受投屏"
+msgstr "Lopeta lähetys"
 
 msgid "Setting"
-msgstr "设置"
+msgstr "Asetukset"
 
 msgid "Quit"
-msgstr "退出"
+msgstr "Lopeta"
 
 msgid "Auto Check Updates"
-msgstr "自动检查更新"
+msgstr "Tarkista päivitykset automaattisesti"
 
 msgid "Start At Login"
-msgstr "开机自启"
+msgstr "Käynnistä sisäänkirjautuessa"
 
 msgid "Renderers"
-msgstr "选择播放器"
+msgstr "Hahmonnus"
 
 msgid "Menubar Icon"
-msgstr "状态栏图标"
+msgstr "Valikkopalkin kuvake"
 
 msgid "AppIcon"
-msgstr "应用图标"
+msgstr "Ohjelmakuvake"
 
 msgid "Pattern"
-msgstr "单色图案"
+msgstr "Kuvio"
 
 msgid "PatternLight"
-msgstr "浅色图案"
+msgstr "Vaalea kuvio"
 
 msgid "PatternDark"
-msgstr "深色图案"
+msgstr "Tumma kuvio"
 
 msgid "Open Config Directory"
-msgstr "打开配置目录"
+msgstr "Avaa asetuskansio"
 
 msgid "Check For Updates"
-msgstr "检查更新"
+msgstr "Tarkista onko päivityksiä saatavilla"
 
 msgid "Help"
-msgstr "帮助"
+msgstr "Apua"
 
 msgid "Macast New Update {}"
-msgstr "Macast有新版本 {}"
+msgstr "Uusi Macast-päivitys {}"
 
 msgid "You're up to date."
-msgstr "现在已经是最新版"
+msgstr "Olet uusimmassa ohjelmaversiossa"
 
 msgid "Start Cast"
-msgstr "开始接受投屏"
+msgstr "Aloita lähetys"
 
 msgid "running at task bar"
-msgstr "运行在任务栏"
+msgstr "ajetaan tehtäväpalkissa"
 
 msgid "running at menu bar"
-msgstr "运行在菜单栏"
+msgstr "ajetaan valikkopalkissa"
 
 msgid "running at desktop panel"
-msgstr "运行在状态栏"
+msgstr "ajetaan työpöytäpaneelissa"
 
 msgid "Macast is hidden"
-msgstr "Macast进入后台"
+msgstr "Macast on piilotettuna"
 
 msgid "Copy Video URI"
-msgstr "复制视频链接"
+msgstr "Jäljennä videon URI-osoite"
 
 msgid "Info"
-msgstr "通知"
+msgstr "Tiedot"
 
 msgid "Change Renderer to {}."
-msgstr "播放器更换到 {}"
+msgstr "Muuta hahmonnus muotoon {}"
 
 msgid "Error"
-msgstr "错误"
+msgstr "Virhe"
 
 msgid "Player Position"
-msgstr "播放器位置"
+msgstr "Toistimen paikka"
 
 msgid "LeftTop"
-msgstr "左上"
+msgstr "Vasemmalla ylhäällä"
 
 msgid "LeftBottom"
-msgstr "左下"
+msgstr "Vasemmalla alhaalla"
 
 msgid "RightTop"
-msgstr "右上"
+msgstr "Oikealla ylhäällä"
 
 msgid "RightBottom"
-msgstr "右下"
+msgstr "Oikealla alhaalla"
 
 msgid "Center"
-msgstr "中央"
+msgstr "Keskellä"
 
 msgid "Player Size"
-msgstr "播放器大小"
+msgstr "Toistimen koko"
 
 msgid "Small"
-msgstr "小"
+msgstr "Pieni"
 
 msgid "Normal"
-msgstr "中"
+msgstr "Tavanomainen"
 
 msgid "Large"
-msgstr "大"
+msgstr "Suuri"
 
 msgid "Auto"
-msgstr "自动"
+msgstr "Automaattinen"
 
 msgid "Fullscreen"
-msgstr "全屏"
+msgstr "Kokoruutu"
 
 msgid "Hardware Decode"
-msgstr "硬件解码"
+msgstr "Laitteellinen toistopurku"
 
 msgid "Force Dedicated GPU"
-msgstr "强制使用独立显卡"
+msgstr "Pakota omistautunut näytönohjainpurkamisen käyttöönotto"
 
 msgid "Reload Player"
-msgstr "重载播放器"
+msgstr "Lataa toistin uudelleen"
 
 msgid "please wait"
-msgstr "请等待"
+msgstr "odota"
 
 msgid "Cannot start player"
-msgstr "无法启动播放器"
+msgstr "Toistinta ei saaatu avattua"
 
 msgid "You need move Macast.app to Applications folder."
-msgstr "你需要把Macast.app放置在系统应用文件夹下"
+msgstr "Sinun täytyy siirtää Macast.app Ohjelmisto-kansioon"
 
 msgid "Update"
-msgstr "更新"
+msgstr "Päivitä"
 
 msgid "Cancel"
-msgstr "取消"
+msgstr "Peruuta"
 
 msgid "Ok"
-msgstr "好的"
+msgstr "Selvä"
 
 msgid "Cannot access System Events"
-msgstr "请在 系统设置->隐私->自动化 完成Macast的授权"
+msgstr "Järjestelmätapahtumia ei saatu avattua"
 
 msgid "Check for updates"
-msgstr "检查更新"
+msgstr "Tarkista päivitykset"
 
 msgid "New Update {}"
-msgstr "有新版本 {}"
+msgstr "Uusi päivitys {}"
