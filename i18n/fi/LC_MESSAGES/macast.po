@@ -1,0 +1,166 @@
+# Macast kielitiedosto.
+# Tekijänoikeus (C) 2021 Macast
+# xfangfang <github.com/xfangfang>, 2021.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-08 17:22+0800\n"
+"PO-Revision-Date: 2021-06-12 04:23+0800\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: fi_FI\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: pygettext.py 1.5\n"
+"X-Generator: Poedit 3.0\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Stop Cast"
+msgstr "Lopeta lähetys"
+
+msgid "Setting"
+msgstr "Asetukset"
+
+msgid "Quit"
+msgstr "Lopeta"
+
+msgid "Auto Check Updates"
+msgstr "Tarkista päivitykset automaattisesti"
+
+msgid "Start At Login"
+msgstr "Käynnistä sisäänkirjautuessa"
+
+msgid "Renderers"
+msgstr "Hahmonnus"
+
+msgid "Menubar Icon"
+msgstr "Valikkopalkin kuvake"
+
+msgid "AppIcon"
+msgstr "Ohjelmakuvake"
+
+msgid "Pattern"
+msgstr "Kuvio"
+
+msgid "PatternLight"
+msgstr "Vaalea kuvio"
+
+msgid "PatternDark"
+msgstr "Tumma kuvio"
+
+msgid "Open Config Directory"
+msgstr "Avaa asetuskansio"
+
+msgid "Check For Updates"
+msgstr "Tarkista onko päivityksiä saatavilla"
+
+msgid "Help"
+msgstr "Apua"
+
+msgid "Macast New Update {}"
+msgstr "Uusi Macast-päivitys {}"
+
+msgid "You're up to date."
+msgstr "Olet uusimmassa ohjelmaversiossa"
+
+msgid "Start Cast"
+msgstr "Aloita lähetys"
+
+msgid "running at task bar"
+msgstr "ajetaan tehtäväpalkissa"
+
+msgid "running at menu bar"
+msgstr "ajetaan valikkopalkissa"
+
+msgid "running at desktop panel"
+msgstr "ajetaan työpöytäpaneelissa"
+
+msgid "Macast is hidden"
+msgstr "Macast on piilotettuna"
+
+msgid "Copy Video URI"
+msgstr "Jäljennä videon URI-osoite"
+
+msgid "Info"
+msgstr "Tiedot"
+
+msgid "Change Renderer to {}."
+msgstr "Muuta hahmonnus muotoon {}"
+
+msgid "Error"
+msgstr "Virhe"
+
+msgid "Player Position"
+msgstr "Toistimen paikka"
+
+msgid "LeftTop"
+msgstr "Vasemmalla ylhäällä"
+
+msgid "LeftBottom"
+msgstr "Vasemmalla alhaalla"
+
+msgid "RightTop"
+msgstr "Oikealla ylhäällä"
+
+msgid "RightBottom"
+msgstr "Oikealla alhaalla"
+
+msgid "Center"
+msgstr "Keskellä"
+
+msgid "Player Size"
+msgstr "Toistimen koko"
+
+msgid "Small"
+msgstr "Pieni"
+
+msgid "Normal"
+msgstr "Tavanomainen"
+
+msgid "Large"
+msgstr "Suuri"
+
+msgid "Auto"
+msgstr "Automaattinen"
+
+msgid "Fullscreen"
+msgstr "Kokoruutu"
+
+msgid "Hardware Decode"
+msgstr "Laitteellinen toistopurku"
+
+msgid "Force Dedicated GPU"
+msgstr "Pakota omistautunut näytönohjainpurkamisen käyttöönotto"
+
+msgid "Reload Player"
+msgstr "Lataa toistin uudelleen"
+
+msgid "please wait"
+msgstr "odota"
+
+msgid "Cannot start player"
+msgstr "Toistinta ei saaatu avattua"
+
+msgid "You need move Macast.app to Applications folder."
+msgstr "Sinun täytyy siirtää Macast.app Ohjelmisto-kansioon"
+
+msgid "Update"
+msgstr "Päivitä"
+
+msgid "Cancel"
+msgstr "Peruuta"
+
+msgid "Ok"
+msgstr "Selvä"
+
+msgid "Cannot access System Events"
+msgstr "Järjestelmätapahtumia ei saatu avattua"
+
+msgid "Check for updates"
+msgstr "Tarkista päivitykset"
+
+msgid "New Update {}"
+msgstr "Uusi päivitys {}"
