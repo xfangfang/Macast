@@ -73,7 +73,7 @@ jobs:
     - name: Build
       id: compile
       run: |
-        msgfmt -o i18n/zh_CN/LC_MESSAGES/macast.mo i18n/zh_CN/LC_MESSAGES/macast.po
+        for file in i18n/*; do msgfmt -o $file/LC_MESSAGES/macast.mo $file/LC_MESSAGES/macast.po;echo $file;done
         export VERSION=`cat macast/.version`
         export DIST_AMD64_DEB=Macast-Linux-v${VERSION}-amd64.deb
         export DIST_AMD64=Macast-Linux-v${VERSION}-amd64
@@ -145,7 +145,7 @@ jobs:
     - name: Build
       id: compile
       run: |
-        ./gettext/bin/msgfmt -o i18n/zh_CN/LC_MESSAGES/macast.mo i18n/zh_CN/LC_MESSAGES/macast.po
+        Get-ChildItem i18n | ForEach-Object -Process{gettext/bin/msgfmt -o $_/LC_MESSAGES/macast.mo $_/LC_MESSAGES/macast.po;echo $_.name}
         $VERSION=cat macast/.version
         echo "DIST_EXE=Macast-Windows-v${VERSION}.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -184,14 +184,17 @@ jobs:
         wget https://www.python.org/ftp/python/3.9.7/python-3.9.7-macos11.pkg
         sudo installer -pkg python-3.9.7-macos11.pkg -target /
 
-    - name: Build
-      id: compile
+    - name: Install Requirement
       run: |
         pip3 install -r requirements/darwin.txt
         pip3 install py2app
         wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
         mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
-        msgfmt -o i18n/zh_CN/LC_MESSAGES/macast.mo i18n/zh_CN/LC_MESSAGES/macast.po
+
+    - name: Build
+      id: compile
+      run: |
+        for file in i18n/*; do msgfmt -o $file/LC_MESSAGES/macast.mo $file/LC_MESSAGES/macast.po;echo $file;done
         python3 setup_py2app.py py2app --arch=universal2
         cp -R bin dist/Macast.app/Contents/Resources/
         export VERSION=`cat macast/.version`
