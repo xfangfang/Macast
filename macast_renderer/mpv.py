@@ -124,7 +124,7 @@ class MPVRenderer(Renderer):
         self.send_command(
             ['observe_property', ObserveProperty.track_list.value,
              'track-list'])
-        self.set_media_volume(50)
+        self.set_media_volume(Setting.get(SettingProperty.PlayerDefaultVolume, 100))
 
     def update_state(self, res):
         """Update player state from mpv
@@ -297,7 +297,6 @@ class MPVRenderer(Renderer):
                 '--image-display-duration=inf',
                 '--idle=yes',
                 '--no-terminal',
-                '--ontop',
                 '--on-all-workspaces',
                 '--hwdec=yes',
                 '--save-position-on-quit=yes',
@@ -305,6 +304,11 @@ class MPVRenderer(Renderer):
                 'osc-title=${title},osc-showwindowed=no,' +
                 'osc-seekbarstyle=bar,osc-visibility=auto'
             ]
+
+            ontop = Setting.get(SettingProperty.PlayerOntop,
+                                default=SettingProperty.PlayerOntop_True.value)
+            if ontop:
+                params.append('--ontop')
 
             # set player position
             player_position = Setting.get(SettingProperty.PlayerPosition,
@@ -446,6 +450,12 @@ class SettingProperty(Enum):
     PlayerPosition_RightBottom = 3
     PlayerPosition_Center = 4
 
+    PlayerOntop = 400
+    PlayerOntop_False = 0
+    PlayerOntop_True = 1
+
+    PlayerDefaultVolume = 500
+
 
 class MPVRendererSetting(RendererSetting):
     def __init__(self):
@@ -459,6 +469,8 @@ class MPVRendererSetting(RendererSetting):
                                                    SettingProperty.PlayerPosition_RightTop.value)
         self.setting_player_hw = Setting.get(SettingProperty.PlayerHW,
                                              SettingProperty.PlayerHW_Enable.value)
+        self.setting_player_ontop = Setting.get(SettingProperty.PlayerOntop,
+                                                SettingProperty.PlayerOntop_True.value)
 
     def build_menu(self):
         self.playerPositionItem = MenuItem(_("Player Position"),
@@ -477,7 +489,24 @@ class MPVRendererSetting(RendererSetting):
                                            _("Auto"),
                                            _("Fullscreen")
                                        ], self.on_renderer_size_clicked))
+        self.playerOntopItem = MenuItem(_("Player Ontop"), self.on_renderer_ontop_clicked)
+
+        has_dedicated_gpu = False
+        # Force dedicated GPU only works on MacOS
         if sys.platform == 'darwin':
+            try:
+                res, gpu_info = Setting.system_shell(
+                    ['system_profiler', '-json', '-timeout', '10', 'SPDisplaysDataType'])
+                if res == 0:
+                    gpu_info = json.loads(gpu_info)
+                    has_dedicated_gpu = len(gpu_info['SPDisplaysDataType']) > 1
+                    logger.error("GPU list:")
+                    for gpu in gpu_info['SPDisplaysDataType']:
+                        logger.error(gpu['sppci_model'])
+            except Exception as e:
+                logger.error("Error get gpu info")
+
+        if has_dedicated_gpu:
             self.playerHWItem = MenuItem(_("Hardware Decode"),
                                          children=App.build_menu_item_group([
                                              _("Hardware Decode"),
@@ -491,54 +520,67 @@ class MPVRendererSetting(RendererSetting):
                 self.setting_player_hw == SettingProperty.PlayerHW_Force.value)
         else:
             self.playerHWItem = MenuItem(_("Hardware Decode"),
-                                         self.on_renderer_hw_clicked,
-                                         data=0)
+                                         self.on_renderer_hw_toggled)
             if self.setting_player_hw != SettingProperty.PlayerHW_Disable:
                 self.playerHWItem.checked = True
         self.playerPositionItem.items()[self.setting_player_position].checked = True
         self.playerSizeItem.items()[self.setting_player_size].checked = True
+        self.playerOntopItem.checked = True if self.setting_player_ontop == 1 else False
 
         return [
+            MenuItem(_("Player Settings"), enabled=False),
             self.playerPositionItem,
             self.playerSizeItem,
             self.playerHWItem,
+            self.playerOntopItem,
         ]
 
-    def on_renderer_position_clicked(self, item):
-        for i in self.playerPositionItem.items():
-            i.checked = False
-        item.checked = True
-        Setting.set(SettingProperty.PlayerPosition, item.data)
+    def reloadPlayer(self):
         cherrypy.engine.publish('app_notify',
                                 _("Reload Player"),
                                 _("please wait"),
                                 sound=False)
         cherrypy.engine.publish('reloadRender')
 
+    def on_renderer_ontop_clicked(self, item):
+        item.checked = not item.checked
+        Setting.set(SettingProperty.PlayerOntop, 1 if item.checked else 0)
+        self.reloadPlayer()
+
+    def on_renderer_position_clicked(self, item):
+        for i in self.playerPositionItem.items():
+            i.checked = False
+        item.checked = True
+        Setting.set(SettingProperty.PlayerPosition, item.data)
+        self.reloadPlayer()
+
+    def on_renderer_hw_toggled(self, item):
+        item.checked = not item.checked
+        Setting.set(SettingProperty.PlayerHW, 1 if item.checked else 0)
+        self.reloadPlayer()
+
     def on_renderer_hw_clicked(self, item):
         item.checked = not item.checked
-        if item.data == SettingProperty.PlayerHW_Disable.value:
+        if item.data == 0:
+            # click Hardware Decode
             if item.checked:
-                # Default Hardware Decode
+                # Change to Default Hardware Decode
                 Setting.set(SettingProperty.PlayerHW, SettingProperty.PlayerHW_Enable.value)
-                if sys.platform == 'darwin':
-                    self.playerHWItem.items()[1].enabled = True
+                self.playerHWItem.items()[1].enabled = True
             else:
-                # Software Decode
+                # Change to Software Decode
                 Setting.set(SettingProperty.PlayerHW, SettingProperty.PlayerHW_Disable.value)
-                if sys.platform == 'darwin':
-                    self.playerHWItem.items()[1].checked = False
-                    self.playerHWItem.items()[1].enabled = False
-        elif item.checked:
-            # Force Dedicated GPU
-            Setting.set(SettingProperty.PlayerHW, SettingProperty.PlayerHW_Force.value)
+                self.playerHWItem.items()[1].checked = False
+                self.playerHWItem.items()[1].enabled = False
         else:
-            # Default Hardware Decode
-            Setting.set(SettingProperty.PlayerHW, SettingProperty.PlayerHW_Enable.value)
-            cherrypy.engine.publish(_("Reload Player"),
-                                    _("please wait"),
-                                    sound=False)
-        cherrypy.engine.publish('reloadRender')
+            # click Force Dedicated GPU Decode
+            if item.checked:
+                # Change to Force Dedicated GPU Decode
+                Setting.set(SettingProperty.PlayerHW, SettingProperty.PlayerHW_Force.value)
+            else:
+                # Change to Default Hardware Decode
+                Setting.set(SettingProperty.PlayerHW, SettingProperty.PlayerHW_Enable.value)
+        self.reloadPlayer()
 
     def on_renderer_size_clicked(self, item):
         for i in self.playerSizeItem.items():
@@ -551,7 +593,4 @@ class MPVRendererSetting(RendererSetting):
                 i.checked = False
             self.playerPositionItem.items()[4].checked = True
             Setting.set(SettingProperty.PlayerPosition, SettingProperty.PlayerPosition_Center.value)
-        cherrypy.engine.publish(_("Reload Player"),
-                                _("please wait"),
-                                sound=False)
-        cherrypy.engine.publish('reloadRender')
+        self.reloadPlayer()
