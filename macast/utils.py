@@ -20,7 +20,7 @@ elif sys.platform == 'win32':
     import win32com.client as client
 
 logger = logging.getLogger("Utils")
-DEFAULT_PORT = 1068
+DEFAULT_PORT = 0
 SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
 
 
