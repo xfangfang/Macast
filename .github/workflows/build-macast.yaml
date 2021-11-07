@@ -127,7 +127,7 @@ jobs:
         path: ${{ env.DIST_AMD64_DEB }}
 
   build-nt:
-    runs-on: windows-latest
+    runs-on: windows-2019
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -137,9 +137,9 @@ jobs:
         pip3 install -r requirements/common.txt
         pip3 install pyinstaller
         $client = new-object System.Net.WebClient
-        $client.DownloadFile('https://github.com/xfangfang/Macast/releases/download/v0.1/mpv-0.33.0-x86_64.7z','mpv.7z')
+        $client.DownloadFile('https://github.com/xfangfang/Macast/releases/download/v0.1/mpv-0.34.0-x86_64.7z','mpv.7z')
         7z x -obin mpv.7z *.exe
-        $client.DownloadFile('https://github.com/mlocati/gettext-iconv-windows/releases/download/v0.21-v1.16/gettext0.21-iconv1.16-static-64.zip','gettext.zip')
+        $client.DownloadFile('https://github.com/xfangfang/Macast/releases/download/v0.1/gettext0.21-iconv1.16-static-64.zip','gettext.zip')
         7z x -ogettext gettext.zip bin/msgfmt.exe
 
     - name: Build
@@ -181,8 +181,8 @@ jobs:
 
     - name: install universal python
       run: |
-        wget https://www.python.org/ftp/python/3.9.7/python-3.9.7-macos11.pkg
-        sudo installer -pkg python-3.9.7-macos11.pkg -target /
+        wget https://www.python.org/ftp/python/3.9.8/python-3.9.8-macos11.pkg
+        sudo installer -pkg python-3.9.8-macos11.pkg -target /
 
     - name: Install Requirement
       run: |
