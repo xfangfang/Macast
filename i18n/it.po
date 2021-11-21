@@ -1,0 +1,166 @@
+# Macast Language File.
+# Copyright (C) 2021 Macast
+# xfangfang <github.com/xfangfang>, 2021.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-08 17:22+0800\n"
+"PO-Revision-Date: 2021-11-21 14:23+0100\n"
+"Last-Translator: Albano Battistella <albano_battistella@hotmail.com>\n"
+"Language-Team: Italian\n"
+"Language: it_IT\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: pygettext.py 1.5\n"
+"X-Generator: Poedit 3.0\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Stop Cast"
+msgstr "Interrompi trasmissione"
+
+msgid "Setting"
+msgstr "Impostazione"
+
+msgid "Quit"
+msgstr "Esci"
+
+msgid "Auto Check Updates"
+msgstr "Aggiornamenti automatici"
+
+msgid "Start At Login"
+msgstr "Avvia al Login"
+
+msgid "Renderers"
+msgstr "Rendering"
+
+msgid "Menubar Icon"
+msgstr "Icona della barra menu"
+
+msgid "AppIcon"
+msgstr "Icona dell'app"
+
+msgid "Pattern"
+msgstr "Modello"
+
+msgid "PatternLight"
+msgstr "Modello chiaro"
+
+msgid "PatternDark"
+msgstr "Modello scuro"
+
+msgid "Open Config Directory"
+msgstr "Apri la directory di configurazione"
+
+msgid "Check For Updates"
+msgstr "Controlla se ci sono aggiornamenti"
+
+msgid "Help"
+msgstr "Aiuto"
+
+msgid "Macast New Update {}"
+msgstr "Nuovo aggiornamento di Macast {}"
+
+msgid "You're up to date."
+msgstr "Sei aggiornato."
+
+msgid "Start Cast"
+msgstr "Avvia trasmissione"
+
+msgid "running at task bar"
+msgstr "in esecuzione sulla barra delle applicazioni"
+
+msgid "running at menu bar"
+msgstr "in esecuzione alla barra del menu"
+
+msgid "running at desktop panel"
+msgstr "in esecuzione sul pannello del desktop"
+
+msgid "Macast is hidden"
+msgstr "Macast è nascosto"
+
+msgid "Copy Video URI"
+msgstr "Copia URI video"
+
+msgid "Info"
+msgstr "Informazioni"
+
+msgid "Change Renderer to {}."
+msgstr "Modifica il renderer in {}."
+
+msgid "Error"
+msgstr "Errore"
+
+msgid "Player Position"
+msgstr "Posizione del Player"
+
+msgid "LeftTop"
+msgstr "In alto a sinistra"
+
+msgid "LeftBottom"
+msgstr "In basso a sinistra"
+
+msgid "RightTop"
+msgstr "In alto a destra"
+
+msgid "RightBottom"
+msgstr "In basso a destra"
+
+msgid "Center"
+msgstr "Centro"
+
+msgid "Player Size"
+msgstr "Dimensione del Player"
+
+msgid "Small"
+msgstr "Piccolo"
+
+msgid "Normal"
+msgstr "Normale"
+
+msgid "Large"
+msgstr "Grande"
+
+msgid "Auto"
+msgstr "Automatico"
+
+msgid "Fullscreen"
+msgstr "Schermo intero"
+
+msgid "Hardware Decode"
+msgstr "Decodifica hardware"
+
+msgid "Force Dedicated GPU"
+msgstr "Forza GPU dedicata"
+
+msgid "Reload Player"
+msgstr "Ricarica Player"
+
+msgid "please wait"
+msgstr "attendere prego"
+
+msgid "Cannot start player"
+msgstr "Impossibile avviare il player"
+
+msgid "You need move Macast.app to Applications folder."
+msgstr "Devi spostare Macast.app nella cartella Applicazioni."
+
+msgid "Update"
+msgstr "Aggiornamento"
+
+msgid "Cancel"
+msgstr "Cancella"
+
+msgid "Ok"
+msgstr "Ok"
+
+msgid "Cannot access System Events"
+msgstr "Impossibile accedere agli eventi di sistema"
+
+msgid "Check for updates"
+msgstr "Controlla se ci sono aggiornamenti"
+
+msgid "New Update {}"
+msgstr "Nuovo aggiornamento {}"
