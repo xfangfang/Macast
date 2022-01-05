@@ -26,7 +26,7 @@ on:
 
 jobs:
   release:
-    needs: [build-nt, build-darwin, build-amd64]
+    needs: [ build-nt, build-darwin, build-amd64, build-armv7 ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -44,6 +44,8 @@ jobs:
           echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" >> $GITHUB_ENV
           echo "DIST_AMD64=Macast-Linux-v${VERSION}-amd64" >> $GITHUB_ENV
           echo "DIST_AMD64_DEB=Macast-Linux-v${VERSION}-amd64.deb" >> $GITHUB_ENV
+          echo "DIST_ARMV7=Macast-Linux-v${VERSION}-armv7" >> $GITHUB_ENV
+          echo "DIST_ARMV7_DEB=Macast-Linux-v${VERSION}-armv7.deb" >> $GITHUB_ENV
           echo $GITHUB_ENV
 
       - name: Upload
@@ -56,7 +58,7 @@ jobs:
           body: This release is built by github-action.
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
-          artifacts: ${{ env.DIST_DMG }}/${{ env.DIST_DMG }},${{ env.DIST_EXE }}/${{ env.DIST_EXE }},${{ env.DIST_EXE_DEBUG }}/${{ env.DIST_EXE_DEBUG }},${{ env.DIST_AMD64 }}/${{ env.DIST_AMD64 }},${{ env.DIST_AMD64_DEB }}/${{ env.DIST_AMD64_DEB }}
+          artifacts: ${{ env.DIST_DMG }}/${{ env.DIST_DMG }},${{ env.DIST_EXE }}/${{ env.DIST_EXE }},${{ env.DIST_EXE_DEBUG }}/${{ env.DIST_EXE_DEBUG }},${{ env.DIST_AMD64 }}/${{ env.DIST_AMD64 }},${{ env.DIST_AMD64_DEB }}/${{ env.DIST_AMD64_DEB }},${{ env.DIST_ARMV7_DEB }}/${{ env.DIST_ARMV7_DEB }}
 
   build-amd64:
     runs-on: ubuntu-latest
@@ -216,3 +218,71 @@ jobs:
       with:
         name: ${{ env.DIST_DMG }}
         path: ${{ env.DIST_DMG }}
+
+  build-armv7:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install Requirement
+        run: |
+          sudo apt update
+          sudo apt install -y gettext
+          docker pull xfangfang/build-macast
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Build
+        id: compile
+        run: |
+          for file in i18n/*; do msgfmt -o $file/LC_MESSAGES/macast.mo $file/LC_MESSAGES/macast.po;echo $file;done
+          export VERSION=`cat macast/.version`
+          export BUILD_PLATFORM=armv7
+          export DIST_DEB=Macast-Linux-v${VERSION}-${BUILD_PLATFORM}.deb
+          export DIST=Macast-Linux-v${VERSION}-${BUILD_PLATFORM}
+          echo "DIST_DEB=${DIST_DEB}" >> $GITHUB_ENV
+          echo "DIST=${DIST}" >> $GITHUB_ENV
+          echo "VERSION=v$VERSION" >> $GITHUB_ENV
+          docker run --platform=linux/arm/v7 --rm -v "$(pwd):/src/" xfangfang/build-macast:armv7-220105 \
+              'pyinstaller --noconfirm -F -w \
+                --additional-hooks-dir=. \
+                --add-data="macast/.version:." \
+                --add-data="macast/xml/*:macast/xml" \
+                --add-data="i18n/zh_CN/LC_MESSAGES/*.mo:i18n/zh_CN/LC_MESSAGES" \
+                --add-data="macast/assets/*.png:assets" \
+                --exclude-module=tkinter \
+                --distpath="app" \
+              Macast.py'
+          sudo chown 1000 app/Macast
+          cp app/Macast $DIST
+          #build deb
+          mkdir -p dist/DEBIAN
+          mkdir -p dist/usr/bin
+          mkdir -p dist/usr/share/applications
+          mkdir -p dist/usr/share/icons
+          echo -e "Package: Macast\nVersion: ${VERSION}\nArchitecture: armhf\nMaintainer: xfangfang\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
+          echo -e "[Desktop Entry]\nName=Macast\nComment=DLNA Media Renderer\nExec=/usr/bin/macast\nIcon=/usr/share/icons/Macast.png\nTerminal=false\nType=Application\nCategories=Video" > dist/usr/share/applications/macast.desktop
+          cp app/Macast dist/usr/bin/macast
+          cp macast/assets/icon.png dist/usr/share/icons/Macast.png
+          dpkg -b dist $DIST_DEB
+          echo "::set-output name=status::success"
+
+      - name: Upload dist linux
+        uses: actions/upload-artifact@v2
+        if: steps.compile.outputs.status == 'success'
+        with:
+          name: ${{ env.DIST }}
+          path: ${{ env.DIST }}
+
+      - name: Upload dist deb
+        uses: actions/upload-artifact@v2
+        if: steps.compile.outputs.status == 'success'
+        with:
+          name: ${{ env.DIST_DEB }}
+          path: ${{ env.DIST_DEB }}
