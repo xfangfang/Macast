@@ -18,40 +18,86 @@ class RendererPlugin(plugins.SimplePlugin):
     """Run a background player thread
     """
 
-    def __init__(self, bus, render):
+    def __init__(self, bus, renderer):
         logger.info('Initializing RenderPlugin')
         super(RendererPlugin, self).__init__(bus)
-        self.render = render
-
-    def reload_render(self):
-        """Reload Render
-          In some cases, you need to adjust the player's parameters,
-        then you need to call this method to reload player.
-        """
-        self.render.stop()
-        self.render.start()
+        self.renderer = renderer
 
     def start(self):
         """Start RenderPlugin
         """
         logger.info('starting RenderPlugin')
-        self.render.start()
-        self.bus.subscribe('call_render', self.render.call)
-        self.bus.subscribe('add_subscribe', self.render.add_subscribe)
-        self.bus.subscribe('renew_subscribe', self.render.renew_subcribe)
-        self.bus.subscribe('remove_subscribe', self.render.remove_subscribe)
-        self.bus.subscribe('reloadRender', self.render.reload)
+        self.renderer.start()
+        self.bus.subscribe('reload_renderer', self.renderer.reload)
+        self.bus.subscribe('get_renderer', self.get_renderer)
+        self.bus.subscribe('set_renderer', self.set_renderer)
+        for method in self.renderer.methods():
+            self.bus.subscribe(method, getattr(self.renderer, method))
 
     def stop(self):
         """Stop RenderPlugin
         """
-        logger.info('Stoping RenderPlugin')
-        self.bus.unsubscribe('call_render', self.render.call)
-        self.bus.unsubscribe('add_subscribe', self.render.add_subscribe)
-        self.bus.unsubscribe('renew_subscribe', self.render.renew_subcribe)
-        self.bus.unsubscribe('remove_subscribe', self.render.remove_subscribe)
-        self.bus.unsubscribe('reloadRender', self.render.reload)
-        self.render.stop()
+        logger.info('Stopping RenderPlugin')
+        self.bus.unsubscribe('reload_renderer', self.renderer.reload)
+        self.bus.unsubscribe('get_renderer', self.get_renderer)
+        self.bus.unsubscribe('set_renderer', self.set_renderer)
+        for method in self.renderer.methods():
+            self.bus.unsubscribe(method, getattr(self.renderer, method))
+        self.renderer.stop()
+
+    def get_renderer(self):
+        return self.renderer
+
+    def set_renderer(self, renderer):
+        self.stop()
+        self.renderer = renderer
+        self.start()
+
+
+class ProtocolPlugin(plugins.SimplePlugin):
+    """Run a background protocol thread
+    """
+
+    def __init__(self, bus, protocol):
+        logger.info('Initializing ProtocolPlugin')
+        super(ProtocolPlugin, self).__init__(bus)
+        self.protocol = protocol
+
+    def reload_protocol(self):
+        """Reload protocol
+        """
+        self.protocol.stop()
+        self.protocol.start()
+
+    def start(self):
+        """Start ProtocolPlugin
+        """
+        logger.info('starting ProtocolPlugin')
+        self.protocol.start()
+        self.bus.subscribe('reload_protocol', self.protocol.reload)
+        self.bus.subscribe('get_protocol', self.get_protocol)
+        self.bus.subscribe('set_protocol', self.set_protocol)
+        for method in self.protocol.methods():
+            self.bus.subscribe(method, getattr(self.protocol, method))
+
+    def stop(self):
+        """Stop ProtocolPlugin
+        """
+        logger.info('Stopping ProtocolPlugin')
+        self.bus.unsubscribe('reload_protocol', self.protocol.reload)
+        self.bus.unsubscribe('get_protocol', self.get_protocol)
+        self.bus.unsubscribe('set_protocol', self.set_protocol)
+        for method in self.protocol.methods():
+            self.bus.unsubscribe(method, getattr(self.protocol, method))
+        self.protocol.stop()
+
+    def get_protocol(self):
+        return self.protocol
+
+    def set_protocol(self, protocol):
+        self.stop()
+        self.protocol = protocol
+        self.start()
 
 
 class SSDPPlugin(plugins.SimplePlugin):
