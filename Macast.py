@@ -6,7 +6,6 @@ import gettext
 import logging
 from macast import Setting
 from macast.macast import gui
-from macast_renderer.mpv import MPVRenderer
 
 logger = logging.getLogger("Macast")
 logger.setLevel(logging.DEBUG)
@@ -18,6 +17,16 @@ def get_base_path(path="."):
     else:
         base_path = os.getcwd()
     return os.path.join(base_path, path)
+
+
+def set_mpv_default_path():
+    mpv_path = 'mpv'
+    if sys.platform == 'darwin':
+        mpv_path = get_base_path('bin/MacOS/mpv')
+    elif sys.platform == 'win32':
+        mpv_path = get_base_path('bin/mpv.exe')
+    Setting.mpv_default_path = mpv_path
+    return mpv_path
 
 
 def get_lang():
@@ -37,9 +46,5 @@ def get_lang():
 
 if __name__ == '__main__':
     get_lang()
-    mpv_path = 'mpv'
-    if sys.platform == 'darwin':
-        mpv_path = get_base_path('bin/MacOS/mpv')
-    elif sys.platform == 'win32':
-        mpv_path = get_base_path('bin/mpv.exe')
-    gui(MPVRenderer(_, mpv_path), _)
+    set_mpv_default_path()
+    gui(lang=_)
