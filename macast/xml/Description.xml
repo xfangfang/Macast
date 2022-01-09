@@ -1,44 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root
-xmlns:dlna="urn:schemas-dlna-org:device-1-0"
-xmlns="urn:schemas-upnp-org:device-1-0">
-<specVersion>
-    <major>1</major>
-    <minor>0</minor>
-</specVersion>
-<device>
-    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
-    <UDN>uuid:{uuid}</UDN>
-    <friendlyName>{friendly_name}</friendlyName>
-    <manufacturer>{manufacturer}</manufacturer>
-    <manufacturerURL>{manufacturer_url}</manufacturerURL>
-    <modelDescription>{model_description}</modelDescription>
-    <modelName>{model_name}</modelName>
-    <modelNumber>{model_number}</modelNumber>
-    <modelURL>{model_url}</modelURL>
-    <dlna:X_DLNADOC xmlns:dlna="urn:schemas-dlna-org:device-1-0">DMR-1.50</dlna:X_DLNADOC>
-    <serviceList>
-        <service>
-            <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
-            <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
-            <controlURL>AVTransport/action</controlURL>
-            <eventSubURL>AVTransport/event</eventSubURL>
-            <SCPDURL>dlna/AVTransport.xml</SCPDURL>
-        </service>
-        <service>
-            <serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType>
-            <serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId>
-            <controlURL>RenderingControl/action</controlURL>
-            <eventSubURL>RenderingControl/event</eventSubURL>
-            <SCPDURL>dlna/RenderingControl.xml</SCPDURL>
-        </service>
-        <service>
-            <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
-            <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
-            <controlURL>ConnectionManager/action</controlURL>
-            <eventSubURL>ConnectionManager/event</eventSubURL>
-            <SCPDURL>dlna/ConnectionManager.xml</SCPDURL>
-        </service>
-    </serviceList>
-</device>
+        xmlns:dlna="urn:schemas-dlna-org:device-1-0"
+        xmlns="urn:schemas-upnp-org:device-1-0">
+    <specVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </specVersion>
+    <device>
+        <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+        <UDN>uuid:{uuid}</UDN>
+        <friendlyName>{friendly_name}</friendlyName>
+        <manufacturer>{manufacturer}</manufacturer>
+        <manufacturerURL>{manufacturer_url}</manufacturerURL>
+        <modelDescription>{model_description}</modelDescription>
+        <modelName>{model_name}</modelName>
+        <modelNumber>{model_number}</modelNumber>
+        <modelURL>{model_url}</modelURL>
+        <serialNumber>{serial_num}</serialNumber>
+        {header_extra}
+        <dlna:X_DLNADOC xmlns:dlna="urn:schemas-dlna-org:device-1-0">DMR-1.50</dlna:X_DLNADOC>
+        <serviceList>
+            <service>
+                <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+                <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
+                <controlURL>AVTransport/action</controlURL>
+                <eventSubURL>AVTransport/event</eventSubURL>
+                <SCPDURL>dlna/AVTransport.xml</SCPDURL>
+            </service>
+            <service>
+                <serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType>
+                <serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId>
+                <controlURL>RenderingControl/action</controlURL>
+                <eventSubURL>RenderingControl/event</eventSubURL>
+                <SCPDURL>dlna/RenderingControl.xml</SCPDURL>
+            </service>
+            <service>
+                <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+                <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
+                <controlURL>ConnectionManager/action</controlURL>
+                <eventSubURL>ConnectionManager/event</eventSubURL>
+                <SCPDURL>dlna/ConnectionManager.xml</SCPDURL>
+            </service>
+            {service_extra}
+        </serviceList>
+    </device>
 </root>

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <scpd
-    xmlns="urn:schemas-upnp-org:service-1-0">
+        xmlns="urn:schemas-upnp-org:service-1-0">
     <specVersion>
         <major>1</major>
         <minor>0</minor>
@@ -336,6 +336,15 @@
             <dataType>string</dataType>
         </stateVariable>
         <stateVariable sendEvents="no">
+            <name>CurrentTrackTitle</name>
+            <dataType>string</dataType>
+        </stateVariable>
+        <stateVariable sendEvents="no">
+            <name>DisplayCurrentSubtitle</name>
+            <dataType>boolean</dataType>
+            <defaultValue>1</defaultValue>
+        </stateVariable>
+        <stateVariable sendEvents="no">
             <name>CurrentTrackURI</name>
             <dataType>string</dataType>
         </stateVariable>
@@ -489,7 +498,12 @@
             <name>TransportPlaySpeed</name>
             <dataType>string</dataType>
             <allowedValueList>
+                <allowedValue>0.5</allowedValue>
+                <allowedValue>0.75</allowedValue>
                 <allowedValue>1</allowedValue>
+                <allowedValue>1.25</allowedValue>
+                <allowedValue>1.5</allowedValue>
+                <allowedValue>2</allowedValue>
             </allowedValueList>
         </stateVariable>
     </serviceStateTable>
