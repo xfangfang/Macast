@@ -36,6 +36,9 @@ msgstr "开机自启"
 msgid "Renderers"
 msgstr "选择播放器"
 
+msgid "Protocols"
+msgstr "选择协议"
+
 msgid "Menubar Icon"
 msgstr "状态栏图标"
 

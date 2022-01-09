@@ -35,6 +35,8 @@ class ObserveProperty(Enum):
     mute = 4
     duration = 5
     track_list = 6
+    speed = 7
+    sub = 8
 
 
 class MPVRenderer(Renderer):
@@ -78,24 +80,34 @@ class MPVRenderer(Renderer):
 
     def set_media_pause(self):
         self.send_command(['set_property', 'pause', True])
+        self.set_media_text('Pause')
 
     def set_media_resume(self):
         self.send_command(['set_property', 'pause', False])
+        self.set_media_text('Resume')
 
     def set_media_volume(self, data):
         """ data : int, range from 0 to 100
         """
         self.send_command(['set_property', 'volume', data])
+        self.set_media_text(f'Volume: {data}')
 
     def set_media_mute(self, data):
         """ data : bool
         """
         self.send_command(['set_property', 'mute', "yes" if data else "no"])
+        self.set_media_text(f'Mute: {data}')
 
-    def set_media_url(self, data):
+    def set_media_url(self, url, start="0"):
         """ data : string
         """
-        self.send_command(['loadfile', data, 'replace'])
+        options = {'start': start}
+        player_size = Setting.get(SettingProperty.PlayerSize,
+                                  default=SettingProperty.PlayerSize_Normal.value)
+        if player_size == SettingProperty.PlayerSize_FullScreen.value:
+            options['fullscreen'] = 'yes'
+        self.send_command(['loadfile', url, 'replace',
+                           ','.join([f'{i}={options[i]}' for i in options])])
 
     def set_media_title(self, data):
         """ data : string
@@ -107,6 +119,22 @@ class MPVRenderer(Renderer):
         """ data : position, 00:00:00
         """
         self.send_command(['seek', data, 'absolute'])
+
+    def set_media_sub_file(self, data):
+        self.send_command(['sub-add', data['url'], 'select', data['title']])
+
+    def set_media_sub_show(self, data: bool):
+        self.send_command(['set_property', 'sub-visibility', "yes" if data else "no"])
+
+    def set_media_text(self, data: str, duration: int = 1000):
+        self.send_command(['show-text', data, duration])
+
+    def set_media_speed(self, data: float = 1):
+        """
+        :param data: range(0.01 - 100)
+        :return:
+        """
+        self.send_command(['set_property', 'speed', data])
 
     def set_observe(self):
         """Set several property that needed observe
@@ -124,6 +152,13 @@ class MPVRenderer(Renderer):
         self.send_command(
             ['observe_property', ObserveProperty.track_list.value,
              'track-list'])
+        self.send_command(
+            ['observe_property', ObserveProperty.speed.value,
+             'speed'])
+        self.send_command(
+            ['observe_property', ObserveProperty.sub.value,
+             'sub-visibility'])
+
         self.set_media_volume(Setting.get(SettingProperty.PlayerDefaultVolume, 100))
 
     def update_state(self, res):
@@ -148,11 +183,10 @@ class MPVRenderer(Renderer):
                     return
                 if res['data'] and res['data'] is not None:
                     self.pause = True
-                    state = "PAUSED_PLAYBACK"
+                    self.set_state_pause()
                 else:
                     self.pause = False
-                    state = "PLAYING"
-                self.set_state_transport(state)
+                    self.set_state_play()
             elif res['id'] == ObserveProperty.mute.value:
                 self.set_state_mute(res['data'])
             elif res['id'] == ObserveProperty.duration.value:
@@ -163,7 +197,7 @@ class MPVRenderer(Renderer):
                     duration = '%d:%02d:%02d' % (sec // 3600, (sec % 3600) // 60, sec % 60)
                     cherrypy.engine.publish('mpv_update_duration', duration)
                     logger.info("update duration " + duration)
-                    if self.get_state('TransportState') == 'PLAYING':
+                    if self.protocol.get_state_transport_state() == 'PLAYING':
                         logger.debug("Living media")
                 self.set_state_duration(duration)
             elif res['id'] == ObserveProperty.track_list.value:
@@ -171,19 +205,28 @@ class MPVRenderer(Renderer):
                     tracks = len(res['data'])
                     self.set_state('CurrentTrack', 0 if tracks == 0 else 1)
                     self.set_state('NumberOfTracks', tracks)
+            elif res['id'] == ObserveProperty.speed.value:
+                data = res.get('data', None)
+                if data is not None:
+                    self.set_state_speed(data)
+            elif res['id'] == ObserveProperty.sub.value:
+                data = res.get('data', None)
+                if data is not None:
+                    self.set_state_subtitle(data)
         elif 'event' in res:
             logger.info(res)
             if res['event'] == 'end-file':
                 cherrypy.engine.publish('renderer_av_stop')
                 self.playing = False
                 if 'reason' not in res:
-                    self.set_state_transport('STOPPED')
+                    self.set_state_stop()
                 elif res['reason'] == 'error':
                     self.set_state_transport_error()
                 elif res['reason'] == 'eof':
-                    self.set_state_transport('NO_MEDIA_PRESENT')
+                    # NO_MEDIA_PRESENT
+                    self.set_state_eof()
                 else:
-                    self.set_state_transport('STOPPED')
+                    self.set_state_stop()
                 if res.get('file_error', False):
                     cherrypy.engine.publish('app_notify',
                                             "File error",
@@ -191,20 +234,20 @@ class MPVRenderer(Renderer):
             elif res['event'] == 'start-file':
                 self.playing = True
                 # self.set_state_transport('TRANSITIONING')
-                cherrypy.engine.publish('renderer_av_uri', self.get_state('AVTransportURI'))
+                cherrypy.engine.publish('renderer_av_uri', self.protocol.get_state_url())
             elif res['event'] == 'seek':
                 pass
                 # self.set_state_transport('TRANSITIONING')
             elif res['event'] == 'idle':
                 # video comes to end
                 self.playing = False
-                self.set_state_transport('STOPPED')
+                self.set_state_stop()
             elif res['event'] == 'playback-restart':
                 # video is ready to play
                 if self.pause:
-                    self.set_state_transport('PAUSED_PLAYBACK')
+                    self.set_state_pause()
                 else:
-                    self.set_state_transport('PLAYING')
+                    self.set_state_play()
         else:
             logger.debug(res)
 
@@ -214,18 +257,16 @@ class MPVRenderer(Renderer):
         logger.debug("send command: " + str(command))
         data = {"command": command}
         msg = json.dumps(data) + '\n'
-        try:
-            self.command_lock.acquire()
-            if os.name == 'nt':
-                self.ipc_sock.send_bytes(msg.encode())
-            else:
-                self.ipc_sock.sendall(msg.encode())
-            return True
-        except Exception as e:
-            logger.error('sendCommand: ' + str(e))
-            return False
-        finally:
-            self.command_lock.release()
+        with self.command_lock:
+            try:
+                if os.name == 'nt':
+                    self.ipc_sock.send_bytes(msg.encode())
+                else:
+                    self.ipc_sock.sendall(msg.encode())
+                return True
+            except Exception as e:
+                logger.error('sendCommand: ' + str(e))
+                return False
 
     def start_ipc(self):
         """Start ipc thread
@@ -279,8 +320,8 @@ class MPVRenderer(Renderer):
                         self.update_state(msg)
                 except Exception as e:
                     logger.error("decode error: {}".format(e))
-                    logger.error("decode error data1: {}".format(msg))
-                    logger.error("decode error datas: {}".format(msgs))
+                    logger.error(f"decode error data: {msg}")
+                    logger.error(f"decode error data list: {msgs}")
                 finally:
                     res = b''
             self.ipc_sock.close()
@@ -291,6 +332,8 @@ class MPVRenderer(Renderer):
         """
         error_time = 3
         while self.running and error_time > 0:
+            self.set_state_speed('1')
+            # mpv default params
             params = [
                 self.path,
                 '--input-ipc-server={}'.format(self.mpv_sock),
@@ -301,7 +344,7 @@ class MPVRenderer(Renderer):
                 '--hwdec=yes',
                 '--save-position-on-quit=yes',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
-                'osc-title=${title},osc-showwindowed=no,' +
+                'osc-title=${title},osc-showwindowed=yes,' +
                 'osc-seekbarstyle=bar,osc-visibility=auto'
             ]
 
@@ -332,7 +375,7 @@ class MPVRenderer(Renderer):
                                       default=SettingProperty.PlayerSize_Normal.value)
             if player_size <= SettingProperty.PlayerSize_Large.value:
                 params.append('--autofit={}%'.format(
-                    int(15 - 2.5 * player_size + 7.5 * player_size**2)))
+                    int(15 - 2.5 * player_size + 7.5 * player_size ** 2)))
             elif player_size == SettingProperty.PlayerSize_Auto.value:
                 params.append('--autofit-larger=90%')
             elif player_size == SettingProperty.PlayerSize_FullScreen.value:
@@ -412,22 +455,28 @@ class MPVRenderer(Renderer):
         If the MPV is playing content before reloading the player,
         then continue playing the previous content after the reload
         """
-        uri = self.get_state('AVTransportURI')
+        uri = self.protocol.get_state_url()
 
         def loadfile():
             logger.debug("mpv loadfile")
-            self.send_command(['loadfile', uri, 'replace'])
+            protocols = cherrypy.engine.publish('get_protocol')
+            if len(protocols) > 0:
+                protocol = protocols.pop()
+                position = protocol.get_state_position()
+                self.send_command(['loadfile', uri, 'replace', f'start={position}'])
+            else:
+                self.send_command(['loadfile', uri, 'replace'])
             self.send_command(['set_property', 'title', self.title])
             cherrypy.engine.unsubscribe('mpvipc_start', loadfile)
 
-        def resatrt():
+        def restart():
             self.stop()
             self.start()
 
-        if self.get_state('TransportState') == 'PLAYING':
+        if self.protocol.get_state_transport_state() == 'PLAYING':
             cherrypy.engine.subscribe('mpvipc_start', loadfile)
 
-        threading.Thread(target=resatrt, args=()).start()
+        threading.Thread(target=restart, args=()).start()
 
 
 class SettingProperty(Enum):
@@ -502,7 +551,7 @@ class MPVRendererSetting(RendererSetting):
                     has_dedicated_gpu = len(gpu_info['SPDisplaysDataType']) > 1
                     logger.error("GPU list:")
                     for gpu in gpu_info['SPDisplaysDataType']:
-                        logger.error(gpu['sppci_model'])
+                        logger.error('GPU:' + gpu['sppci_model'])
             except Exception as e:
                 logger.error("Error get gpu info")
 
@@ -517,7 +566,7 @@ class MPVRendererSetting(RendererSetting):
             else:
                 self.playerHWItem.items()[0].checked = True
             self.playerHWItem.items()[1].checked = (
-                self.setting_player_hw == SettingProperty.PlayerHW_Force.value)
+                    self.setting_player_hw == SettingProperty.PlayerHW_Force.value)
         else:
             self.playerHWItem = MenuItem(_("Hardware Decode"),
                                          self.on_renderer_hw_toggled)
@@ -540,7 +589,7 @@ class MPVRendererSetting(RendererSetting):
                                 _("Reload Player"),
                                 _("please wait"),
                                 sound=False)
-        cherrypy.engine.publish('reloadRender')
+        cherrypy.engine.publish('reload_renderer')
 
     def on_renderer_ontop_clicked(self, item):
         item.checked = not item.checked
