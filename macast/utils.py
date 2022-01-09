@@ -14,6 +14,7 @@ import cherrypy
 import subprocess
 from enum import Enum
 import netifaces as ni
+
 if sys.platform == 'darwin':
     from AppKit import NSBundle
 elif sys.platform == 'win32':
@@ -22,6 +23,8 @@ elif sys.platform == 'win32':
 logger = logging.getLogger("Utils")
 DEFAULT_PORT = 0
 SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
+PROTOCOL_DIR = 'protocol'
+RENDERER_DIR = 'renderer'
 
 
 class SettingProperty(Enum):
@@ -31,9 +34,10 @@ class SettingProperty(Enum):
     MenubarIcon = 3
     ApplicationPort = 4
     DLNA_FriendlyName = 5
-    DLNA_Renderer = 6
-    Blocked_Interfaces = 7
-    Additional_Interfaces = 8
+    Macast_Renderer = 6
+    Macast_Protocol = 7
+    Blocked_Interfaces = 8
+    Additional_Interfaces = 9
 
 
 class Setting:
@@ -43,6 +47,8 @@ class Setting:
     last_ip = None
     base_path = None
     friendly_name = "Macast({})".format(platform.node())
+    temp_friendly_name = None
+    mpv_default_path = 'mpv'
 
     @staticmethod
     def save():
@@ -100,17 +106,27 @@ class Setting:
         This name will show in the device search list of the DLNA client
         and as player window default name.
         """
+        if Setting.temp_friendly_name:
+            return Setting.temp_friendly_name
         return Setting.get(SettingProperty.DLNA_FriendlyName, Setting.friendly_name)
+
+    @staticmethod
+    def set_temp_friendly_name(name):
+        Setting.temp_friendly_name = name
 
     @staticmethod
     def get_usn(refresh=False):
         """Get device unique identification
         """
-        id = str(uuid.uuid4())
+        dlna_id = str(uuid.uuid4())
         if not refresh:
-            id = Setting.get(SettingProperty.USN, id)
-        Setting.set(SettingProperty.USN, id)
-        return id
+            dlna_id_temp = Setting.get(SettingProperty.USN, dlna_id)
+            if dlna_id == dlna_id_temp:
+                Setting.set(SettingProperty.USN, dlna_id)
+            return dlna_id_temp
+        else:
+            Setting.set(SettingProperty.USN, dlna_id)
+            return dlna_id
 
     @staticmethod
     def is_ip_changed():
@@ -324,6 +340,7 @@ class XMLPath(Enum):
     AV_TRANSPORT = BASE_PATH + '/xml/AVTransport.xml'
     CONNECTION_MANAGER = BASE_PATH + '/xml/ConnectionManager.xml'
     RENDERING_CONTROL = BASE_PATH + '/xml/RenderingControl.xml'
+    NIRVANA_CONTROL = BASE_PATH + '/xml/NirvanaControl.xml'
     PROTOCOL_INFO = BASE_PATH + '/xml/SinkProtocolInfo.csv'
 
 
@@ -336,6 +353,7 @@ def load_xml(path):
 def notify_error(msg=None):
     """publish a notification when error occured
     """
+
     def wrapper_fun(fun):
         def wrapper(*args, **kwargs):
             nonlocal msg
@@ -348,5 +366,15 @@ def notify_error(msg=None):
                 else:
                     logger.error(msg)
                 cherrypy.engine.publish('app_notify', 'Error', msg)
+
         return wrapper
+
     return wrapper_fun
+
+
+def publish_method(func):
+    def wrap(*args, **kwargs):
+        func(*args, **kwargs)
+        cherrypy.engine.publish(func.__name__, *args, **kwargs)
+
+    return wrap

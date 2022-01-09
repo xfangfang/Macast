@@ -5,284 +5,132 @@ import re
 import sys
 import time
 import json
-import random
 import cherrypy
-import portend
 import logging
 import threading
 import requests
 import pyperclip
 import gettext
 import importlib
-from cherrypy.process.plugins import Monitor
-from cherrypy._cpserver import Server
 
-from .utils import load_xml, XMLPath, Setting, SettingProperty, SETTING_DIR, notify_error
-from .plugin import SSDPPlugin, RendererPlugin
-from .renderer import Renderer
+from .utils import SettingProperty, SETTING_DIR, notify_error
 from .gui import App, MenuItem, Platform
+from .protocol import DLNAProtocol
+from .server import Service
+from .utils import RENDERER_DIR, PROTOCOL_DIR, Setting
 from macast_renderer.mpv import MPVRenderer
 
 logger = logging.getLogger("main")
 logger.setLevel(logging.DEBUG)
+_ = gettext.gettext
 
 
-def auto_change_port(start):
-    """See AutoPortServer"""
+class MacastPlugin:
 
-    def wrapper(self):
-        try:
-            return start(self)
-        except portend.Timeout as e:
-            logger.error(e)
-            bind_host, bind_port = self.bind_addr
-            if bind_port == 0:
-                raise e
-            else:
-                self.httpserver = None
-                self.bind_addr = (bind_host, 0)
-                self.start()
-    return wrapper
-
-
-class AutoPortServer(Server):
-    """
-    The modified Server can give priority to the preset port (Setting.DEFAULT_PORT).
-    When the preset port or the port in the configuration file cannot be used,
-    using the port randomly assigned by the system
-    """
-
-    @auto_change_port
-    def start(self):
-        super(AutoPortServer, self).start()
-
-
-@cherrypy.expose
-class DLNAHandler:
-    """Receiving requests from DLNA client
-    and communicating with the RenderPlugin thread
-    see also: plugin.py -> class RenderPlugin
-    """
-
-    def __init__(self):
-        self.description = None
-        self.build_description()
-
-    def build_description(self):
-        self.description = load_xml(XMLPath.DESCRIPTION.value).format(
-            friendly_name=Setting.get_friendly_name(),
-            manufacturer="xfangfang",
-            manufacturer_url="https://github.com/xfangfang",
-            model_description="AVTransport Media Renderer",
-            model_name="Macast",
-            model_url="https://xfangfang.github.io/Macast",
-            model_number=Setting.get_version(),
-            uuid=Setting.get_usn()).encode()
-
-    def GET(self, param=None):
-        if param == 'description.xml':
-            return self.description
-        cherrypy.response.headers['Content-Type'] = 'text/plain'
-        return "hello world {}".format(param).encode()
-
-    def POST(self, service, param):
-        length = cherrypy.request.headers['Content-Length']
-        rawbody = cherrypy.request.body.read(int(length))
-        logger.debug('RAW: {}'.format(rawbody))
-        if param == 'action':
-            res = cherrypy.engine.publish('call_render', rawbody).pop()
-            cherrypy.response.headers['EXT'] = ''
-            logger.debug('RES: {}'.format(res))
-            return res
-        return b''
-
-    def SUBSCRIBE(self, service="", param=""):
-        """DLNA/UPNP event subscribe
-        """
-        if param == 'event':
-            SID = cherrypy.request.headers.get('SID')
-            CALLBACK = cherrypy.request.headers.get('CALLBACK')
-            TIMEOUT = cherrypy.request.headers.get('TIMEOUT')
-            TIMEOUT = TIMEOUT if TIMEOUT is not None else 'Second-1800'
-            TIMEOUT = int(TIMEOUT.split('-')[-1])
-            if SID:
-                logger.error("RENEW SUBSCRIBE:!!!!!!!" + service)
-                res = cherrypy.engine.publish(
-                    'renew_subscribe', SID, TIMEOUT).pop()
-                if res != 200:
-                    logger.error("RENEW SUBSCRIBE: cannot find such sid.")
-                    raise cherrypy.HTTPError(status=res)
-                cherrypy.response.headers['SID'] = SID
-                cherrypy.response.headers['TIMEOUT'] = TIMEOUT
-            elif CALLBACK:
-                logger.error("ADD SUBSCRIBE:!!!!!!!" + service)
-                suburl = re.findall("<(.*?)>", CALLBACK)[0]
-                res = cherrypy.engine.publish(
-                    'add_subscribe', service, suburl, TIMEOUT).pop()
-                cherrypy.response.headers['SID'] = res['SID']
-                cherrypy.response.headers['TIMEOUT'] = res['TIMEOUT']
-            else:
-                logger.error("SUBSCRIBE: cannot find sid and callback.")
-                raise cherrypy.HTTPError(status=412)
-        return b''
-
-    def UNSUBSCRIBE(self, service, param):
-        """DLNA/UPNP event unsubscribe
-        """
-        if param == 'event':
-            SID = cherrypy.request.headers.get('SID')
-            if SID:
-                logger.error("REMOVE SUBSCRIBE:!!!!!!!" + service)
-                res = cherrypy.engine.publish('remove_subscribe', SID).pop()
-                if res != 200:
-                    raise cherrypy.HTTPError(status=res)
-                return b''
-        logger.error("UNSUBSCRIBE: error 412.")
-        raise cherrypy.HTTPError(status=412)
-
-
-class Service:
-
-    def __init__(self, renderer=Renderer()):
-        # Replace the default server
-        cherrypy.server.unsubscribe()
-        cherrypy.server = AutoPortServer()
-        cherrypy.server.bind_addr = ('0.0.0.0', Setting.get_port())
-        cherrypy.server.subscribe()
-        # start plugins
-        self.ssdp_plugin = SSDPPlugin(cherrypy.engine)
-        self.ssdp_plugin.subscribe()
-        self._renderer = renderer
-        self.renderer_plugin = RendererPlugin(cherrypy.engine, renderer)
-        self.renderer_plugin.subscribe()
-        self.ssdp_monitor_counter = 0  # restart ssdp every 30s
-        self.ssdp_monitor = Monitor(cherrypy.engine, self.notify, 3, name="SSDP_NOTIFY_THREAD")
-        self.ssdp_monitor.subscribe()
-        cherrypy.config.update({
-            'log.screen': False,
-            'log.access_file': "",
-            'log.error_file': "",
-        })
-        cherrypy_config = {
-            '/dlna': {
-                'tools.staticdir.root': XMLPath.BASE_PATH.value,
-                'tools.staticdir.on': True,
-                'tools.staticdir.dir': "xml"
-            },
-            '/': {
-                'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
-                'tools.response_headers.on': True,
-                'tools.response_headers.headers':
-                    [('Content-Type', 'text/xml; charset="utf-8"'),
-                     ('Server', Setting.get_server_info())],
-            }
-        }
-        self.dlna_handler = DLNAHandler()
-        cherrypy.tree.mount(self.dlna_handler, '/', config=cherrypy_config)
-        cherrypy.engine.signals.subscribe()
-
-    @property
-    def renderer(self):
-        return self._renderer
-
-    @renderer.setter
-    def renderer(self, value):
-        self.renderer_plugin.stop()
-        self.renderer_plugin.unsubscribe()
-        self._renderer = value
-        self.renderer_plugin = RendererPlugin(cherrypy.engine, self._renderer)
-        self.renderer_plugin.subscribe()
-        self.renderer_plugin.start()
-
-    def notify(self):
-        """ssdp do notify
-        Using cherrypy builtin plugin Monitor to trigger this method
-        see also: plugin.py -> class SSDPPlugin -> notify
-        """
-        self.ssdp_monitor_counter += 1
-        if Setting.is_ip_changed() or self.ssdp_monitor_counter == 10:
-            self.ssdp_monitor_counter = 0
-            cherrypy.engine.publish('ssdp_update_ip')
-        cherrypy.engine.publish('ssdp_notify')
-
-    def run(self):
-        """Start macast thread
-        """
-        cherrypy.engine.start()
-        # update current port
-        _, port = cherrypy.server.bound_addr
-        logger.info("Server current run on port: {}".format(port))
-        if port != Setting.get(SettingProperty.ApplicationPort, 0):
-            usn = Setting.get_usn(refresh=True)
-            logger.error("Change usn to: {}".format(usn))
-            Setting.set(SettingProperty.ApplicationPort, port)
-            name = "Macast({0:04d})".format(random.randint(0, 9999))
-            logger.error("Change name to: {}".format(name))
-            Setting.setting[SettingProperty.DLNA_FriendlyName.name] = name
-            self.dlna_handler.build_description()
-            cherrypy.engine.publish('ssdp_update_ip')
-        # service started
-        cherrypy.engine.block()
-        # service stopped
-        logger.info("Service stopped")
-
-    def stop(self):
-        """Stop macast thread
-        """
-        Setting.stop_service()
-
-
-class RendererConfig:
-    def __init__(self, path, title='Renderer', renderer_instance=None, platform='none'):
-        # path is allowed to be set to None only when renderer is macast official renderer
+    def __init__(self, path, title="None", plugin_instance=None, platform='none'):
+        # path is allowed to be set to None only when renderer is macast default plugin
         self.path = path
-        self.title = "None"
-        self.renderer = None
-        self.renderer_instance = renderer_instance
-        self.platform = platform
         self.title = title
-        if path is not None:
+        self.plugin_class = None
+        self.plugin_instance = plugin_instance
+        self.platform = platform
+        if path:
             try:
                 self.load_from_file(path)
             except Exception as e:
-                cherrypy.engine.publish('app_notify', 'ERROR', 'Custom renderer load error.')
+                cherrypy.engine.publish('app_notify', 'ERROR', 'Custom plugin load error.')
                 logger.error(str(e))
 
     def get_instance(self):
-        if self.renderer_instance is None and self.renderer is not None:
-            self.renderer_instance = self.renderer()
+        if self.plugin_instance is None and self.plugin_class is not None:
+            self.plugin_instance = self.plugin_class()
 
-        return self.renderer_instance
+        return self.plugin_instance
 
     def check(self):
         """ Check if this renderer can run on your device
         """
+        if self.plugin_class is None:
+            return False
         if sys.platform in self.platform:
-            if self.path is not None and os.path.exists(self.path) or self.path is None:
-                return True
+            return True
 
         logger.error("{} support platform: {}".format(self.title, self.platform))
         logger.error("{} is not suit for this system.".format(self.title))
         return False
 
     def load_from_file(self, path):
-        base_name = os.path.basename(path).split('.')[0]
+        base_name = os.path.basename(path)[:-3]
         with open(path, 'r', encoding='utf-8') as f:
             renderer_file = f.read()
             metadata = re.findall("<macast.(.*?)>(.*?)</macast", renderer_file)
-            print("<Load Renderer from {}".format(base_name))
+            print("<Load Plugin from {}".format(base_name))
             for key, value in metadata:
                 print('%-10s: %s' % (key, value))
                 setattr(self, key, str(value))
-            module = importlib.import_module('renderer.{}'.format(base_name))
-            print('Load renderer {} done />'.format(self.renderer))
-            self.renderer = getattr(module, self.renderer)
+        if hasattr(self, 'renderer'):
+            module = importlib.import_module(f'{RENDERER_DIR}.{base_name}')
+            print(f'Load plugin {self.renderer} done />\n')
+            self.plugin_class = getattr(module, self.renderer, None)
+        elif hasattr(self, 'protocol'):
+            module = importlib.import_module(f'{PROTOCOL_DIR}.{base_name}')
+            print(f'Load plugin {self.protocol} done />\n')
+            self.plugin_class = getattr(module, self.protocol, None)
+        else:
+            logger.error(f"Cannot find any plugin in {base_name}")
+            return
+
+
+class MacastPluginManager:
+
+    def __init__(self, renderer_default, protocol_default):
+        sys.path.append(SETTING_DIR)
+        self.create_plugin_dir(RENDERER_DIR)
+        self.create_plugin_dir(PROTOCOL_DIR)
+        self.renderer_list = [renderer_default]
+        self.renderer_list += self.load_macast_plugin(RENDERER_DIR)
+        self.protocol_list = [protocol_default]
+        self.protocol_list += self.load_macast_plugin(PROTOCOL_DIR)
+
+    def get_renderer(self, name):
+        plugin = self.get_plugin_from_list(self.renderer_list, name)
+        Setting.set(SettingProperty.Macast_Renderer, plugin.title)
+        return plugin.get_instance()
+
+    def get_protocol(self, name):
+        plugin = self.get_plugin_from_list(self.protocol_list, name)
+        Setting.set(SettingProperty.Macast_Protocol, plugin.title)
+        return plugin.get_instance()
 
     @staticmethod
-    @notify_error('Cannot create custom renderer dir.')
-    def create_renderer_dir():
-        sys.path.append(SETTING_DIR)
-        custom_module_path = os.path.join(SETTING_DIR, 'renderer')
+    def get_plugin_from_list(plugin_list, title) -> MacastPlugin:
+        for i in plugin_list:
+            if title == i.title:
+                print("using plugin: {}".format(title))
+                return i
+        else:
+            print("using default plugin")
+            return plugin_list[0]
+
+    @staticmethod
+    def load_macast_plugin(path: str):
+        plugin_path = os.path.join(SETTING_DIR, path)
+        if not os.path.exists(plugin_path):
+            return
+        plugin_list = []
+        plugins = os.listdir(plugin_path)
+        plugins = filter(lambda s: s.endswith('.py') and s != '__init__.py', plugins)
+        for plugin in plugins:
+            path = os.path.join(plugin_path, plugin)
+            plugin_config = MacastPlugin(path)
+            if plugin_config.check():
+                plugin_list.append(plugin_config)
+        return plugin_list
+
+    @staticmethod
+    @notify_error('Cannot create custom plugin dir.')
+    def create_plugin_dir(path):
+        custom_module_path = os.path.join(SETTING_DIR, path)
         if not os.path.exists(custom_module_path):
             os.makedirs(custom_module_path)
         init_file_path = os.path.join(custom_module_path, '__init__.py')
@@ -300,7 +148,7 @@ class Macast(App):
                     'assets/menu_light.png',
                     'assets/menu_dark.png']
 
-    def __init__(self, renderer, lang=gettext.gettext):
+    def __init__(self, renderer, protocol, lang=gettext.gettext):
         global _
         _ = lang
         # menu items
@@ -316,20 +164,26 @@ class Macast(App):
         self.about_menuitem = None
         self.open_config_menuitem = None
         self.renderer_menuitem = None
-        # dlna renderers
-        RendererConfig.create_renderer_dir()
-        self.renderer_list = [RendererConfig(None, 'Default', renderer, 'darwin,win32,linux')]
-        self.load_custom_renderers()
-        print('Load renderer MPVRenderer done')
+        self.protocol_menuitem = None
+        self.advanced_menuitem = None
+
+        self.plugin_manager = MacastPluginManager(MacastPlugin(None, 'MPV', renderer, 'darwin,win32,linux'),
+                                                  MacastPlugin(None, 'DLNA', protocol, 'darwin,win32,linux'))
+
         # dlna service thread
         self.thread = None
         # setting items
         self.setting_start_at_login = None
         self.setting_check = None
-        self.setting_menubar_icon = None
-        self.setting_dlna_renderer = None
+        self.setting_menubar_icon = 0
+        self.setting_renderer = 'MPV'
+        self.setting_protocol = 'DLNA'
         self.init_setting()
-        self.dlna_service = Service(self.get_renderer_from_title(self.setting_dlna_renderer))
+
+        # init service
+        self.service = Service(self.plugin_manager.get_renderer(self.setting_renderer),
+                               self.plugin_manager.get_protocol(self.setting_protocol))
+
         icon_path = Setting.get_base_path(Macast.ICON_MAP[self.setting_menubar_icon])
         template = None if self.setting_menubar_icon == 0 else True
         self.copy_menuitem = None
@@ -359,17 +213,6 @@ class Macast(App):
             self.quit_menuitem
         ]
 
-    def load_custom_renderers(self):
-        renderers_path = os.path.join(SETTING_DIR, 'renderer')
-        if os.path.exists(renderers_path):
-            renderers = os.listdir(renderers_path)
-            renderers = filter(lambda s: s.endswith('.py') and s != '__init__.py', renderers)
-            for renderer in renderers:
-                path = os.path.join(renderers_path, renderer)
-                renderer_config = RendererConfig(path)
-                if renderer_config.check():
-                    self.renderer_list.append(renderer_config)
-
     def build_setting_menu(self):
         ip_text = "/".join([ip for ip, _ in Setting.get_ip()])
         port = Setting.get_port()
@@ -383,7 +226,7 @@ class Macast(App):
                                                 self.on_start_at_login_click,
                                                 checked=self.setting_start_at_login)
 
-        renderer_names = [r.title for r in self.renderer_list]
+        renderer_names = [r.title for r in self.plugin_manager.renderer_list]
         renderer_select = []
         if len(renderer_names) > 1:
             self.renderer_menuitem = MenuItem(_("Renderers"),
@@ -391,11 +234,25 @@ class Macast(App):
                                                                                  self.on_renderer_change_click))
             renderer_select = [self.renderer_menuitem]
             for i in self.renderer_menuitem.children:
-                if i.text == self.setting_dlna_renderer:
+                if i.text == self.setting_renderer:
                     i.checked = True
                     break
             else:
                 self.renderer_menuitem.children[0].checked = True
+
+        protocol_names = [r.title for r in self.plugin_manager.protocol_list]
+        protocol_select = []
+        if len(protocol_names) > 1:
+            self.protocol_menuitem = MenuItem(_("Protocols"),
+                                              children=App.build_menu_item_group(protocol_names,
+                                                                                 self.on_protocol_change_click))
+            protocol_select = [self.protocol_menuitem]
+            for i in self.protocol_menuitem.children:
+                if i.text == self.setting_protocol:
+                    i.checked = True
+                    break
+            else:
+                self.protocol_menuitem.children[0].checked = True
 
         platform_options = []
         """To judge whether Macast was launched by scripts or by packaged app.
@@ -422,25 +279,32 @@ class Macast(App):
                                                       _("PatternDark"),
                                                   ], self.on_menubar_icon_change_click))
         self.open_config_menuitem = MenuItem(_("Open Config Directory"), self.on_open_config_click)
+        self.advanced_menuitem = MenuItem(_("Advanced Setting"),
+                                          lambda _: self.open_browser('http://127.0.0.1:{}'.format(Setting.get_port())))
         self.check_update_menuitem = MenuItem(_("Check For Updates"), self.on_check_click)
         self.about_menuitem = MenuItem(_("Help"), self.on_about_click)
 
         self.menubar_icon_menuitem.items()[self.setting_menubar_icon].checked = True
-        player_settings = self.dlna_service.renderer.renderer_setting.build_menu()
+        player_settings = self.service.renderer.renderer_setting.build_menu()
         if len(player_settings) > 0:
             player_settings.append(None)
 
-        return [self.version_menuitem, self.ip_menuitem] + renderer_select + [None] + \
-            player_settings + \
-               [self.menubar_icon_menuitem, self.auto_check_update_menuitem] + \
-            platform_options + \
-               [None, self.open_config_menuitem, self.check_update_menuitem, self.about_menuitem]
+        return [self.version_menuitem, self.ip_menuitem] + \
+               renderer_select + \
+               protocol_select + \
+               [None] + \
+               player_settings + \
+               [self.menubar_icon_menuitem, self.auto_check_update_menuitem,
+                self.open_config_menuitem, self.advanced_menuitem] + \
+               platform_options + \
+               [None, self.check_update_menuitem, self.about_menuitem]
 
     def init_setting(self):
         self.setting_start_at_login = Setting.get(SettingProperty.StartAtLogin, 0)
         self.setting_check = Setting.get(SettingProperty.CheckUpdate, 1)
         self.setting_menubar_icon = Setting.get(SettingProperty.MenubarIcon, 1 if sys.platform == 'darwin' else 0)
-        self.setting_dlna_renderer = Setting.get(SettingProperty.DLNA_Renderer, 'Default')
+        self.setting_renderer = Setting.get(SettingProperty.Macast_Renderer, 'MPV')
+        self.setting_protocol = Setting.get(SettingProperty.Macast_Protocol, 'DLNA')
         if self.setting_check:
             threading.Thread(target=self.check_update,
                              kwargs={
@@ -449,24 +313,14 @@ class Macast(App):
                              daemon=True,
                              name="CHECKUPDATE_THREAD").start()
 
-    def get_renderer_from_title(self, title):
-        for i in self.renderer_list:
-            if title == i.title:
-                print("using renderer: {}".format(title))
-                return i.get_instance()
-        else:
-            print("using default renderer")
-            Setting.set(SettingProperty.DLNA_Renderer, 'Default')
-            return self.renderer_list[0].get_instance()
-
     def stop_cast(self):
-        self.dlna_service.stop()
+        self.service.stop()
         self.thread.join()
 
     def start_cast(self):
         if Setting.is_service_running():
             return
-        self.thread = threading.Thread(target=self.dlna_service.run, name="DLNA_SERVICE_THREAD")
+        self.thread = threading.Thread(target=self.service.run, name="MACAST_SERVICE_THREAD")
         self.thread.start()
 
     def check_update(self, verbose=True):
@@ -559,11 +413,24 @@ class Macast(App):
 
     # The followings are the callback function of menu click
 
+    def on_protocol_change_click(self, item):
+        protocol_config = self.plugin_manager.protocol_list[item.data]
+        self.stop_cast()
+        # todo 生成新的 uuid
+        self.service.protocol = protocol_config.get_instance()
+        Setting.set(SettingProperty.Macast_Protocol, protocol_config.title)
+        self.setting_protocol = protocol_config.title
+        self.setting_menuitem.children = self.build_setting_menu()
+        # reload menu
+        self.set_menu(self.menu)
+        self.start_cast()
+        cherrypy.engine.publish('app_notify', _('Info'), _('Change Protocol to {}.').format(protocol_config.title))
+
     def on_renderer_change_click(self, item):
-        renderer_config = self.renderer_list[item.data]
-        self.dlna_service.renderer = renderer_config.get_instance()
-        Setting.set(SettingProperty.DLNA_Renderer, renderer_config.title)
-        self.setting_dlna_renderer = renderer_config.title
+        renderer_config = self.plugin_manager.renderer_list[item.data]
+        self.service.renderer = renderer_config.get_instance()
+        Setting.set(SettingProperty.Macast_Renderer, renderer_config.title)
+        self.setting_renderer = renderer_config.title
         self.setting_menuitem.children = self.build_setting_menu()
         # reload menu
         self.set_menu(self.menu)
@@ -615,13 +482,17 @@ class Macast(App):
         super(Macast, self).quit(item)
 
 
-def gui(renderer=None, lang=gettext.gettext):
+def gui(renderer=None, protocol=None, lang=gettext.gettext):
     if renderer is None:
-        renderer = MPVRenderer(lang)
-    Macast(renderer, lang).start()
+        renderer = MPVRenderer(lang, Setting.mpv_default_path)
+    if protocol is None:
+        protocol = DLNAProtocol()
+    Macast(renderer, protocol, lang).start()
 
 
-def cli(renderer=None):
+def cli(renderer=None, protocol=None):
     if renderer is None:
-        renderer = MPVRenderer()
-    Service(renderer).run()
+        renderer = MPVRenderer(path=Setting.mpv_default_path)
+    if protocol is None:
+        protocol = DLNAProtocol()
+    Service(renderer, protocol).run()
