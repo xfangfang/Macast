@@ -13,7 +13,7 @@ import pyperclip
 import gettext
 import importlib
 
-from .utils import SettingProperty, SETTING_DIR, notify_error
+from .utils import SettingProperty, SETTING_DIR, notify_error, format_class_name
 from .gui import App, MenuItem, Platform
 from .protocol import DLNAProtocol
 from .server import Service
@@ -167,8 +167,9 @@ class Macast(App):
         self.protocol_menuitem = None
         self.advanced_menuitem = None
 
-        self.plugin_manager = MacastPluginManager(MacastPlugin(None, 'MPV', renderer, 'darwin,win32,linux'),
-                                                  MacastPlugin(None, 'DLNA', protocol, 'darwin,win32,linux'))
+        self.plugin_manager = MacastPluginManager(
+            MacastPlugin(None, format_class_name(renderer), renderer, 'darwin,win32,linux'),
+            MacastPlugin(None, format_class_name(protocol), protocol, 'darwin,win32,linux'))
 
         # dlna service thread
         self.thread = None
@@ -176,8 +177,8 @@ class Macast(App):
         self.setting_start_at_login = None
         self.setting_check = None
         self.setting_menubar_icon = 0
-        self.setting_renderer = 'MPV'
-        self.setting_protocol = 'DLNA'
+        self.setting_renderer = ''
+        self.setting_protocol = ''
         self.init_setting()
 
         # init service

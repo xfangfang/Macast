@@ -378,3 +378,21 @@ def publish_method(func):
         cherrypy.engine.publish(func.__name__, *args, **kwargs)
 
     return wrap
+
+
+def format_class_name(instance):
+    """
+    eg1: DLNAHandler -> DLNA Handler
+    eg2: AabcBabc -> Aabc Babc
+    :param instance:
+    :return:
+    """
+    name = instance.__class__.__name__
+    res = name[0]
+    for i in range(1, len(name) - 1):
+        if 'A' <= name[i] <= 'Z' and 'a' <= name[i + 1] <= 'z':
+            res += f' {name[i]}'
+        else:
+            res += name[i]
+    res += name[-1]
+    return res
