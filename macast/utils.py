@@ -350,7 +350,7 @@ class XMLPath(Enum):
 
 
 def load_xml(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         xml = f.read()
     return xml
 
