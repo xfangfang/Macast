@@ -1,14 +1,15 @@
+import os
 import random
 import sys
 import logging
+import threading
 
 import cherrypy
 import portend
 from cherrypy._cpserver import Server
 from cherrypy.process.plugins import Monitor
 
-from .renderer import Renderer
-from .utils import Setting, XMLPath, SettingProperty
+from .utils import Setting, XMLPath, SettingProperty, SETTING_DIR
 from .plugin import ProtocolPlugin, RendererPlugin, SSDPPlugin
 from .protocol import DLNAProtocol, Protocol, DLNAHandler
 
@@ -75,13 +76,11 @@ class AutoPortServer(Server):
 class Service:
 
     def __init__(self, renderer, protocol):
+        self.thread = None
         # Replace the default server
         cherrypy.server.unsubscribe()
         cherrypy.server = AutoPortServer()
         cherrypy.server.bind_addr = ('0.0.0.0', Setting.get_port())
-
-        # cherrypy.server.httpserver = _cpnative_server.CPHTTPServer(cherrypy.server)
-        # cherrypy.server.httpserver = NVAHTTPServer(cherrypy.server)
         cherrypy.server.subscribe()
         # start plugins
         self.ssdp_plugin = SSDPPlugin(cherrypy.engine)
@@ -97,8 +96,8 @@ class Service:
         self.ssdp_monitor.subscribe()
         cherrypy.config.update({
             'log.screen': False,
-            'log.access_file': "",
-            'log.error_file': "",
+            'log.access_file': os.path.join(SETTING_DIR, 'macast.log'),
+            'log.error_file': os.path.join(SETTING_DIR, 'macast.log'),
         })
         # cherrypy.engine.autoreload.files.add(Setting.setting_path)
         cherrypy_config = {
@@ -106,6 +105,11 @@ class Service:
                 'tools.staticdir.root': XMLPath.BASE_PATH.value,
                 'tools.staticdir.on': True,
                 'tools.staticdir.dir': "xml"
+            },
+            '/assets': {
+                'tools.staticdir.root': XMLPath.BASE_PATH.value,
+                'tools.staticdir.on': True,
+                'tools.staticdir.dir': "assets"
             },
             '/': {
                 'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
@@ -159,6 +163,7 @@ class Service:
         _, port = cherrypy.server.bound_addr
         logger.info("Server current run on port: {}".format(port))
         if port != Setting.get(SettingProperty.ApplicationPort, 0):
+            # todo 验证正确性
             usn = Setting.get_usn(refresh=True)
             logger.error("Change usn to: {}".format(usn))
             Setting.set(SettingProperty.ApplicationPort, port)
@@ -176,3 +181,11 @@ class Service:
         """Stop macast thread
         """
         Setting.stop_service()
+        if self.thread is not None:
+            self.thread.join()
+
+    def run_async(self):
+        if Setting.is_service_running():
+            return
+        self.thread = threading.Thread(target=self.run, name="SERVICE_THREAD")
+        self.thread.start()

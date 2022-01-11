@@ -1,22 +1,22 @@
 # Copyright (c) 2021 by xfangfang. All Rights Reserved.
-
+import json
+import os
 import re
 import sys
 import time
 import uuid
-import gettext
 import http.client
 import logging
 import cherrypy
 import threading
 
-from cherrypy.process import plugins
+import requests
 from lxml import etree
 from queue import Queue
 from enum import Enum
 from cherrypy import _cpnative_server
 
-from .utils import load_xml, XMLPath, Setting, publish_method
+from .utils import load_xml, XMLPath, Setting, cherrypy_publish, SETTING_DIR
 
 logger = logging.getLogger("Protocol")
 logger.setLevel(logging.INFO)
@@ -868,7 +868,8 @@ class DLNAProtocol(Protocol):
 class Handler:
 
     def __init__(self):
-        print("-" * 20, self.__class__.__name__, 'init class')
+        self.setting_page = load_xml(XMLPath.SETTING_PAGE.value).encode()
+        self.__downloading = False
 
     @property
     def protocol(self) -> Protocol:
@@ -879,12 +880,90 @@ class Handler:
         return protocols.pop()
 
     def reload(self):
-        print("-" * 20, self.__class__.__name__, 'set CPHTTPServer')
         cherrypy.server.httpserver = _cpnative_server.CPHTTPServer(cherrypy.server)
 
-    def GET(self, param=None):
-        cherrypy.response.headers['Content-Type'] = 'text/plain'
-        return "hello world {}".format(param).encode()
+    @staticmethod
+    def __download_plugin(path, url):
+        try:
+            with open(path, 'wb') as f:
+                f.write(requests.get(url).content)
+        except Exception as e:
+            logger.error(f"download plugin error: {e}")
+        finally:
+            cherrypy.engine.restart()
+
+    def GET(self, param=None, *args, **kwargs):
+        if not Setting.is_service_running():
+            raise cherrypy.HTTPError(503, 'Server restarting')
+        if param == 'api':
+            cherrypy.response.headers['Content-Type'] = 'application/json;charset:utf-8'
+            query = kwargs.get('query', '')
+            res = {
+                'api?query=log': 'get logs of macast',
+                'api?query=settings': 'get settings of macast',
+            }
+            if query == 'log':
+                log_path = os.path.join(SETTING_DIR, 'macast.log')
+                data = ''
+                try:
+                    with open(log_path, 'r', encoding='utf-8') as f:
+                        data = f.read()
+                except:
+                    pass
+                res = {"logs": data}
+            elif query == 'launch-param':
+                res = Setting.setting
+            elif query == 'plugin-info':
+                info = cherrypy_publish('get_plugin_info', [])
+                res = {
+                    'platform': sys.platform,
+                    'version': Setting.version,
+                    'plugins': info
+                }
+            return json.dumps(res, indent=4).encode()
+        if param is not None:
+            raise cherrypy.HTTPRedirect('/')
+        cherrypy.response.headers['Content-Type'] = 'text/html'
+        # return self.setting_page
+        return load_xml(XMLPath.SETTING_PAGE.value).encode()
+
+    def POST(self, *args, **kwargs):
+        cherrypy.response.headers['Content-Type'] = 'application/json;charset:utf-8'
+        res = {'code': 0, 'message': 'success'}
+        if kwargs.get('save-launch-param', None) is not None:
+            setting = kwargs.get('save-launch-param', None)
+            try:
+                setting = json.loads(setting)
+            except Exception as e:
+                res['code'] = 1
+                res['message'] = 'json format error'
+            else:
+                Setting.setting = setting
+                Setting.save()
+                cherrypy.engine.restart()
+        elif kwargs.get('install-plugin', None) is not None:
+            plugin = kwargs.get('install-plugin', None)
+            if self.__downloading:
+                cherrypy.engine.publish('app_notify', 'ERROR', 'Downloading other plugin now')
+                res['code'] = 1
+                res['message'] = 'Downloading other plugin now'
+            else:
+                cherrypy.engine.publish('app_notify', 'INFO', 'installing plugin...')
+                self.__downloading = True
+                try:
+                    plugin = json.loads(plugin)
+                    url = plugin.get('url', '')
+                    plugin_name = url.split('/')[-1]
+                    local_path = os.path.join(SETTING_DIR, plugin.get('type', 'renderer'), plugin_name)
+                    threading.Thread(target=self.__download_plugin(local_path, url),
+                                     daemon=True).start()
+                except Exception as e:
+                    res['code'] = 1
+                    res['message'] = 'json format error'
+        else:
+            logger.info(kwargs)
+
+        return json.dumps(res, indent=4).encode()
 
 
 @cherrypy.expose
@@ -895,6 +974,7 @@ class DLNAHandler(Handler):
     """
 
     def __init__(self):
+        super(DLNAHandler, self).__init__()
         self.description = None
         self.reload()
 
@@ -925,13 +1005,12 @@ class DLNAHandler(Handler):
             service_extra=""
         ).encode()
 
-    def GET(self, param=None):
+    def GET(self, param=None, *args, **kwargs):
         if param == 'description.xml':
             return self.description
-        cherrypy.response.headers['Content-Type'] = 'text/plain'
-        return "hello world {}".format(param).encode()
+        return super(DLNAHandler, self).GET(param, *args, **kwargs)
 
-    def POST(self, service, param):
+    def POST(self, service=None, param=None, *args, **kwargs):
         length = cherrypy.request.headers['Content-Length']
         rawbody = cherrypy.request.body.read(int(length))
         logger.debug('RAW: {}'.format(rawbody))
@@ -940,7 +1019,7 @@ class DLNAHandler(Handler):
             cherrypy.response.headers['EXT'] = ''
             logger.debug('RES: {}'.format(res))
             return res
-        return b''
+        return super(DLNAHandler, self).POST(service, param, *args, **kwargs)
 
     def SUBSCRIBE(self, service="", param=""):
         """DLNA/UPNP event subscribe

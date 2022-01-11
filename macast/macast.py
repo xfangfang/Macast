@@ -41,6 +41,21 @@ class MacastPlugin:
                 cherrypy.engine.publish('app_notify', 'ERROR', 'Custom plugin load error.')
                 logger.error(str(e))
 
+    def get_info(self):
+        props = ['protocol', 'title', 'renderer', 'platform', 'version', 'author', 'desc']
+        res = {'default': False}
+        for i in props:
+            res[i] = getattr(self, i, '')
+        if getattr(self, 'renderer', None) is not None:
+            res['type'] = 'renderer'
+        if getattr(self, 'protocol', None) is not None:
+            res['type'] = 'protocol'
+        if self.path is None:
+            res['default'] = True
+            res['desc'] = 'Macast default plugin'
+            res['version'] = Setting.version
+        return res
+
     def get_instance(self):
         if self.plugin_instance is None and self.plugin_class is not None:
             self.plugin_instance = self.plugin_class()
@@ -101,6 +116,14 @@ class MacastPluginManager:
         plugin = self.get_plugin_from_list(self.protocol_list, name)
         Setting.set(SettingProperty.Macast_Protocol, plugin.title)
         return plugin.get_instance()
+
+    def get_info(self):
+        res = []
+        for r in self.renderer_list:
+            res.append(r.get_info())
+        for p in self.protocol_list:
+            res.append(p.get_info())
+        return res
 
     @staticmethod
     def get_plugin_from_list(plugin_list, title) -> MacastPlugin:
@@ -171,8 +194,8 @@ class Macast(App):
             MacastPlugin(None, format_class_name(renderer), renderer, 'darwin,win32,linux'),
             MacastPlugin(None, format_class_name(protocol), protocol, 'darwin,win32,linux'))
 
-        # dlna service thread
-        self.thread = None
+        cherrypy.engine.subscribe('get_plugin_info', self.plugin_manager.get_info)
+
         # setting items
         self.setting_start_at_login = None
         self.setting_check = None
@@ -198,7 +221,7 @@ class Macast(App):
         cherrypy.engine.subscribe('renderer_start', self.renderer_start)
         cherrypy.engine.subscribe('renderer_av_stop', self.renderer_av_stop)
         cherrypy.engine.subscribe('renderer_av_uri', self.renderer_av_uri)
-        cherrypy.engine.subscribe('ssdp_update_ip', self.ssdp_update_ip)
+        cherrypy.engine.subscribe('ssdp_update_ip', self.update_service_ip)
         cherrypy.engine.subscribe('app_notify', self.notification)
         self.start_cast()
         logger.debug("Macast APP started")
@@ -316,13 +339,9 @@ class Macast(App):
 
     def stop_cast(self):
         self.service.stop()
-        self.thread.join()
 
     def start_cast(self):
-        if Setting.is_service_running():
-            return
-        self.thread = threading.Thread(target=self.service.run, name="MACAST_SERVICE_THREAD")
-        self.thread.start()
+        self.service.run_async()
 
     def check_update(self, verbose=True):
         release_url = 'https://github.com/xfangfang/Macast/releases/latest'
@@ -369,7 +388,7 @@ class Macast(App):
             # Pystray may fail to send notifications due to incomplete initialization
             # during the startup, so wait a moment
             threading.Thread(target=lambda: (
-                time.sleep(1),
+                time.sleep(2),
                 self.notification(_("Macast is hidden"), msg, sound=False),
             )).start()
         self.update_service_status()
@@ -380,7 +399,7 @@ class Macast(App):
         logger.info("service_stop")
         self.update_service_status()
 
-    def ssdp_update_ip(self):
+    def update_service_ip(self):
         """When the IP or port of the device changes,
         call this function to refresh the device address on the menu
         """
@@ -460,7 +479,7 @@ class Macast(App):
             self.notification(_("Error"), _(res[1]))
 
     def on_about_click(self, _):
-        self.open_browser('https://xfangfang.github.io/Macast/')
+        self.open_browser('http://127.0.0.1:{}?page=4'.format(Setting.get_port()))
 
     def on_toggle_service_click(self, item):
         if Setting.is_service_running():

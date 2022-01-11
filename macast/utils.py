@@ -83,6 +83,11 @@ class Setting:
         return Setting.setting
 
     @staticmethod
+    def reload():
+        Setting.setting = None
+        Setting.load()
+
+    @staticmethod
     def get_system_version():
         """Get system version
         """
@@ -340,7 +345,7 @@ class XMLPath(Enum):
     AV_TRANSPORT = BASE_PATH + '/xml/AVTransport.xml'
     CONNECTION_MANAGER = BASE_PATH + '/xml/ConnectionManager.xml'
     RENDERING_CONTROL = BASE_PATH + '/xml/RenderingControl.xml'
-    NIRVANA_CONTROL = BASE_PATH + '/xml/NirvanaControl.xml'
+    SETTING_PAGE = BASE_PATH + '/xml/setting.html'
     PROTOCOL_INFO = BASE_PATH + '/xml/SinkProtocolInfo.csv'
 
 
@@ -396,3 +401,10 @@ def format_class_name(instance):
             res += name[i]
     res += name[-1]
     return res
+
+
+def cherrypy_publish(method, default=None):
+    res = cherrypy.engine.publish(method)
+    if len(res) > 0:
+        return res.pop()
+    return default
