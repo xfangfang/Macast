@@ -4,7 +4,7 @@ import os
 import sys
 import gettext
 import logging
-from macast import Setting
+from macast import Setting, SETTING_DIR
 from macast.macast import gui
 
 logger = logging.getLogger("Macast")
@@ -44,7 +44,17 @@ def get_lang():
         logger.error("Macast Loading Default Language en_US")
 
 
+def clear_env():
+    # todo clear pyinstaller file on start
+    log_path = os.path.join(SETTING_DIR, 'macast.log')
+    try:
+        os.remove(log_path)
+    except:
+        pass
+
+
 if __name__ == '__main__':
+    clear_env()
     get_lang()
     set_mpv_default_path()
     gui(lang=_)
