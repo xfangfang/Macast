@@ -18,7 +18,8 @@ import netifaces as ni
 if sys.platform == 'darwin':
     from AppKit import NSBundle
 elif sys.platform == 'win32':
-    import win32com.client as client
+    import win32api
+    import win32con
 
 logger = logging.getLogger("Utils")
 DEFAULT_PORT = 0
@@ -258,24 +259,27 @@ class Setting:
             """
             if "python" in os.path.basename(sys.executable).lower():
                 return (1, "Not support to set start at login.")
-            shell = client.Dispatch("WScript.Shell")
-            startup_path = r'%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup'
+
+            key = win32api.RegOpenKey(win32con.HKEY_CURRENT_USER,
+                                      r'Software\Microsoft\Windows\CurrentVersion\Run',
+                                      0,
+                                      win32con.KEY_SET_VALUE)
+            logger.info(sys.executable)
             if launch:
                 try:
-                    os.remove(os.path.join(startup_path, 'Macast.lnk'))
-                except IOError:
-                    pass
-
-                macast_path = sys.executable
-                macast_shortcut = shell.CreateShortCut(os.path.join(startup_path, 'Macast.lnk'))
-                macast_shortcut.TargetPath = macast_path
-                macast_shortcut.save()
+                    win32api.RegSetValueEx(key, 'Macast', 0, win32con.REG_SZ, sys.executable)
+                    win32api.RegCloseKey(key)
+                except Exception as e:
+                    logger.error(e)
+                    cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
                 return 0, 1
             else:
                 try:
-                    os.remove(os.path.join(startup_path, 'Macast.lnk'))
-                except IOError:
-                    return (0, "there's no macast shortcut.")
+                    win32api.RegDeleteValue(key, 'Macast')
+                    win32api.RegCloseKey(key)
+                except Exception as e:
+                    logger.error(e)
+                    cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
                 return 0, 1
         else:
             return (1, 'Not support current platform.')
