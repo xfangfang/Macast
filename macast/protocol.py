@@ -882,15 +882,16 @@ class Handler:
     def reload(self):
         cherrypy.server.httpserver = _cpnative_server.CPHTTPServer(cherrypy.server)
 
-    @staticmethod
-    def __download_plugin(path, url):
+    def __download_plugin(self, path, url):
         try:
             with open(path, 'wb') as f:
                 f.write(requests.get(url).content)
         except Exception as e:
             logger.error(f"download plugin error: {e}")
         finally:
-            cherrypy.engine.restart()
+            self.__downloading = False
+            Setting.restart()
+            # cherrypy.engine.restart()
 
     def GET(self, param=None, *args, **kwargs):
         if not Setting.is_service_running():
@@ -940,7 +941,8 @@ class Handler:
             else:
                 Setting.setting = setting
                 Setting.save()
-                cherrypy.engine.restart()
+                Setting.restart()
+                # cherrypy.engine.restart()
         elif kwargs.get('install-plugin', None) is not None:
             plugin = kwargs.get('install-plugin', None)
             if self.__downloading:

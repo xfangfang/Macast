@@ -338,6 +338,16 @@ class Setting:
                                          cherrypy.engine.states.STARTED,
                                          ]
 
+    @staticmethod
+    def restart():
+        if sys.platform == 'darwin' and sys.executable.endswith("Contents/MacOS/python"):
+            # run from py2app build
+            Setting.stop_service()
+            executable = sys.executable[:-6] + 'Macast'
+            os.execv(executable, [executable, executable])
+        else:
+            cherrypy.engine.restart()
+
 
 class XMLPath(Enum):
     BASE_PATH = os.path.dirname(__file__)

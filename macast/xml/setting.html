@@ -375,7 +375,7 @@
                     let logs = res.data.logs.replace(new RegExp("\n", "gm"), '<br/>')
                     this.macast_log = logs;
                 }).catch(err => {
-
+                    this.$message.error('Error connecting to Macast');
                 });
             },
             async handleSelect(tab, event) {
@@ -439,6 +439,7 @@
                     return true;
                 }).catch(err => {
                     console.log(err)
+                    this.$message.error('Error connecting to Macast');
                     return false;
                 })
             },
@@ -453,6 +454,7 @@
                     return true;
                 }).catch(err => {
                     console.log(err)
+                    this.$message.error('Error connecting to Macast');
                     return false;
                 })
             },
@@ -465,6 +467,7 @@
                     console.log(res)
                 }).catch(err => {
                     console.log(err)
+                    this.$message.error('Error connecting to Macast');
                 })
                 this.connecting = true;
                 this.interval_id = setInterval(
@@ -515,6 +518,7 @@
                         }, 1000)
                 }).catch(err => {
                     console.log(err)
+                    this.$message.error('Error connecting to Macast');
                 })
             },
             update_plugins() {
