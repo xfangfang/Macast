@@ -162,8 +162,8 @@ class MacastPluginManager:
 
 
 class Macast(App):
-    if sys.platform == 'linux':
-        ICON_MAP = ['assets/icon.png',
+    if sys.platform == 'win32':
+        ICON_MAP = ['assets/icon.ico',
                     'assets/menu_light_large.png',
                     'assets/menu_dark_large.png']
     else:
@@ -208,7 +208,7 @@ class Macast(App):
         self.service = Service(self.plugin_manager.get_renderer(self.setting_renderer),
                                self.plugin_manager.get_protocol(self.setting_protocol))
 
-        icon_path = Setting.get_base_path(Macast.ICON_MAP[self.setting_menubar_icon])
+        icon_path = os.path.join(os.path.dirname(__file__), Macast.ICON_MAP[self.setting_menubar_icon])
         template = None if self.setting_menubar_icon == 0 else True
         self.copy_menuitem = None
         super(Macast, self).__init__("Macast",
@@ -492,7 +492,7 @@ class Macast(App):
             i.checked = False
         item.checked = True
         Setting.set(SettingProperty.MenubarIcon, item.data)
-        icon_path = Setting.get_base_path(Macast.ICON_MAP[item.data])
+        icon_path = os.path.join(os.path.dirname(__file__), Macast.ICON_MAP[item.data])
         template = None if item.data == 0 else True
         self.update_icon(icon_path, template)
 
