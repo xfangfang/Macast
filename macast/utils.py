@@ -349,6 +349,12 @@ class Setting:
             Setting.stop_service()
             executable = sys.executable[:-6] + 'Macast'
             os.execv(executable, [executable, executable])
+        elif sys.platform == 'linux' and getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            # run from pyinstaller build on linux
+            Setting.stop_service()
+            env = Setting.get_system_env()
+            executable = sys.executable
+            os.execve(executable, [executable, executable], env)
         else:
             cherrypy.engine.restart()
 
