@@ -9,7 +9,7 @@
 [![pypi](https://img.shields.io/pypi/v/macast)](https://pypi.org/project/macast/)
 [![aur](https://img.shields.io/aur/version/macast-git?color=yellowgreen)](https://aur.archlinux.org/packages/macast-git/)
 [![build](https://img.shields.io/github/workflow/status/xfangfang/Macast/Build%20Macast)](https://github.com/xfangfang/Macast/actions/workflows/build-macast.yaml)
-[![mac](https://img.shields.io/badge/MacOS-10.15%20and%20higher-lightgrey?logo=Apple)](https://github.com/xfangfang/Macast/releases/latest)
+[![mac](https://img.shields.io/badge/MacOS-10.14%20and%20higher-lightgrey?logo=Apple)](https://github.com/xfangfang/Macast/releases/latest)
 [![windows](https://img.shields.io/badge/Windows-7%20and%20higher-lightgrey?logo=Windows)](https://github.com/xfangfang/Macast/releases/latest)
 [![linux](https://img.shields.io/badge/Linux-Xorg-lightgrey?logo=Linux)](https://github.com/xfangfang/Macast/releases/latest)
 
@@ -40,6 +40,8 @@ A menu bar application using mpv as **DLNA Media Renderer**. You can push videos
   pip install git+https://github.com/xfangfang/pystray.git
   pip install git+https://github.com/xfangfang/pyperclip.git
   ```
+
+  **See [this](https://github.com/xfangfang/Macast/wiki/Installation#linux) for Linux compatibility**
 
 - ### Build from source
 
