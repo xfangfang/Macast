@@ -271,7 +271,7 @@ class Setting:
                     win32api.RegCloseKey(key)
                 except Exception as e:
                     logger.error(e)
-                    cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
+                    # cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
                 return 0, 1
             else:
                 try:
@@ -279,7 +279,7 @@ class Setting:
                     win32api.RegCloseKey(key)
                 except Exception as e:
                     logger.error(e)
-                    cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
+                    # cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
                 return 0, 1
         else:
             return (1, 'Not support current platform.')
