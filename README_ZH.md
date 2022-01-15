@@ -104,16 +104,6 @@ Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以使用�
 6. 无法搜索到Macast——其他未知问题  
     尝试在同一局域网手机投电视，如果可以正常投说明问题还是出在电脑端，继续检查电脑问题或查看如何报告bug
 
-## 如何报告bug
-  准备以下信息，推荐到Github报告问题，点击 **[new issue](https://github.com/xfangfang/Macast/issues/new/choose)** 去反馈问题：
-  1. 你的电脑系统类型和版本：如Win10 20h2
-  2. 你使用的手机系统和软件：如 安卓 bilibili
-  3. bug复现：如何复现bug与bug是否可以稳定复现
-  4. 程序运行的log：  
-    - windows下载debug版应用, 拖入cmd执行，ctrl-a全选复制：https://github.com/xfangfang/Macast/releases/latest  
-    - mac 终端输入：`/Applications/Macast.app/Contents/MacOS/Macast` 回车运行  
-    - linux 安装deb后，命令行运行 `macast` \\ 或直接从源码运行 \\ 或包管理安装后命令行运行 `macast-cli`  
-
 ## 对于反馈问题的说明
 
   1. 先确保自己有认真读过使用说明
@@ -121,6 +111,16 @@ Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以使用�
   3. 遇到问题不要只说现象，请附带所有你认为能帮助开发者解决问题的信息，这会让开发者认为你很聪明，且极大的帮助加快解决你的问题与节省开发者的时间。
   4.  如果你遇到了某个问题，请优先考虑是自己没有看使用说明，比如我遇到过很多很多遭遇了投屏搜索不到的用户，直接评论说，“这个软件用不了”。用不了那是我编出来逗你玩的吗？检查一下自己的防火墙OK？
   5. 如果你不能自己去写，请不要提出那种很难实现的需求，开发者愿意解决的是：“我有个需求，讨论一下要怎么实现” 而不是 “可以帮我给这个软件加上***功能吗？”
+
+## 如何报告bug
+  准备以下信息，推荐到Github报告问题，点击 **[new issue](https://github.com/xfangfang/Macast/issues/new/choose)** 去反馈问题：
+  1. 你的电脑系统类型和版本：如Win10 20h2
+  2. 你使用的手机系统和软件：如 安卓 bilibili
+  3. bug复现：如何复现bug与bug是否可以稳定复现
+  4. 程序运行的log（复现问题时候的log）：  
+    - windows下载debug版应用, 拖入cmd执行，复现问题后，关闭应用，ctrl-a全选复制：[download debug](https://github.com/xfangfang/Macast/releases/latest)  
+    - mac 终端输入：`/Applications/Macast.app/Contents/MacOS/Macast` 回车运行，复现问题后，关闭应用，复制log  
+    - linux 安装deb后，命令行运行 `macast` \\ 或直接从源码运行 \\ 或包管理安装后命令行运行 `macast-cli`，复现问题后，关闭应用，复制log  
 
 ## 用户反馈
 
