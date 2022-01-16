@@ -84,6 +84,7 @@ jobs:
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
           docker run --rm -v "$(pwd):/src/" xfangfang/build-macast \
               'pip install -r requirements/common.txt && \
+              pip install -U pyinstaller && \
               pyinstaller --noconfirm -F -w \
                 --additional-hooks-dir=. \
                 --add-data="macast/.version:." \
