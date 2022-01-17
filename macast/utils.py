@@ -39,6 +39,7 @@ class SettingProperty(Enum):
     Macast_Protocol = 7
     Blocked_Interfaces = 8
     Additional_Interfaces = 9
+    SingleMode = 10
 
 
 class Setting:
@@ -201,6 +202,7 @@ class Setting:
         """
         if not bool(Setting.setting):
             Setting.load()
+            print(property)
         if property.name in Setting.setting:
             return Setting.setting[property.name]
         Setting.setting[property.name] = default

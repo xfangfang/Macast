@@ -4,8 +4,12 @@ import os
 import sys
 import gettext
 import logging
+from tendo import singleton
+
+
 from macast import Setting, SETTING_DIR
 from macast.macast import gui
+from macast.utils import SettingProperty
 
 logger = logging.getLogger("Macast")
 logger.setLevel(logging.DEBUG)
@@ -44,6 +48,10 @@ def get_lang():
         logger.error("Macast Loading Default Language en_US")
 
 
+def get_single_mode():
+    singleMode = Setting.get(SettingProperty.SingleMode)
+    return singleMode
+
 def clear_env():
     # todo clear pyinstaller file on start
     log_path = os.path.join(SETTING_DIR, 'macast.log')
@@ -57,4 +65,9 @@ if __name__ == '__main__':
     clear_env()
     get_lang()
     set_mpv_default_path()
+    if get_single_mode():
+        try:
+            me = singleton.SingleInstance()
+        except singleton.SingleInstanceException:
+            sys.exit(-1)
     gui(lang=_)
