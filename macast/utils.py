@@ -26,6 +26,12 @@ DEFAULT_PORT = 0
 SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
 PROTOCOL_DIR = 'protocol'
 RENDERER_DIR = 'renderer'
+LOG_LEVEL = {
+    'ERROR': 40,
+    'INFO': 20,
+    'DEBUG': 10,
+    'ALL': 0
+}
 
 
 class SettingProperty(Enum):
@@ -39,6 +45,7 @@ class SettingProperty(Enum):
     Macast_Protocol = 7
     Blocked_Interfaces = 8
     Additional_Interfaces = 9
+    Macast_Log = 10
 
 
 class Setting:
@@ -50,6 +57,7 @@ class Setting:
     friendly_name = "Macast({})".format(platform.node())
     temp_friendly_name = None
     mpv_default_path = 'mpv'
+    log_level = None
 
     @staticmethod
     def save():
@@ -136,12 +144,20 @@ class Setting:
 
     @staticmethod
     def is_ip_changed():
-        if Setting.last_ip != Setting.get_ip():
+        ip_now = Setting.update_ip()
+        if Setting.last_ip != ip_now:
+            Setting.last_ip = ip_now
             return True
         return False
 
     @staticmethod
     def get_ip():
+        if Setting.last_ip is None:
+            Setting.last_ip = Setting.update_ip()
+        return Setting.last_ip
+
+    @staticmethod
+    def update_ip():
         last_ip = []
         gateways = ni.gateways()  # {type: [{ip, interface, default},{},...], type: []}
         interfaces = set(Setting.get(SettingProperty.Additional_Interfaces, []))
@@ -154,7 +170,6 @@ class Setting:
         for i in Setting.get(SettingProperty.Blocked_Interfaces, []):
             if i in interfaces:
                 interfaces.remove(i)
-        logger.debug(interfaces)
         for i in interfaces:
             try:
                 iface = ni.ifaddresses(i)
@@ -164,9 +179,9 @@ class Setting:
                 for j in iface[ni.AF_INET]:
                     if 'addr' in j and 'netmask' in j:
                         last_ip.append((j['addr'], j['netmask']))
-        Setting.last_ip = set(last_ip)
-        logger.debug(Setting.last_ip)
-        return Setting.last_ip
+        ip_now = set(last_ip)
+        logger.debug(f'interfaces: {interfaces} ip: {ip_now}')
+        return ip_now
 
     @staticmethod
     def get_port():
@@ -358,6 +373,23 @@ class Setting:
         else:
             cherrypy.engine.restart()
 
+    @staticmethod
+    def setup_logger():
+        if Setting.log_level is not None:
+            return
+        Setting.log_level = Setting.get(SettingProperty.Macast_Log, 'INFO').upper()
+
+        log_level = LOG_LEVEL.get(Setting.log_level, 20)
+        log_file = os.path.join(SETTING_DIR, 'macast.log')
+        log_format = '%(levelname)s: [%(asctime)s] - %(name)s/%(funcName)s/%(threadName)s|%(thread)d[line:%(lineno)d] - %(message)s'
+        logging.basicConfig(
+            level=log_level,
+            format=log_format,
+            handlers=[logging.StreamHandler(), logging.FileHandler(log_file, mode='w')]
+        )
+
+        logger.info(f'Using log level: {Setting.log_level}, {log_level}')
+
 
 class XMLPath(Enum):
     BASE_PATH = os.path.dirname(__file__)
@@ -427,4 +459,19 @@ def cherrypy_publish(method, default=None):
     res = cherrypy.engine.publish(method)
     if len(res) > 0:
         return res.pop()
+
+    logger.error(f'Unable to run method: {method} return default: {default}')
+    if callable(default):
+        return default()
     return default
+
+
+def get_subnet_ip(ip, mask):
+    """
+    :param ip: eg:192.168.1.123
+    :param mask: eg:255.255.255.0
+    :return: eg: [192, 168, 1, 0]
+    """
+    a = [int(n) for n in mask.split('.')]
+    b = [int(n) for n in ip.split('.')]
+    return [a[i] & b[i] for i in range(4)]

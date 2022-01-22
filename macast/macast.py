@@ -221,7 +221,7 @@ class Macast(App):
         cherrypy.engine.subscribe('renderer_start', self.renderer_start)
         cherrypy.engine.subscribe('renderer_av_stop', self.renderer_av_stop)
         cherrypy.engine.subscribe('renderer_av_uri', self.renderer_av_uri)
-        cherrypy.engine.subscribe('ssdp_update_ip', self.update_service_ip)
+        cherrypy.engine.subscribe('update_ip', self.update_service_ip)
         cherrypy.engine.subscribe('app_notify', self.notification)
         self.start_cast()
         logger.debug("Macast APP started")
@@ -403,7 +403,7 @@ class Macast(App):
         """When the IP or port of the device changes,
         call this function to refresh the device address on the menu
         """
-        logger.info("ssdp_update_ip")
+        logger.info("update_ip")
         if self.ip_menuitem is not None:
             ip_text = "/".join([ip for ip, _ in Setting.get_ip()])
             port = Setting.get_port()
@@ -448,12 +448,14 @@ class Macast(App):
 
     def on_renderer_change_click(self, item):
         renderer_config = self.plugin_manager.renderer_list[item.data]
+        self.stop_cast()
         self.service.renderer = renderer_config.get_instance()
         Setting.set(SettingProperty.Macast_Renderer, renderer_config.title)
         self.setting_renderer = renderer_config.title
         self.setting_menuitem.children = self.build_setting_menu()
         # reload menu
         self.set_menu(self.menu)
+        self.start_cast()
         cherrypy.engine.publish('app_notify', _('Info'), _('Change Renderer to {}.').format(renderer_config.title))
 
     def on_open_config_click(self, item):
