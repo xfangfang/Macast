@@ -9,9 +9,9 @@ import portend
 from cherrypy._cpserver import Server
 from cherrypy.process.plugins import Monitor
 
-from .utils import Setting, XMLPath, SettingProperty, SETTING_DIR
+from .utils import Setting, XMLPath, SettingProperty
 from .plugin import ProtocolPlugin, RendererPlugin, SSDPPlugin
-from .protocol import DLNAProtocol, Protocol, DLNAHandler
+from .protocol import Protocol
 
 logger = logging.getLogger("server")
 logger.setLevel(logging.DEBUG)
@@ -83,21 +83,19 @@ class Service:
         cherrypy.server.bind_addr = ('0.0.0.0', Setting.get_port())
         cherrypy.server.subscribe()
         # start plugins
-        self.ssdp_plugin = SSDPPlugin(cherrypy.engine)
+        self.ssdp_plugin = SSDPPlugin(25)
         self.ssdp_plugin.subscribe()
         self._renderer = renderer
-        self.renderer_plugin = RendererPlugin(cherrypy.engine, renderer)
+        self.renderer_plugin = RendererPlugin(30, renderer)
         self.renderer_plugin.subscribe()
         self._protocol = protocol
-        self.protocol_plugin = ProtocolPlugin(cherrypy.engine, protocol)
+        self.protocol_plugin = ProtocolPlugin(27, protocol)
         self.protocol_plugin.subscribe()
-        self.ssdp_monitor_counter = 0  # restart ssdp every 30s
-        self.ssdp_monitor = Monitor(cherrypy.engine, self.notify, 3, name="SSDP_NOTIFY_THREAD")
-        self.ssdp_monitor.subscribe()
+        self.ip_monitor = Monitor(cherrypy.engine, self.update_ip, 5, name="IP_MONITOR_THREAD")
+        self.ip_monitor.subscribe()
+
         cherrypy.config.update({
-            'log.screen': False,
-            'log.access_file': os.path.join(SETTING_DIR, 'macast.log'),
-            'log.error_file': os.path.join(SETTING_DIR, 'macast.log'),
+            'server.thread_pool': 1
         })
         # cherrypy.engine.autoreload.files.add(Setting.setting_path)
         cherrypy_config = {
@@ -123,14 +121,28 @@ class Service:
         self.cherrypy_application = cherrypy.tree.mount(self.protocol.handler, '/', config=cherrypy_config)
         cherrypy.engine.signals.subscribe()
 
+    @staticmethod
+    def update_ip():
+        if Setting.is_ip_changed():
+            cherrypy.engine.publish('update_ip')
+
     @property
     def renderer(self):
         return self._renderer
 
     @renderer.setter
     def renderer(self, value):
+        """
+        Change the renderer which server are using
+
+        ATTENTION: This Method will stop the server
+        :param value:
+        :return:
+        """
+        if Setting.is_service_running():
+            Setting.stop_service()
         self._renderer = value
-        self.renderer_plugin.set_renderer(self._renderer)
+        self.renderer_plugin.renderer = self._renderer
 
     @property
     def protocol(self):
@@ -138,22 +150,19 @@ class Service:
 
     @protocol.setter
     def protocol(self, value: Protocol):
-        self.stop()
+        """
+        Change the protocol which server are using
+
+        ATTENTION: This Method will stop the server
+        :param value:
+        :return:
+        """
+        if Setting.is_service_running():
+            Setting.stop_service()
         self._protocol = value
-        self.protocol_plugin.set_protocol(self._protocol)
+        self.protocol_plugin.protocol = self._protocol
         self.cherrypy_application.root = self._protocol.handler
         self._protocol.handler.reload()
-
-    def notify(self):
-        """ssdp do notify
-        Using cherrypy builtin plugin Monitor to trigger this method
-        see also: plugin.py -> class SSDPPlugin -> notify
-        """
-        self.ssdp_monitor_counter += 1
-        if Setting.is_ip_changed() or self.ssdp_monitor_counter == 10:
-            self.ssdp_monitor_counter = 0
-            cherrypy.engine.publish('ssdp_update_ip')
-        cherrypy.engine.publish('ssdp_notify')
 
     def run(self):
         """Start macast thread

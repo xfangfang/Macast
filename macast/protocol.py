@@ -17,6 +17,7 @@ from enum import Enum
 from cherrypy import _cpnative_server
 
 from .utils import load_xml, XMLPath, Setting, cherrypy_publish, SETTING_DIR
+from .ssdp import SSDPServer
 
 logger = logging.getLogger("Protocol")
 logger.setLevel(logging.INFO)
@@ -60,11 +61,11 @@ class Protocol:
 
     @property
     def renderer(self):
-        renderers = cherrypy.engine.publish('get_renderer')
-        if len(renderers) == 0:
-            logger.error("Unable to find an available renderer.")
-            return None
-        return renderers.pop()
+        return cherrypy_publish('get_renderer', None)
+
+    @property
+    def ssdp(self) -> SSDPServer:
+        return cherrypy_publish('get_ssdp_server', SSDPServer)
 
     # The following methods are called by the renderer to set the playback status within the protocol,
     # which will be passed to the client (generally the mobile phone)
@@ -356,6 +357,7 @@ class DLNAProtocol(Protocol):
         self.running = False
         self.state_list = {}
         self.action_list = {}
+        self.devices = []
         self.event_thread = None
         self.event_subscribes = {}  # subscribe devices
         self.state_queue = Queue()  # states needed be send to subscribe devices
@@ -363,12 +365,24 @@ class DLNAProtocol(Protocol):
         self.append_device_queue = Queue()  # devices needed be added
         self.init_services()  # create services handle function from xml file
         self.init_state()  # set default value
+        self.init_devices()
 
     @property
     def handler(self):
         if self._handler is None:
             self._handler = DLNAHandler()
         return self._handler
+
+    def init_devices(self):
+        usn = Setting.get_usn()
+        self.devices = [
+            f'uuid:{usn}::upnp:rootdevice',
+            f'uuid:{usn}',
+            f'uuid:{usn}::urn:schemas-upnp-org:device:MediaRenderer:1',
+            f'uuid:{usn}::urn:schemas-upnp-org:service:RenderingControl:1',
+            f'uuid:{usn}::urn:schemas-upnp-org:service:ConnectionManager:1',
+            f'uuid:{usn}::urn:schemas-upnp-org:service:AVTransport:1'
+        ]
 
     def init_state(self):
         self.set_state('CurrentPlayMode', 'NORMAL')
@@ -657,11 +671,24 @@ class DLNAProtocol(Protocol):
         self.event_thread = threading.Thread(target=self.event, daemon=True)
         self.event_thread.start()
         self.set_state_stop()
+        self.register_service()
 
     def stop(self):
         """Stop render thread
         """
         self.running = False
+        self.unregister_service()
+
+    def register_service(self):
+        devices = [{'usn': i, 'nt': i[43:] if i[43:] != '' else i} for i in self.devices]
+        cherrypy.engine.publish('ssdp_register',
+                                devices,
+                                f'http://{{}}:{Setting.get_port()}/description.xml',
+                                Setting.get_server_info(),
+                                66)
+
+    def unregister_service(self):
+        cherrypy.engine.publish('ssdp_unregister')
 
     # The following method names are defined by the XML file
 
@@ -873,11 +900,7 @@ class Handler:
 
     @property
     def protocol(self) -> Protocol:
-        protocols = cherrypy.engine.publish('get_protocol')
-        if len(protocols) == 0:
-            logger.error("Unable to find an available protocol.")
-            return Protocol()
-        return protocols.pop()
+        return cherrypy_publish('get_protocol', Protocol)
 
     def reload(self):
         cherrypy.server.httpserver = _cpnative_server.CPHTTPServer(cherrypy.server)
