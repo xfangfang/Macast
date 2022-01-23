@@ -25,7 +25,6 @@ if os.name == 'nt':
     from multiprocessing.connection import PipeConnection
 
 logger = logging.getLogger("MPVRenderer")
-logger.setLevel(logging.INFO)
 
 
 class ObserveProperty(Enum):
@@ -196,7 +195,7 @@ class MPVRenderer(Renderer):
                     sec = int(res['data'])
                     duration = '%d:%02d:%02d' % (sec // 3600, (sec % 3600) // 60, sec % 60)
                     cherrypy.engine.publish('mpv_update_duration', duration)
-                    logger.info("update duration " + duration)
+                    logger.debug("update duration " + duration)
                     if self.protocol.get_state_transport_state() == 'PLAYING':
                         logger.debug("Living media")
                 self.set_state_duration(duration)
@@ -234,7 +233,6 @@ class MPVRenderer(Renderer):
             elif res['event'] == 'start-file':
                 self.playing = True
                 # self.set_state_transport('TRANSITIONING')
-                cherrypy.engine.publish('renderer_av_uri', self.protocol.get_state_url())
             elif res['event'] == 'seek':
                 pass
                 # self.set_state_transport('TRANSITIONING')
@@ -273,13 +271,13 @@ class MPVRenderer(Renderer):
         Communicating with mpv
         """
         if self.ipc_running:
-            logger.error("mpv ipc is already runing")
+            logger.info("mpv ipc is already runing")
             return
         self.ipc_running = True
         while self.ipc_running and self.running and self.mpv_thread.is_alive():
             try:
                 time.sleep(0.5)
-                logger.error("mpv ipc socket start connect")
+                logger.info("mpv ipc socket start connect")
                 if os.name == 'nt':
                     handler = _winapi.CreateFile(
                         self.mpv_sock,
@@ -296,7 +294,7 @@ class MPVRenderer(Renderer):
                 self.ipc_once_connected = True
                 self.set_observe()
             except Exception as e:
-                logger.error("mpv ipc socket reconnecting: {}".format(str(e)))
+                logger.info("mpv ipc socket reconnecting: {}".format(str(e)))
                 continue
             res = b''
             msgs = None
@@ -325,13 +323,13 @@ class MPVRenderer(Renderer):
                 finally:
                     res = b''
             self.ipc_sock.close()
-            logger.error("mpv ipc stopped")
+            logger.info("mpv ipc stopped")
 
     def start_mpv(self):
         """Start mpv thread
         """
         error_time = 3
-        while self.running and error_time > 0:
+        while self.running and error_time > 0 and Setting.is_service_running():
             self.set_state_speed('1')
             # mpv default params
             params = [
@@ -415,12 +413,13 @@ class MPVRenderer(Renderer):
                 # There should be a problem with the MPV startup parameters
                 time.sleep(1)
                 error_time -= 1
-                logger.error("mpv restarting")
+                logger.info("mpv restarting")
         if error_time <= 0:
             # some thing wrong with mpv
             cherrypy.engine.publish("app_notify", "Macast", "MPV Can't start")
             logger.error("mpv cannot start")
             threading.Thread(target=lambda: Setting.stop_service(), name="MPV_STOP_SERVICE").start()
+        logger.info("mpv done")
 
     def start(self):
         """Start mpv and mpv ipc
@@ -449,6 +448,13 @@ class MPVRenderer(Renderer):
         # stop mpv ipc
         self.ipc_running = False
         self.ipc_thread.join()
+
+        try:
+            logger.info('Remove MPV IPC socket file')
+            os.remove(self.mpv_sock)
+        except:
+            logger.error('Cannot remove MPV IPC socket file')
+            pass
 
     def reload(self):
         """Reload MPV
@@ -549,9 +555,9 @@ class MPVRendererSetting(RendererSetting):
                 if res == 0:
                     gpu_info = json.loads(gpu_info)
                     has_dedicated_gpu = len(gpu_info['SPDisplaysDataType']) > 1
-                    logger.error("GPU list:")
+                    logger.info("GPU list:")
                     for gpu in gpu_info['SPDisplaysDataType']:
-                        logger.error('GPU:' + gpu['sppci_model'])
+                        logger.info('GPU:' + gpu['sppci_model'])
             except Exception as e:
                 logger.error("Error get gpu info")
 
