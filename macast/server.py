@@ -14,7 +14,6 @@ from .plugin import ProtocolPlugin, RendererPlugin, SSDPPlugin
 from .protocol import Protocol
 
 logger = logging.getLogger("server")
-logger.setLevel(logging.DEBUG)
 
 
 def auto_change_port(fun):
@@ -76,6 +75,9 @@ class AutoPortServer(Server):
 class Service:
 
     def __init__(self, renderer, protocol):
+        # global log config
+        log_level = Setting.setup_logger()
+
         self.thread = None
         # Replace the default server
         cherrypy.server.unsubscribe()
@@ -174,10 +176,10 @@ class Service:
         if port != Setting.get(SettingProperty.ApplicationPort, 0):
             # todo 验证正确性
             usn = Setting.get_usn(refresh=True)
-            logger.error("Change usn to: {}".format(usn))
+            logger.info("Change usn to: {}".format(usn))
             Setting.set(SettingProperty.ApplicationPort, port)
             name = "Macast({0:04d})".format(random.randint(0, 9999))
-            logger.error("Change name to: {}".format(name))
+            logger.info("Change name to: {}".format(name))
             Setting.set_temp_friendly_name(name)
             self.protocol.handler.reload()
             cherrypy.engine.publish('ssdp_update_ip')

@@ -20,20 +20,6 @@ from .utils import load_xml, XMLPath, Setting, cherrypy_publish, SETTING_DIR
 from .ssdp import SSDPServer
 
 logger = logging.getLogger("Protocol")
-logger.setLevel(logging.INFO)
-
-SERVICE_STATE_OBSERVED = {
-    "AVTransport": ['TransportState',
-                    'TransportStatus',
-                    'CurrentMediaDuration',
-                    'CurrentTrackDuration',
-                    'CurrentTrack',
-                    'NumberOfTracks'],
-    "RenderingControl": ['Volume', 'Mute'],
-    "ConnectionManager": ['A_ARG_TYPE_Direction',
-                          'SinkProtocolInfo',
-                          'CurrentConnectionIDs']
-}
 
 
 class Protocol:
@@ -209,17 +195,33 @@ class Protocol:
         return True
 
 
+# DLNA related class
+
+SERVICE_STATE_OBSERVED = {
+    "AVTransport": ['TransportState',
+                    'TransportStatus',
+                    'CurrentMediaDuration',
+                    'CurrentTrackDuration',
+                    'CurrentTrack',
+                    'NumberOfTracks'],
+    "RenderingControl": ['Volume', 'Mute'],
+    "ConnectionManager": ['A_ARG_TYPE_Direction',
+                          'SinkProtocolInfo',
+                          'CurrentConnectionIDs']
+}
+
+
 class ObserveClient:
     def __init__(self, service, url, timeout=1800):
         self.url = url
         self.service = service
         self.startTime = int(time.time())
-        self.sid = "uuid:{}".format(uuid.uuid4())
+        self.sid = f"uuid:{uuid.uuid4()}"
         self.timeout = timeout
         self.seq = 0
         self.host = re.findall(r"//([0-9:.]*)", url)[0]
         self.path = re.findall(r"//[0-9:.]*(.*)$", url)[0]
-        print("-----------------------------", self.host)
+        logger.info(f"Create ObserveClient: {self.host}")
         self.error = 0
 
     def is_timeout(self):
@@ -238,7 +240,7 @@ class ObserveClient:
                    "SERVER": Setting.get_server_info(),
                    "SID": self.sid,
                    "SEQ": self.seq,
-                   "TIMEOUT": "Second-{}".format(self.timeout)
+                   "TIMEOUT": f"Second-{self.timeout}"
                    }
         namespace = 'urn:schemas-upnp-org:event-1-0'
         root = etree.Element(etree.QName(namespace, 'propertyset'),
@@ -262,8 +264,7 @@ class ObserveClient:
                 p.set('val', str(data[i]))
             last_change.text = etree.tostring(event, encoding="UTF-8").decode()
         data = etree.tostring(root, encoding="UTF-8")
-        logger.debug("Prop Change---------")
-        logger.debug(data)
+        logger.debug(f"Prop Change: {data}")
         conn = http.client.HTTPConnection(self.host, timeout=5)
         conn.request("NOTIFY", self.path, data, headers)
         conn.close()
@@ -467,18 +468,18 @@ class DLNAProtocol(Protocol):
     def add_subscribe(self, service, url, timeout=1800):
         """Add a DLNA client to subscribe list
         """
-        logger.error("SUBSCRIBE: " + url)
+        logger.info(f"SUBSCRIBE: {url}")
         for client in self.event_subscribes:
             if self.event_subscribes[client].url == url and \
                     self.event_subscribes[client].service == service:
                 s = self.event_subscribes[client]
                 s.update(timeout)
-                logger.error("SUBSCRIBE UPDATE")
+                logger.info("SUBSCRIBE UPDATE")
                 return {
                     "SID": s.sid,
-                    "TIMEOUT": "Second-{}".format(s.timeout)
+                    "TIMEOUT": f"Second-{s.timeout}"
                 }
-        logger.error("SUBSCRIBE ADD")
+        logger.info("SUBSCRIBE ADD")
         client = ObserveClient(service, url, timeout)
         self.append_device_queue.put(client)
         threading.Thread(target=self.send_init_event,
@@ -488,7 +489,7 @@ class DLNAProtocol(Protocol):
                          }).start()
         return {
             "SID": client.sid,
-            "TIMEOUT": "Second-{}".format(client.timeout)
+            "TIMEOUT": f"Second-{client.timeout}"
         }
 
     def send_init_event(self, service, client):
@@ -528,7 +529,7 @@ class DLNAProtocol(Protocol):
         # remove offline clients
         while not self.removed_device_queue.empty():
             sid = self.removed_device_queue.get()
-            logger.info("Remove client: {}".format(sid))
+            logger.info(f"Remove client: {sid}")
             del self.event_subscribes[sid]
             self.removed_device_queue.task_done()
         # add clients
@@ -591,18 +592,17 @@ class DLNAProtocol(Protocol):
             param[node.tag] = node.text
         action = root.tag.split('}')[1]
         service = root.tag.split(":")[3]
-        method = "{}_{}".format(service, action)
+        method = f"{service}_{action}"
         if method not in [
             'AVTransport_GetPositionInfo',
             'AVTransport_GetTransportInfo',
             'RenderingControl_GetVolume'
         ]:
-            logger.info("{} {}".format(method, param))
+            logger.info(f"{method} {param}")
         res = {}
         service_type = Service.get(service)
         if hasattr(self, method):
             data = {}
-            # input = self.action_list[service][action].input
             input = service_type.actions[action].input
             for arg in input:
                 data[arg.name] = Argument(
@@ -612,14 +612,13 @@ class DLNAProtocol(Protocol):
                     self.set_state(arg.state, param[arg.name])
             res = getattr(self, method)(data)
         else:
-            # output = self.action_list[service][action].output
             output = service_type.actions[action].output
             for arg in output:
                 res[arg.name] = self.state_list[arg.state].value
         if method not in ['ConnectionManager_GetProtocolInfo', 'AVTransport_GetPositionInfo']:
-            logger.info("{}res: {}".format("*" * 20, res))
+            logger.info(f"res: {res}")
         else:
-            logger.info("{}res: {}".format("*" * 20, method))
+            logger.info(f"res: {method}")
 
         # build response xml
         ns = 'http://schemas.xmlsoap.org/soap/envelope/'
@@ -627,10 +626,9 @@ class DLNAProtocol(Protocol):
         root = etree.Element(etree.QName(ns, 'Envelope'), nsmap={'s': ns})
         root.attrib[f'{{{ns}}}encodingStyle'] = encoding
         body = etree.SubElement(root, etree.QName(ns, 'Body'), nsmap={'s': ns})
-        # namespace = 'urn:schemas-upnp-org:service:{}:1'.format(service)
         response = etree.SubElement(body,
                                     etree.QName(
-                                        service_type.namespace, '{}Response'.format(action)),
+                                        service_type.namespace, f'{action}Response'),
                                     nsmap={'u': service_type.namespace})
         for key in res:
             prop = etree.SubElement(response, key)
@@ -646,7 +644,7 @@ class DLNAProtocol(Protocol):
         # update states which will send to DLNA Client
         if name in SERVICE_STATE_OBSERVED['AVTransport'] or \
                 name in SERVICE_STATE_OBSERVED['RenderingControl']:
-            logger.debug("setState: {} {}".format(name, value))
+            logger.debug(f"setState: {name} {value}")
             # When some states change, the DLNA client needs to be notified immediately
             # We put this kind of state into state_queue, waiting to be sent to client.
             self.state_queue.put((name, value))
@@ -711,6 +709,7 @@ class DLNAProtocol(Protocol):
         logger.info(uri)
         self.set_state_url(uri)
         self.renderer.set_media_url(uri)
+        cherrypy.engine.publish('renderer_av_uri', uri)
         title = Setting.get_friendly_name()
         try:
             meta = etree.fromstring(data['CurrentURIMetaData'].value.encode())
@@ -726,35 +725,31 @@ class DLNAProtocol(Protocol):
             self.set_state('CurrentTrackMetaData', metadata.decode())
         self.renderer.set_media_title(title)
         self.renderer.set_media_resume()
-        self.set_state('CurrentTrackTitle', title)
-        self.set_state('CurrentTrackURI', uri)
-        self.set_state('RelativeTimePosition', '00:00:00')
-        self.set_state('AbsoluteTimePosition', '00:00:00')
-        self.set_state('TransportState', 'PAUSED_PLAYBACK')
-        self.set_state('TransportStatus', 'OK')
+        self.set_state_title(title)
+        self.set_state_url(uri)
+        self.set_state_position('00:00:00')
+        self.set_state_pause()
         return {}
 
     def AVTransport_Play(self, data):
         self.renderer.set_media_resume()
-        self.set_state('TransportState', 'PLAYING')
-        self.set_state('TransportStatus', 'OK')
+        self.set_state_play()
         return {}
 
     def AVTransport_Pause(self, data):
         self.renderer.set_media_pause()
-        self.set_state('TransportState', 'PAUSED_PLAYBACK')
+        self.set_state_pause()
         return {}
 
     def AVTransport_Seek(self, data):
         target = data['Target']
         self.renderer.set_media_position(target.value)
-        self.set_state('RelativeTimePosition', target.value)
-        self.set_state('AbsoluteTimePosition', target.value)
+        self.set_state_position(target.value)
         return {}
 
     def AVTransport_Stop(self, data):
         self.renderer.set_media_stop()
-        self.set_state('TransportState', 'STOPPED')
+        self.set_state_stop()
         return {}
 
     # The following methods are usually used to update the states of
@@ -831,6 +826,9 @@ class DLNAProtocol(Protocol):
     def set_state_url(self, data: str):
         self.set_state('CurrentTrackURI', data)
 
+    def set_state_title(self, data: str):
+        self.set_state('CurrentTrackTitle', data)
+
     # When you are implementing another protocol similar to DLNA,
     # you can get the status of DLNA renderer by calling the following methods.
     # Using DLNA protocol usually does not need to pay attention to these methods,
@@ -889,6 +887,9 @@ class DLNAProtocol(Protocol):
 
     def get_state_display_subtitle(self) -> bool:
         return bool(self.get_state('DisplayCurrentSubtitle'))
+
+
+# base web handler class
 
 
 @cherrypy.expose
@@ -991,6 +992,9 @@ class Handler:
         return json.dumps(res, indent=4).encode()
 
 
+# DLNA web handler class
+
+
 @cherrypy.expose
 class DLNAHandler(Handler):
     """Receiving requests from DLNA client
@@ -1009,11 +1013,7 @@ class DLNAHandler(Handler):
 
     @property
     def protocol(self) -> DLNAProtocol:
-        protocols = cherrypy.engine.publish('get_protocol')
-        if len(protocols) == 0:
-            logger.error("Unable to find an available protocol.")
-            return DLNAProtocol()
-        return protocols.pop()
+        return cherrypy_publish('get_protocol', DLNAProtocol)
 
     def build_description(self):
         self.description = load_xml(XMLPath.DESCRIPTION.value).format(
@@ -1038,11 +1038,11 @@ class DLNAHandler(Handler):
     def POST(self, service=None, param=None, *args, **kwargs):
         length = cherrypy.request.headers['Content-Length']
         rawbody = cherrypy.request.body.read(int(length))
-        logger.debug('RAW: {}'.format(rawbody))
+        logger.debug(f'RAW: {rawbody}')
         if param == 'action':
             res = self.protocol.call(rawbody)
             cherrypy.response.headers['EXT'] = ''
-            logger.debug('RES: {}'.format(res))
+            logger.debug(f'RES: {res}')
             return res
         return super(DLNAHandler, self).POST(service, param, *args, **kwargs)
 
@@ -1056,21 +1056,21 @@ class DLNAHandler(Handler):
             TIMEOUT = TIMEOUT if TIMEOUT is not None else 'Second-1800'
             TIMEOUT = int(TIMEOUT.split('-')[-1])
             if SID:
-                logger.error("RENEW SUBSCRIBE:!!!!!!!" + service)
+                logger.debug(f"RENEW SUBSCRIBE: {service}")
                 res = self.protocol.renew_subscribe(SID, TIMEOUT)
                 if res != 200:
-                    logger.error("RENEW SUBSCRIBE: cannot find such sid.")
+                    logger.debug("RENEW SUBSCRIBE: cannot find such sid.")
                     raise cherrypy.HTTPError(status=res)
                 cherrypy.response.headers['SID'] = SID
                 cherrypy.response.headers['TIMEOUT'] = TIMEOUT
             elif CALLBACK:
-                logger.error("ADD SUBSCRIBE:!!!!!!!" + service)
+                logger.debug(f"ADD SUBSCRIBE: {service}")
                 suburl = re.findall("<(.*?)>", CALLBACK)[0]
                 res = self.protocol.add_subscribe(service, suburl, TIMEOUT)
                 cherrypy.response.headers['SID'] = res['SID']
                 cherrypy.response.headers['TIMEOUT'] = res['TIMEOUT']
             else:
-                logger.error("SUBSCRIBE: cannot find sid and callback.")
+                logger.debug("SUBSCRIBE: cannot find sid and callback.")
                 raise cherrypy.HTTPError(status=412)
         return b''
 
@@ -1080,10 +1080,10 @@ class DLNAHandler(Handler):
         if param == 'event':
             SID = cherrypy.request.headers.get('SID')
             if SID:
-                logger.error("REMOVE SUBSCRIBE:!!!!!!!" + service)
+                logger.debug(f"REMOVE SUBSCRIBE: {service}")
                 res = self.protocol.remove_subscribe(SID)
                 if res != 200:
                     raise cherrypy.HTTPError(status=res)
                 return b''
-        logger.error("UNSUBSCRIBE: error 412.")
+        logger.debug("UNSUBSCRIBE: error 412.")
         raise cherrypy.HTTPError(status=412)

@@ -17,11 +17,10 @@ from .utils import SettingProperty, SETTING_DIR, notify_error, format_class_name
 from .gui import App, MenuItem, Platform
 from .protocol import DLNAProtocol
 from .server import Service
-from .utils import RENDERER_DIR, PROTOCOL_DIR, Setting
+from .utils import RENDERER_DIR, PROTOCOL_DIR, Setting, cherrypy_publish, load_xml, XMLPath
 from macast_renderer.mpv import MPVRenderer
 
 logger = logging.getLogger("main")
-logger.setLevel(logging.DEBUG)
 _ = gettext.gettext
 
 
@@ -70,8 +69,8 @@ class MacastPlugin:
         if sys.platform in self.platform:
             return True
 
-        logger.error("{} support platform: {}".format(self.title, self.platform))
-        logger.error("{} is not suit for this system.".format(self.title))
+        logger.info(f"{self.title} support platform: {self.platform}")
+        logger.info(f"{self.title} is not suit for this system.")
         return False
 
     def load_from_file(self, path):
@@ -79,17 +78,20 @@ class MacastPlugin:
         with open(path, 'r', encoding='utf-8') as f:
             renderer_file = f.read()
             metadata = re.findall("<macast.(.*?)>(.*?)</macast", renderer_file)
-            print("<Load Plugin from {}".format(base_name))
+            logger.info("=" * 10 + f"< Load Plugin from {base_name}")
             for key, value in metadata:
-                print('%-10s: %s' % (key, value))
                 setattr(self, key, str(value))
         if hasattr(self, 'renderer'):
             module = importlib.import_module(f'{RENDERER_DIR}.{base_name}')
-            print(f'Load plugin {self.renderer} done />\n')
+            logger.info('\n'.join([f'{k}: {v}' for k, v in metadata]) +
+                        f'\nLoad plugin {self.renderer} done />\n'
+                        )
             self.plugin_class = getattr(module, self.renderer, None)
         elif hasattr(self, 'protocol'):
             module = importlib.import_module(f'{PROTOCOL_DIR}.{base_name}')
-            print(f'Load plugin {self.protocol} done />\n')
+            logger.info('\n'.join([f'{k}: {v}' for k, v in metadata]) +
+                        f'\nLoad plugin {self.protocol} done />\n'
+                        )
             self.plugin_class = getattr(module, self.protocol, None)
         else:
             logger.error(f"Cannot find any plugin in {base_name}")
@@ -129,10 +131,10 @@ class MacastPluginManager:
     def get_plugin_from_list(plugin_list, title) -> MacastPlugin:
         for i in plugin_list:
             if title == i.title:
-                print("using plugin: {}".format(title))
+                logger.info(f"using plugin: {title}")
                 return i
         else:
-            print("using default plugin")
+            logger.info("using default plugin")
             return plugin_list[0]
 
     @staticmethod
@@ -189,12 +191,7 @@ class Macast(App):
         self.renderer_menuitem = None
         self.protocol_menuitem = None
         self.advanced_menuitem = None
-
-        self.plugin_manager = MacastPluginManager(
-            MacastPlugin(None, format_class_name(renderer), renderer, 'darwin,win32,linux'),
-            MacastPlugin(None, format_class_name(protocol), protocol, 'darwin,win32,linux'))
-
-        cherrypy.engine.subscribe('get_plugin_info', self.plugin_manager.get_info)
+        self.copy_menuitem = None
 
         # setting items
         self.setting_start_at_login = None
@@ -204,13 +201,22 @@ class Macast(App):
         self.setting_protocol = ''
         self.init_setting()
 
+        # setting logger
+        Setting.setup_logger()
+
+        # load plugins from file
+        self.plugin_manager = MacastPluginManager(
+            MacastPlugin(None, format_class_name(renderer), renderer, 'darwin,win32,linux'),
+            MacastPlugin(None, format_class_name(protocol), protocol, 'darwin,win32,linux'))
+        cherrypy.engine.subscribe('get_plugin_info', self.plugin_manager.get_info)
+
         # init service
         self.service = Service(self.plugin_manager.get_renderer(self.setting_renderer),
                                self.plugin_manager.get_protocol(self.setting_protocol))
 
+        # init app
         icon_path = os.path.join(os.path.dirname(__file__), Macast.ICON_MAP[self.setting_menubar_icon])
         template = None if self.setting_menubar_icon == 0 else True
-        self.copy_menuitem = None
         super(Macast, self).__init__("Macast",
                                      icon_path,
                                      self.build_app_menu(),
@@ -224,7 +230,7 @@ class Macast(App):
         cherrypy.engine.subscribe('update_ip', self.update_service_ip)
         cherrypy.engine.subscribe('app_notify', self.notification)
         self.start_cast()
-        logger.debug("Macast APP started")
+        logger.info("Macast APP started")
 
     def build_app_menu(self):
         self.toggle_menuitem = MenuItem(_("Stop Cast"), self.on_toggle_service_click, key="p")
@@ -403,7 +409,7 @@ class Macast(App):
         """When the IP or port of the device changes,
         call this function to refresh the device address on the menu
         """
-        logger.info("update_ip")
+        logger.info(f"update_ip: {Setting.last_ip}")
         if self.ip_menuitem is not None:
             ip_text = "/".join([ip for ip, _ in Setting.get_ip()])
             port = Setting.get_port()
@@ -433,10 +439,9 @@ class Macast(App):
 
     # The followings are the callback function of menu click
 
-    def on_protocol_change_click(self, item):
+    def on_protocol_change_click(self, item: MenuItem):
         protocol_config = self.plugin_manager.protocol_list[item.data]
         self.stop_cast()
-        # todo 生成新的 uuid
         self.service.protocol = protocol_config.get_instance()
         Setting.set(SettingProperty.Macast_Protocol, protocol_config.title)
         self.setting_protocol = protocol_config.title
@@ -446,7 +451,7 @@ class Macast(App):
         self.start_cast()
         cherrypy.engine.publish('app_notify', _('Info'), _('Change Protocol to {}.').format(protocol_config.title))
 
-    def on_renderer_change_click(self, item):
+    def on_renderer_change_click(self, item: MenuItem):
         renderer_config = self.plugin_manager.renderer_list[item.data]
         self.stop_cast()
         self.service.renderer = renderer_config.get_instance()
