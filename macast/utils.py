@@ -376,7 +376,7 @@ class Setting:
     @staticmethod
     def setup_logger():
         if Setting.log_level is not None:
-            return
+            return LOG_LEVEL.get(Setting.log_level, 20)
         Setting.log_level = Setting.get(SettingProperty.Macast_Log, 'INFO').upper()
 
         log_level = LOG_LEVEL.get(Setting.log_level, 20)
@@ -389,6 +389,8 @@ class Setting:
         )
 
         logger.info(f'Using log level: {Setting.log_level}, {log_level}')
+
+        return log_level
 
 
 class XMLPath(Enum):

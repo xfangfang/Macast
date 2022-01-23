@@ -5,9 +5,9 @@ import logging
 import cherrypy
 
 from .protocol import Protocol
+from .utils import cherrypy_publish
 
 logger = logging.getLogger("Renderer")
-logger.setLevel(logging.INFO)
 
 
 class Renderer:
@@ -44,11 +44,7 @@ class Renderer:
 
     @property
     def protocol(self) -> Protocol:
-        protocols = cherrypy.engine.publish('get_protocol')
-        if len(protocols) == 0:
-            logger.error("Unable to find an available protocol.")
-            return Protocol()
-        return protocols.pop()
+        return cherrypy_publish('get_protocol', Protocol)
 
     # If you want to write a new renderer adapted to another video player,
     # please rewrite the following methods to control the video player you use.

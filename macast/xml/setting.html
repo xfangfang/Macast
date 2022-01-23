@@ -49,14 +49,12 @@
             </div>
         </el-tab-pane>
         <el-tab-pane label="Log" name="3">
-            <span>This page does not display all logs. If you want to view all logs, please run from the source code or refer to </span>
-            <el-link type="primary"
-                     href="https://github.com/xfangfang/Macast/blob/main/.github/ISSUE_TEMPLATE/bug_report.md"
-                     target="_blank">this instruction.
-            </el-link>
+
             <br/>
             <br/>
-            <span v-html="macast_log"></span>
+            <pre v-for="(item, index) in macast_log" :key="index" :item="item" :class="item.log_type">
+            {{item.index}} | {{item.content}}
+            </pre>
         </el-tab-pane>
         <el-tab-pane label="Help" name="4">
 
@@ -349,8 +347,17 @@
             async get_log() {
                 let url = '/api?query=log';
                 this.$http.get(url).then(res => {
-                    let logs = res.data.logs.replace(new RegExp("\n", "gm"), '<br/>')
-                    this.macast_log = logs;
+                    let log_lines = res.data.logs.split('\n')
+                    this.macast_log = log_lines.map((content, index) => {
+                        let log_type = 'log_type_info'
+                        if (content.indexOf('ERROR') === 0 || content.indexOf('WARNING') === 0) {
+                            log_type = 'log_type_error'
+                        } else if (content.indexOf('DEBUG') === 0) {
+                            log_type = 'log_type_debug'
+                        }
+                        return {index, content, log_type}
+                    }).reverse() // .join('<br/>')
+                    // this.macast_log = res.data.logs.replace(new RegExp("\n", "gm"), '<br/>');
                 }).catch(err => {
                     this.$message.error('Error connecting to Macast');
                 });
@@ -654,6 +661,27 @@
     }
 
     /*plugin style end*/
+
+    /*log style start*/
+
+    pre {
+        margin: 0.5em 0px;
+        white-space: pre-line;
+    }
+
+    .log_type_error {
+        color: red;
+    }
+
+    .log_type_debug {
+        color: darkgray;
+    }
+
+    .log_type_info {
+        color: teal;
+    }
+
+    /*log style end*/
 
 
 </style>
