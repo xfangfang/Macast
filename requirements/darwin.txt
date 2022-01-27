@@ -1,8 +1,0 @@
-appdirs==1.4.4
-cherrypy==18.6.1
-lxml==4.7.1
-requests==2.27.1
-pyperclip==1.8.2
-netifaces==0.11.0
-git+https://github.com/jaredks/rumps.git@018cabce9175aed3a77b747dc50118cd65a5374d
-
