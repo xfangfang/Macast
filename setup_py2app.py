@@ -10,7 +10,7 @@ import datetime
 from setuptools import setup
 
 APP = ['Macast.py']
-DATA_FILES = ['i18n']
+DATA_FILES = []
 VERSION = "0.0.0"
 with open('macast/.version', 'r') as f:
     VERSION = f.read().strip()

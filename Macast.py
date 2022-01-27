@@ -2,7 +2,6 @@
 
 import os
 import sys
-import gettext
 import logging
 from macast import Setting
 from macast.macast import gui
@@ -28,22 +27,6 @@ def set_mpv_default_path():
     return mpv_path
 
 
-def get_lang():
-    locale = Setting.get_locale()
-    i18n_path = get_base_path('i18n')
-    if not os.path.exists(os.path.join(i18n_path, locale, 'LC_MESSAGES', 'macast.mo')):
-        locale = locale.split("_")[0]
-    logger.error("Macast Loading Language: {}".format(locale))
-    try:
-        lang = gettext.translation('macast', localedir=i18n_path, languages=[locale])
-        lang.install()
-    except Exception:
-        import builtins
-        builtins.__dict__['_'] = gettext.gettext
-        logger.error("Macast Loading Default Language en_US")
-
-
 if __name__ == '__main__':
-    get_lang()
     set_mpv_default_path()
-    gui(lang=_)
+    gui()

@@ -115,6 +115,19 @@ class Setting:
         return Setting.version
 
     @staticmethod
+    def get_version_tag():
+        """Get application version in human read mode
+        112.45 => 112.4.5
+        """
+        v = 0
+        try:
+            v = float(Setting.version)
+        except:
+            logger.error(f'Unexpected version format: f{Setting.version}')
+            return '0.0.0'
+        return f'{int(v)}.{int(v * 10 % 10)}.{int(v * 100 % 10)}'
+
+    @staticmethod
     def get_friendly_name():
         """Get application friendly name
         This name will show in the device search list of the DLNA client
@@ -202,10 +215,11 @@ class Setting:
             windll = ctypes.windll.kernel32
             lang = locale.windows_locale[windll.GetUserDefaultUILanguage()]
         else:
-            lang = os.environ.get('LANGUAGE')
-            if lang is None:
-                lang = os.environ['LANG']
-            if lang is None:
+            for v in ['LANGUAGE', 'LANG', 'LC_MESSAGES', 'LC_ALL']:
+                lang = os.environ.get(v)
+                if lang is not None:
+                    break
+            else:
                 return 'en_US'
             lang = lang.split(':')[0].split('.')[0]
         return lang
@@ -306,6 +320,7 @@ class Setting:
             see also: https://pyinstaller.readthedocs.io/en/stable/\
                 runtime-information.html#run-time-information
         """
+        logger.error("Setting.get_base_path will be removed in next version.")
         if Setting.base_path is not None:
             return os.path.join(Setting.base_path, path)
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -385,7 +400,7 @@ class Setting:
         logging.basicConfig(
             level=log_level,
             format=log_format,
-            handlers=[logging.StreamHandler(), logging.FileHandler(log_file, mode='w')]
+            handlers=[logging.StreamHandler(), logging.FileHandler(log_file, mode='w', encoding='utf-8')]
         )
 
         logger.info(f'Using log level: {Setting.log_level}, {log_level}')
@@ -401,6 +416,15 @@ class XMLPath(Enum):
     RENDERING_CONTROL = BASE_PATH + '/xml/RenderingControl.xml'
     SETTING_PAGE = BASE_PATH + '/xml/setting.html'
     PROTOCOL_INFO = BASE_PATH + '/xml/SinkProtocolInfo.csv'
+
+
+class AssetsPath:
+    BASE_PATH = os.path.dirname(__file__)
+    I18N = os.path.join(BASE_PATH, 'i18n')
+
+    @staticmethod
+    def join(*args):
+        return os.path.join(AssetsPath.BASE_PATH, *args)
 
 
 def load_xml(path):
