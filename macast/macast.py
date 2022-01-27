@@ -17,7 +17,7 @@ from .utils import SettingProperty, SETTING_DIR, notify_error, format_class_name
 from .gui import App, MenuItem, Platform
 from .protocol import DLNAProtocol
 from .server import Service
-from .utils import RENDERER_DIR, PROTOCOL_DIR, Setting, cherrypy_publish, load_xml, XMLPath
+from .utils import RENDERER_DIR, PROTOCOL_DIR, Setting, AssetsPath
 from macast_renderer.mpv import MPVRenderer
 
 logger = logging.getLogger("main")
@@ -244,11 +244,11 @@ class Macast(App):
         ]
 
     def build_setting_menu(self):
-        ip_text = "/".join([ip for ip, _ in Setting.get_ip()])
+        ip_text = "/".join([ip for ip, mask in Setting.get_ip()])
         port = Setting.get_port()
         self.ip_menuitem = MenuItem("{}:{}".format(ip_text, port), enabled=False)
         self.version_menuitem = MenuItem(
-            "{} v{}".format(Setting.get_friendly_name(), Setting.get_version()), enabled=False)
+            "{} v{}".format(Setting.get_friendly_name(), Setting.get_version_tag()), enabled=False)
         self.auto_check_update_menuitem = MenuItem(_("Auto Check Updates"),
                                                    self.on_auto_check_update_click,
                                                    checked=self.setting_check)
@@ -414,7 +414,7 @@ class Macast(App):
             ip_text = "/".join([ip for ip, _ in Setting.get_ip()])
             port = Setting.get_port()
             self.ip_menuitem.text = "{}:{}".format(ip_text, port)
-        self.version_menuitem.text = "{} v{}".format(Setting.get_friendly_name(), Setting.get_version())
+        self.version_menuitem.text = "{} v{}".format(Setting.get_friendly_name(), Setting.get_version_tag())
         self.update_menu()
 
     def renderer_av_stop(self):
@@ -509,7 +509,24 @@ class Macast(App):
         super(Macast, self).quit(item)
 
 
-def gui(renderer=None, protocol=None, lang=gettext.gettext):
+def get_lang():
+    locale = Setting.get_locale()
+    if not os.path.exists(os.path.join(AssetsPath.I18N, locale, 'LC_MESSAGES', 'macast.mo')):
+        locale = locale.split("_")[0]
+    logger.error("Macast Loading Language: {}".format(locale))
+    try:
+        lang = gettext.translation('macast', localedir=AssetsPath.I18N, languages=[locale])
+        lang.install()
+        return lang.gettext
+    except:
+        import builtins
+        builtins.__dict__['_'] = gettext.gettext
+        logger.error("Macast Loading Default Language en_US")
+        return gettext.gettext
+
+
+def gui(renderer=None, protocol=None):
+    lang = get_lang()
     if renderer is None:
         renderer = MPVRenderer(lang, Setting.mpv_default_path)
     if protocol is None:

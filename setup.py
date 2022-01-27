@@ -3,17 +3,32 @@ This is a setup.py script
 
 """
 
-import os
+import macast
 import sys
 from setuptools import setup, find_packages
+from setuptools.command.sdist import sdist
+from setuptools.command.install import install
+from setuptools.command.develop import develop
 
-VERSION = "0.0.0"
-with open('macast/.version', 'r') as f:
-    VERSION = f.read().strip()
-LONG_DESCRIPTION = ""
-with open('README.md', 'r', encoding='utf-8') as f:
-    LONG_DESCRIPTION = f.read()
-OPTIONS = {}
+try:
+    from wheel.bdist_wheel import bdist_wheel
+except ImportError:
+    bdist_wheel = None
+
+
+class CompileCatalogMixin():
+    def run(self):
+        self.run_command('compile_catalog')
+        super().run()
+
+
+VERSION = macast.__version__
+DESCRIPTION = "a DLNA Media Renderer"
+try:
+    with open('README.md', 'r', encoding='utf-8') as f:
+        LONG_DESCRIPTION = f.read()
+except:
+    LONG_DESCRIPTION = DESCRIPTION
 INSTALL = ["requests", "appdirs", "cherrypy", "lxml", "netifaces"]
 PACKAGES = find_packages()
 
@@ -29,12 +44,36 @@ else:
                 "pystray @ git+https://github.com/xfangfang/pystray.git",
                 "pyperclip @ git+https://github.com/xfangfang/pyperclip.git"]
 
+
+class SDist(CompileCatalogMixin, sdist):
+    pass
+
+
+class Install(CompileCatalogMixin, install):
+    pass
+
+
+class Develop(CompileCatalogMixin, develop):
+    pass
+
+
+CMD_CLS = {'sdist': SDist,
+           'install': Install,
+           'develop': Develop}
+
+if bdist_wheel:
+    class BDistWheel(CompileCatalogMixin, bdist_wheel):
+        pass
+
+
+    CMD_CLS['bdist_wheel'] = BDistWheel
+
 setup(
     name="macast",
     version=VERSION,
     author="xfangfang",
     author_email="xfangfang@126.com",
-    description="a DLNA Media Renderer",
+    description=DESCRIPTION,
     license="GPL3",
     url="https://github.com/xfangfang/Macast",
     long_description=LONG_DESCRIPTION,
@@ -46,13 +85,13 @@ setup(
                  'Programming Language :: Python :: 3.7',
                  'Programming Language :: Python :: 3.8',
                  'Programming Language :: Python :: 3.9',
+                 'Programming Language :: Python :: 3.10',
                  'Operating System :: MacOS :: MacOS X',
                  'Operating System :: Microsoft :: Windows :: Windows NT/2000',
                  'Operating System :: POSIX',
                  ],
     platforms=["MacOS X", "Windows", "POSIX"],
     keywords=["mpv", "dlna", "renderer"],
-    options=OPTIONS,
     install_requires=INSTALL,
     packages=PACKAGES,
     include_package_data=True,
@@ -63,4 +102,14 @@ setup(
         ]
     },
     python_requires=">=3.6",
+    setup_requires=['babel'],
+    cmdclass=CMD_CLS,
+    command_options={
+        'compile_catalog': {
+            "domain": ('setup.py', 'macast'),
+            "directory": ('setup.py', 'macast/i18n'),
+            "statistics": ('setup.py', 1),
+            "use_fuzzy": ('setup.py', 1),
+        }
+    },
 )
