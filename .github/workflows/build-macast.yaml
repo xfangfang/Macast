@@ -83,7 +83,7 @@ jobs:
           echo "DIST_AMD64=${DIST_AMD64}" >> $GITHUB_ENV
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
           docker run --rm -v "$(pwd):/src/" xfangfang/build-macast \
-              'pip install -r requirements/common.txt && \
+              'pip install -r requirements.txt && \
               pip install -U pyinstaller && \
               pyinstaller --noconfirm -F -w \
                 --additional-hooks-dir=. \
@@ -138,7 +138,7 @@ jobs:
 
       - name: Install Requirement
         run: |
-          pip3 install -r requirements/common.txt
+          pip3 install -r requirements.txt
           pip3 install pyinstaller
           $client = new-object System.Net.WebClient
           $client.DownloadFile('https://github.com/xfangfang/Macast/releases/download/v0.1/mpv-0.34.0-x86_64.7z','mpv.7z')
@@ -190,7 +190,7 @@ jobs:
 
       - name: Install Requirement
         run: |
-          pip3 install -r requirements/darwin.txt
+          pip3 install -r requirements.txt
           pip3 install py2app
           wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
           mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS

@@ -1,0 +1,16 @@
+appdirs~=1.4.4
+cherrypy~=18.6.1
+lxml~=4.7.1
+netifaces~=0.11.0
+requests~=2.27.1
+
+# install rumps 0.4.0 instead of 0.3.0 on pypi
+git+https://github.com/jaredks/rumps.git@018cabce9175aed3a77b747dc50118cd65a5374d ; sys_platform=='darwin'
+
+# fix gobject error on Linux, add Left click trigger on Windows
+git+https://github.com/xfangfang/pystray.git ; sys_platform!='darwin'
+pillow ; sys_platform!='darwin'
+
+# fix gtx3 error on linux
+git+https://github.com/xfangfang/pyperclip.git ; sys_platform=='linux'
+pyperclip~=1.8.2 ; sys_platform!='linux'
