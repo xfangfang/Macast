@@ -52,7 +52,7 @@ class MacastPlugin:
         if self.path is None:
             res['default'] = True
             res['desc'] = 'Macast default plugin'
-            res['version'] = Setting.version
+            res['version'] = Setting.get_version_tag()
         return res
 
     def get_instance(self):

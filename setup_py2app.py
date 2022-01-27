@@ -11,9 +11,7 @@ from setuptools import setup
 
 APP = ['Macast.py']
 DATA_FILES = []
-VERSION = "0.0.0"
-with open('macast/.version', 'r') as f:
-    VERSION = f.read().strip()
+exec(open('macast/__pkginfo__.py').read())
 copyright = 'Copyright {} xfangfang and the Macast contributors.'.format(datetime.datetime.now().year)
 OPTIONS = {
     'argv_emulation': True,
@@ -23,8 +21,8 @@ OPTIONS = {
         'LSMinimumSystemVersion': '10.12.0',
         'CFBundleIdentifier': 'cn.xfangfang.Macast',
         'NSHumanReadableCopyright': copyright,
-        'CFBundleShortVersionString': str(VERSION),
-        'CFBundleVersion': str(VERSION),
+        'CFBundleShortVersionString': __version__,
+        'CFBundleVersion': __version__,
     },
     'excludes': ['PIL', 'tkinter'],
     'packages': ['rumps', 'macast', 'macast_renderer'],
