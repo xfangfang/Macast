@@ -3,12 +3,13 @@ This is a setup.py script
 
 """
 
-import macast
 import sys
 from setuptools import setup, find_packages
 from setuptools.command.sdist import sdist
 from setuptools.command.install import install
 from setuptools.command.develop import develop
+
+exec(open('macast/__pkginfo__.py').read())
 
 try:
     from wheel.bdist_wheel import bdist_wheel
@@ -16,19 +17,17 @@ except ImportError:
     bdist_wheel = None
 
 
-class CompileCatalogMixin():
+class CompileCatalogMixin:
     def run(self):
         self.run_command('compile_catalog')
         super().run()
 
 
-VERSION = macast.__version__
-DESCRIPTION = "a DLNA Media Renderer"
 try:
     with open('README.md', 'r', encoding='utf-8') as f:
         LONG_DESCRIPTION = f.read()
 except:
-    LONG_DESCRIPTION = DESCRIPTION
+    LONG_DESCRIPTION = __description__
 INSTALL = ["requests", "appdirs", "cherrypy", "lxml", "netifaces"]
 PACKAGES = find_packages()
 
@@ -69,13 +68,13 @@ if bdist_wheel:
     CMD_CLS['bdist_wheel'] = BDistWheel
 
 setup(
-    name="macast",
-    version=VERSION,
-    author="xfangfang",
-    author_email="xfangfang@126.com",
-    description=DESCRIPTION,
-    license="GPL3",
-    url="https://github.com/xfangfang/Macast",
+    name=__name__,
+    version=__version__,
+    author=__author__,
+    author_email=__email__,
+    description=__description__,
+    license=__license__,
+    url=__url__,
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     classifiers=["Topic :: Multimedia :: Sound/Audio",

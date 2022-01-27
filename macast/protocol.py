@@ -1023,7 +1023,7 @@ class DLNAHandler(Handler):
             model_description="AVTransport Media Renderer",
             model_name="Macast",
             model_url="https://xfangfang.github.io/Macast",
-            model_number=Setting.get_version(),
+            model_number=Setting.get_version_tag(),
             uuid=Setting.get_usn(),
             serial_num=1024,
             header_extra="",

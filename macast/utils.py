@@ -21,6 +21,8 @@ elif sys.platform == 'win32':
     import win32api
     import win32con
 
+from .__pkginfo__ import __version__, __version_num__
+
 logger = logging.getLogger("Utils")
 DEFAULT_PORT = 0
 SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
@@ -74,11 +76,7 @@ class Setting:
         """
         logger.info("Load Setting")
         if Setting.version is None:
-            try:
-                with open(Setting.get_base_path('.version'), 'r') as f:
-                    Setting.version = f.read().strip()
-            except FileNotFoundError as e:
-                Setting.version = "0.0"
+            Setting.version = __version_num__
         if bool(Setting.setting) is False:
             if not os.path.exists(Setting.setting_path):
                 Setting.setting = {}
@@ -109,23 +107,17 @@ class Setting:
         return str(platform.system())
 
     @staticmethod
-    def get_version():
-        """Get application version
+    def get_version() -> float:
+        """Get application version in float
         """
         return Setting.version
 
     @staticmethod
-    def get_version_tag():
-        """Get application version in human read mode
+    def get_version_tag() -> str:
+        """Get application version in string
         112.45 => 112.4.5
         """
-        v = 0
-        try:
-            v = float(Setting.version)
-        except:
-            logger.error(f'Unexpected version format: f{Setting.version}')
-            return '0.0.0'
-        return f'{int(v)}.{int(v * 10 % 10)}.{int(v * 100 % 10)}'
+        return __version__
 
     @staticmethod
     def get_friendly_name():
@@ -333,7 +325,7 @@ class Setting:
     def get_server_info():
         return '{}/{} UPnP/1.0 Macast/{}'.format(Setting.get_system(),
                                                  Setting.get_system_version(),
-                                                 Setting.get_version())
+                                                 Setting.get_version_tag())
 
     @staticmethod
     def get_system_env():
