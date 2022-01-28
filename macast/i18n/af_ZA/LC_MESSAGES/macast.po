@@ -2,9 +2,9 @@ msgid ""
 msgstr ""
 "Project-Id-Version: macast\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-11-02 12:23+0800\n"
-"PO-Revision-Date: 2022-01-28 02:01\n"
-"Last-Translator: \n"
+"POT-Creation-Date: 2021-09-08 17:22+0800\n"
+"PO-Revision-Date: 2022-01-28 02:00\n"
+"Last-Translator: Albano Battistella <albano_battistella@hotmail.com>\n"
 "Language-Team: Afrikaans\n"
 "Language: af_ZA\n"
 "MIME-Version: 1.0\n"
@@ -16,8 +16,8 @@ msgstr ""
 "X-Crowdin-Project: macast\n"
 "X-Crowdin-Project-ID: 496963\n"
 "X-Crowdin-Language: af\n"
-"X-Crowdin-File: /dev_test/macast/i18n/zh_CN/LC_MESSAGES/macast.po\n"
-"X-Crowdin-File-ID: 55\n"
+"X-Crowdin-File: /dev_test/macast/i18n/it/LC_MESSAGES/macast.po\n"
+"X-Crowdin-File-ID: 53\n"
 
 msgid "Stop Cast"
 msgstr ""
@@ -37,9 +37,6 @@ msgstr ""
 msgid "Renderers"
 msgstr ""
 
-msgid "Protocols"
-msgstr ""
-
 msgid "Menubar Icon"
 msgstr ""
 
@@ -56,9 +53,6 @@ msgid "PatternDark"
 msgstr ""
 
 msgid "Open Config Directory"
-msgstr ""
-
-msgid "Advanced Setting"
 msgstr ""
 
 msgid "Check For Updates"
@@ -136,16 +130,10 @@ msgstr ""
 msgid "Fullscreen"
 msgstr ""
 
-msgid "Player Ontop"
-msgstr ""
-
 msgid "Hardware Decode"
 msgstr ""
 
 msgid "Force Dedicated GPU"
-msgstr ""
-
-msgid "Player Settings"
 msgstr ""
 
 msgid "Reload Player"
