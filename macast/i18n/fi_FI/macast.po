@@ -1,418 +1,542 @@
 # Copyright (c) 2021 by xfangfang. All Rights Reserved.
 
+import os
+import re
 import sys
+import time
+import json
+import cherrypy
 import logging
-import subprocess
-from enum import Enum
-from .utils import Setting
-from typing import Callable
+import threading
+import requests
+import pyperclip
+import gettext
+import importlib
 
-if sys.platform == 'darwin':
-    import rumps
-else:
-    import pystray
-    import webbrowser
-    from PIL import Image
+from .utils import SettingProperty, SETTING_DIR, notify_error, format_class_name
+from .gui import App, MenuItem, Platform
+from .protocol import DLNAProtocol
+from .server import Service
+from .utils import RENDERER_DIR, PROTOCOL_DIR, Setting, AssetsPath
+from macast_renderer.mpv import MPVRenderer
 
-logger = logging.getLogger("GUI")
-
-
-class Platform(Enum):
-    Darwin = 0
-    Win32 = 1
-    Others = 2
+logger = logging.getLogger("main")
+_ = gettext.gettext
 
 
-class MenuItem:
-    def __init__(self, text, callback=None, checked=None, enabled=True,
-                 children=None, data=None, key=None):
-        """
-        :param text: the text shows on this menu item
-        :param callback: the function serving as callback for when a click event occurs on this menu item
-        :param checked: True if you want show a check mark on this menu item
-        :param enabled: Literally
-        :param children: a list of MenuItem, if it is not empty, callback will not be called
-        :param data: set additional data to this menu item, it can be obtained through callback
-        :param key: the key shortcut to click this menu item
-        """
-        self.view = None
-        if sys.platform == 'darwin':
-            self.platform = Platform.Darwin
-        elif sys.platform == 'win32':
-            self.platform = Platform.Win32
-        else:
-            self.platform = Platform.Others
+class MacastPlugin:
 
-        self._text = text
-        self.callback = callback
-        self.children = children
-        self._checked = checked
-        self._enabled = enabled
-        self.data = data
-        self.id = text
-        self.key = key
-
-        logger.log(1, f'Create MenuItem: {text} with data: {data}')
-
-    @property
-    def text(self):
-        return self._text
-
-    @property
-    def checked(self):
-        return self._checked
-
-    @property
-    def enabled(self):
-        return self._enabled
-
-    @text.setter
-    def text(self, value):
-        self._text = value
-        if self.view is None:
-            return
-        if self.platform == Platform.Darwin:
-            self.view.title = self._text
-
-    @checked.setter
-    def checked(self, value):
-        self._checked = value
-        if self.view is None:
-            return
-        if self.platform == Platform.Darwin:
-            self.view.state = 1 if self._checked else 0
-
-    @enabled.setter
-    def enabled(self, value):
-        self._enabled = value
-        if self.view is None:
-            return
-        if self.platform == Platform.Darwin:
-            state = 1 if self._checked else 0
-            self.view.set_callback(
-                self._rumpsCallback if self._enabled else None,
-                self.key)
-
-    def items(self):
-        return [] if self.children is None else self.children
-
-    def _pystrayCallback(self, app, item):
-        """ Decoration of pystray callback function
-        :param app: pystray app instance
-        :param item: pystray menu item instance
-        :return:
-        """
-        logger.debug(f'Click menu item: {self.text} with data: {self.data}')
-        self.callback(self)
-
-    def _rumpsCallback(self, item):
-        """ Decoration of rumps callback function
-        :param item: rumps menu item instance
-        :return:
-        """
-        logger.debug(f'Click menu item: {self.text} with data: {self.data}')
-        self.callback(self)
-
-
-class App:
-    def __init__(self, name: str, icon: str, menu: [MenuItem], template=True):
-        """
-
-        :param name: App name
-        :param icon: Menubar icon
-        :param menu: a list of MenuItem, see the DemoApp at the end of this file for example
-        :param template: If true, the icon color will be switched according to the system theme color, Macos only.
-        """
-        self.name = name
-        self.icon = icon
-        self.app = None
-        self.menu = menu
-        self.menuDict = {}
-        self.template = template
-        if sys.platform == 'darwin':
-            self.platform = Platform.Darwin
-            self.init_platform_darwin()
-        elif sys.platform == 'win32':
-            self.platform = Platform.Win32
-            self.init_platform_win32()
-        else:
-            self.platform = Platform.Others
-            self.init_platform_others()
-
-        if self.platform == Platform.Darwin:
-            self.app = rumps.App(self.name,
-                                 icon=self.icon,
-                                 menu=self._build_menu_rumps(self.menu),
-                                 template=self.template,
-                                 quit_button=None)
-            rumps.debug_mode(True)
-        else:
-            self.app = pystray.Icon(self.name,
-                                    Image.open(self.icon),
-                                    menu=pystray.Menu(
-                                        lambda:
-                                        self._build_menu_pystray(self.menu)))
-
-    def init_platform_darwin(self):
-        pass
-
-    def init_platform_win32(self):
-        pass
-
-    def init_platform_others(self):
-        pass
-
-    def _build_menu_rumps(self, menu: [MenuItem]):
-        items = []
-        for item in menu:
-            if item is None:
-                items.append(None)
-            elif item.children is not None:
-                menu_item = rumps.MenuItem(item.text)
-                items.append([menu_item, self._build_menu_rumps(item.children)])
-            else:
-                items.append(self._build_menu_item_rumps(item))
-        return items
-
-    def _build_menu_item_rumps(self, item: MenuItem):
-        callback = item._rumpsCallback if item.enabled else None
-        menu_item = rumps.MenuItem(item.text, callback, item.key)
-        menu_item.state = 1 if item.checked else 0
-        item.view = menu_item
-        # rumps using `text` as key to find a menu item
-        item.id = item.text
-        return menu_item
-
-    def _build_menu_pystray(self, menu: [MenuItem]):
-        items = []
-        for item in menu:
-            if item is None:
-                items.append(pystray.Menu.SEPARATOR)
-            elif item.children is not None and len(item.children) > 0:
-                menu_item = pystray.MenuItem(
-                    item.text, pystray.Menu(
-                        *self._build_menu_pystray(item.children)))
-                items.append(menu_item)
-            else:
-                menu_item = pystray.MenuItem(lambda i: i.view.text,
-                                             item._pystrayCallback,
-                                             lambda i: True if i.view.checked
-                                             else None,
-                                             enabled=lambda i: i.view.enabled)
-                item.view = menu_item
-                menu_item.view = item
-                items.append(menu_item)
-        return items
-
-    def update_icon(self, icon: str, template=True):
-        self.icon = icon
-        if self.platform == Platform.Darwin:
-            self.app.template = template
-            self.app.icon = self.icon
-        else:
-            self.app.icon = Image.open(self.icon)
-
-    def update_menu(self):
-        """ refresh current menu
-            only windows and linux needed
-        """
-        if self.platform != Platform.Darwin:
-            self.app.update_menu()
-
-    def set_menu(self, menu: [MenuItem]):
-        self.menu = menu
-        if self.platform == Platform.Darwin:
-            self.app.menu.clear()
-            self.app.menu = self._build_menu_rumps(menu)
-        else:
-            self.app.menu = pystray.Menu(lambda: self._build_menu_pystray(menu))
-
-    def _find_menu_item_index_by_id(self, item_id: str):
-        """
-        This method is only for linux and windows
-        :param item_id:
-        :return:
-        """
-        #  TODO find all items
-        for i, item in enumerate(self.menu):
-            if item.id is not None and item.id == item_id:
-                return i
-        logger.error("Canot find id:{}.".format(item_id))
-        return -1
-
-    def append_menu_item_after(self, item_id: str, menu_item: MenuItem):
-        if self.platform == Platform.Darwin:
-            self.app.menu.insert_after(item_id, self._build_menu_item_rumps(menu_item))
-        else:
-            index = self._find_menu_item_index_by_id(item_id)
-            if index != -1:
-                self.menu.insert(index + 1, menu_item)
-                self.app.update_menu()
-
-    def append_menu_item_before(self, item_id: str, menu_item: MenuItem):
-        if self.platform == Platform.Darwin:
-            self.app.menu.insert_before(item_id, self._build_menu_item_rumps(menu_item))
-        else:
-            index = self._find_menu_item_index_by_id(item_id)
-            if index != -1:
-                self.menu.insert(index, menu_item)
-                self.app.update_menu()
-
-    def remove_menu_item_by_id(self, item_id: str):
-        if self.platform == Platform.Darwin:
-            if item_id in self.app.menu:
-                self.app.menu.pop(item_id)
-        else:
-            index = self._find_menu_item_index_by_id(item_id)
-            if index != -1:
-                self.menu.pop(index)
-                self.app.update_menu()
-
-    def start(self):
-        self.app.run()
-
-    def quit(self, _):
-        if self.platform == Platform.Darwin:
-            rumps.quit_application()
-        else:
+    def __init__(self, path, title="None", plugin_instance=None, platform='none'):
+        # path is allowed to be set to None only when renderer is macast default plugin
+        self.path = path
+        self.title = title
+        self.plugin_class = None
+        self.plugin_instance = plugin_instance
+        self.platform = platform
+        if path:
             try:
-                self.app.remove_notification()
-            except NotImplementedError as e:
-                pass
-            self.app.stop()
-
-    def alert(self, content: str):
-        if self.platform == Platform.Darwin:
-            rumps.alert(content)
-        else:
-            self.notification(content, "Macast")
-
-    def notification(self, title: str, content: str, sound=True):
-        if self.platform == Platform.Darwin:
-            rumps.notification(title, "", content, sound=sound)
-        else:
-            try:
-                self.app.notify(message=content, title=title)
-            except NotImplementedError as e:
-                pass
-
-    def dialog(self, content: str, callback=None, cancel="Cancel", ok="Ok"):
-        if self.platform == Platform.Darwin:
-            try:
-                res = Setting.system_shell(
-                    ['osascript',
-                     '-e',
-                     f'display dialog "{content}" '
-                     f'with icon POSIX file "{Setting.get_base_path("assets/icon.icns")}"'
-                     f'with title "Macast" buttons {{"{cancel}","{ok}"}}'
-                     ])
-                if ok in res[1] and callback:
-                    callback()
+                self.load_from_file(path)
             except Exception as e:
-                self.notification("Error", "Cannot access System Events")
-                logger.error(f"Cannot access System Events: {e}")
-                callback()
+                cherrypy.engine.publish('app_notify', 'ERROR', 'Custom plugin load error.')
+                logger.error(str(e))
+
+    def get_info(self):
+        props = ['protocol', 'title', 'renderer', 'platform', 'version', 'author', 'desc']
+        res = {'default': False}
+        for i in props:
+            res[i] = getattr(self, i, '')
+        if getattr(self, 'renderer', None) is not None:
+            res['type'] = 'renderer'
+        if getattr(self, 'protocol', None) is not None:
+            res['type'] = 'protocol'
+        if self.path is None:
+            res['default'] = True
+            res['desc'] = 'Macast default plugin'
+            res['version'] = Setting.get_version_tag()
+        return res
+
+    def get_instance(self):
+        if self.plugin_instance is None and self.plugin_class is not None:
+            self.plugin_instance = self.plugin_class()
+
+        return self.plugin_instance
+
+    def check(self):
+        """ Check if this renderer can run on your device
+        """
+        if self.plugin_class is None:
+            return False
+        if sys.platform in self.platform:
+            return True
+
+        logger.info(f"{self.title} support platform: {self.platform}")
+        logger.info(f"{self.title} is not suit for this system.")
+        return False
+
+    def load_from_file(self, path):
+        base_name = os.path.basename(path)[:-3]
+        with open(path, 'r', encoding='utf-8') as f:
+            renderer_file = f.read()
+            metadata = re.findall("<macast.(.*?)>(.*?)</macast", renderer_file)
+            logger.info("=" * 10 + f"< Load Plugin from {base_name}")
+            for key, value in metadata:
+                setattr(self, key, str(value))
+        if hasattr(self, 'renderer'):
+            module = importlib.import_module(f'{RENDERER_DIR}.{base_name}')
+            logger.info('\n'.join([f'{k}: {v}' for k, v in metadata]) +
+                        f'\nLoad plugin {self.renderer} done />\n'
+                        )
+            self.plugin_class = getattr(module, self.renderer, None)
+        elif hasattr(self, 'protocol'):
+            module = importlib.import_module(f'{PROTOCOL_DIR}.{base_name}')
+            logger.info('\n'.join([f'{k}: {v}' for k, v in metadata]) +
+                        f'\nLoad plugin {self.protocol} done />\n'
+                        )
+            self.plugin_class = getattr(module, self.protocol, None)
         else:
-            self.notification("Macast", content)
-            if callable(callback):
-                callback()
+            logger.error(f"Cannot find any plugin in {base_name}")
+            return
+
+
+class MacastPluginManager:
+
+    def __init__(self, renderer_default, protocol_default):
+        sys.path.append(SETTING_DIR)
+        self.create_plugin_dir(RENDERER_DIR)
+        self.create_plugin_dir(PROTOCOL_DIR)
+        self.renderer_list = [renderer_default]
+        self.renderer_list += self.load_macast_plugin(RENDERER_DIR)
+        self.protocol_list = [protocol_default]
+        self.protocol_list += self.load_macast_plugin(PROTOCOL_DIR)
+
+    def get_renderer(self, name):
+        plugin = self.get_plugin_from_list(self.renderer_list, name)
+        Setting.set(SettingProperty.Macast_Renderer, plugin.title)
+        return plugin.get_instance()
+
+    def get_protocol(self, name):
+        plugin = self.get_plugin_from_list(self.protocol_list, name)
+        Setting.set(SettingProperty.Macast_Protocol, plugin.title)
+        return plugin.get_instance()
+
+    def get_info(self):
+        res = []
+        for r in self.renderer_list:
+            res.append(r.get_info())
+        for p in self.protocol_list:
+            res.append(p.get_info())
+        return res
 
     @staticmethod
-    def get_env():
-        """
-        The program packaged with pyinstaller on Linux can't read system variables correctly,
-        so it can't run programs such as xdg-open.
-        You can get the correct environment variables by using this method
-        :return: env in dict
-        """
-        # https://github.com/pyinstaller/pyinstaller/issues/3668#issuecomment-742547785
-        env = Setting.get_system_env()
-        toDelete = []
-        for (k, v) in env.items():
-            if k != 'PATH' and 'tmp' in v:
-                toDelete.append(k)
-        for k in toDelete:
-            env.pop(k, None)
-        return env
-
-    def open_browser(self, url: str):
-        """
-        Open a website using the default browser
-        :param url:
-        :return:
-        """
-        if self.platform == Platform.Darwin:
-            subprocess.Popen(['open', url])
-        elif self.platform == Platform.Win32:
-            webbrowser.open_new(url)
+    def get_plugin_from_list(plugin_list, title) -> MacastPlugin:
+        for i in plugin_list:
+            if title == i.title:
+                logger.info(f"using plugin: {title}")
+                return i
         else:
-            subprocess.Popen(["xdg-open", url], env=App.get_env())
-
-    def open_directory(self, path: str):
-        """
-        Open a local folder
-        :param path: directory path
-        :return:
-        """
-        if self.platform == Platform.Darwin:
-            subprocess.Popen(['open', path])
-        elif self.platform == Platform.Win32:
-            subprocess.Popen(['explorer.exe', path])
-        else:
-            subprocess.Popen(["xdg-open", path], env=App.get_env())
+            logger.info("using default plugin")
+            return plugin_list[0]
 
     @staticmethod
-    def build_menu_item_group(titles: [str], callback: Callable[[MenuItem], None]):
-        items = []
-        for index, title in enumerate(titles):
-            item = MenuItem(title, callback, data=index)
-            items.append(item)
-        return items
+    def load_macast_plugin(path: str):
+        plugin_path = os.path.join(SETTING_DIR, path)
+        if not os.path.exists(plugin_path):
+            return
+        plugin_list = []
+        plugins = os.listdir(plugin_path)
+        plugins = filter(lambda s: s.endswith('.py') and s != '__init__.py', plugins)
+        for plugin in plugins:
+            path = os.path.join(plugin_path, plugin)
+            plugin_config = MacastPlugin(path)
+            if plugin_config.check():
+                plugin_list.append(plugin_config)
+        return plugin_list
+
+    @staticmethod
+    @notify_error('Cannot create custom plugin dir.')
+    def create_plugin_dir(path):
+        custom_module_path = os.path.join(SETTING_DIR, path)
+        if not os.path.exists(custom_module_path):
+            os.makedirs(custom_module_path)
+        init_file_path = os.path.join(custom_module_path, '__init__.py')
+        if not os.path.exists(init_file_path):
+            open(init_file_path, 'a').close()
 
 
-if __name__ == '__main__':
-    class DemoApp(App):
-        def __init__(self):
-            super(DemoApp, self).__init__("Macast",
-                                          "assets/menu_light.png",
-                                          [MenuItem("Add",
-                                                    self.add,
-                                                    data=1,
-                                                    key="a"),
-                                           MenuItem("Remove",
-                                                    self.remove,
-                                                    data=1,
-                                                    key="b"),
-                                           MenuItem("Quit", self.quit)])
+class Macast(App):
+    if sys.platform == 'win32':
+        ICON_MAP = ['assets/icon.ico',
+                    'assets/menu_light_large.png',
+                    'assets/menu_dark_large.png']
+    else:
+        ICON_MAP = ['assets/icon.png',
+                    'assets/menu_light.png',
+                    'assets/menu_dark.png']
 
-        def test_call(self, item):
-            print("testCall: ", item)
-            item.text = "123"
+    def __init__(self, renderer, protocol, lang=gettext.gettext):
+        global _
+        _ = lang
+        # menu items
+        self.toggle_menuitem = None
+        self.setting_menuitem = None
+        self.quit_menuitem = None
+        self.ip_menuitem = None
+        self.version_menuitem = None
+        self.auto_check_update_menuitem = None
+        self.start_at_login_menuitem = None
+        self.menubar_icon_menuitem = None
+        self.check_update_menuitem = None
+        self.about_menuitem = None
+        self.open_config_menuitem = None
+        self.renderer_menuitem = None
+        self.protocol_menuitem = None
+        self.advanced_menuitem = None
+        self.copy_menuitem = None
 
-        def remove(self, item):
-            menu = [MenuItem("Add",
-                             self.add,
-                             data=1,
-                             key="a"),
-                    MenuItem("Remove",
-                             self.remove,
-                             data=1,
-                             key="r"),
-                    MenuItem("Quit", self.quit)]
-            self.set_menu(menu)
+        # setting items
+        self.setting_start_at_login = None
+        self.setting_check = None
+        self.setting_menubar_icon = 0
+        self.setting_renderer = ''
+        self.setting_protocol = ''
+        self.init_setting()
 
-        def add(self, item):
-            print("add", item.data)
-            item = MenuItem("Test", None, children=[
-                MenuItem("Test1", self.test_call, data=1),
-                None,
-                MenuItem("Test2", self.test_call, data=2),
-                MenuItem("Test3", self.test_call, data=3),
-            ])
-            self.append_menu_item_after("Add", item)
+        # setting logger
+        Setting.setup_logger()
 
-        def quit(self, _):
-            super(DemoApp, self).quit(_)
+        # load plugins from file
+        self.plugin_manager = MacastPluginManager(
+            MacastPlugin(None, format_class_name(renderer), renderer, 'darwin,win32,linux'),
+            MacastPlugin(None, format_class_name(protocol), protocol, 'darwin,win32,linux'))
+        cherrypy.engine.subscribe('get_plugin_info', self.plugin_manager.get_info)
+
+        # init service
+        self.service = Service(self.plugin_manager.get_renderer(self.setting_renderer),
+                               self.plugin_manager.get_protocol(self.setting_protocol))
+
+        # init app
+        icon_path = os.path.join(os.path.dirname(__file__), Macast.ICON_MAP[self.setting_menubar_icon])
+        template = None if self.setting_menubar_icon == 0 else True
+        super(Macast, self).__init__("Macast",
+                                     icon_path,
+                                     self.build_app_menu(),
+                                     template
+                                     )
+        cherrypy.engine.subscribe('start', self.service_start)
+        cherrypy.engine.subscribe('stop', self.service_stop)
+        cherrypy.engine.subscribe('renderer_start', self.renderer_start)
+        cherrypy.engine.subscribe('renderer_av_stop', self.renderer_av_stop)
+        cherrypy.engine.subscribe('renderer_av_uri', self.renderer_av_uri)
+        cherrypy.engine.subscribe('update_ip', self.update_service_ip)
+        cherrypy.engine.subscribe('app_notify', self.notification)
+        self.start_cast()
+        logger.info("Macast APP started")
+
+    def build_app_menu(self):
+        self.toggle_menuitem = MenuItem(_("Stop Cast"), self.on_toggle_service_click, key="p")
+        self.setting_menuitem = MenuItem(_("Setting"), children=self.build_setting_menu())
+        self.quit_menuitem = MenuItem(_("Quit"), self.quit, key="q")
+        return [
+            self.toggle_menuitem,
+            None,
+            self.setting_menuitem,
+            self.quit_menuitem
+        ]
+
+    def build_setting_menu(self):
+        ip_text = "/".join([ip for ip, mask in Setting.get_ip()])
+        port = Setting.get_port()
+        self.ip_menuitem = MenuItem("{}:{}".format(ip_text, port), enabled=False)
+        self.version_menuitem = MenuItem(
+            "{} v{}".format(Setting.get_friendly_name(), Setting.get_version_tag()), enabled=False)
+        self.auto_check_update_menuitem = MenuItem(_("Auto Check Updates"),
+                                                   self.on_auto_check_update_click,
+                                                   checked=self.setting_check)
+        self.start_at_login_menuitem = MenuItem(_("Start At Login"),
+                                                self.on_start_at_login_click,
+                                                checked=self.setting_start_at_login)
+
+        renderer_names = [r.title for r in self.plugin_manager.renderer_list]
+        renderer_select = []
+        if len(renderer_names) > 1:
+            self.renderer_menuitem = MenuItem(_("Renderers"),
+                                              children=App.build_menu_item_group(renderer_names,
+                                                                                 self.on_renderer_change_click))
+            renderer_select = [self.renderer_menuitem]
+            for i in self.renderer_menuitem.children:
+                if i.text == self.setting_renderer:
+                    i.checked = True
+                    break
+            else:
+                self.renderer_menuitem.children[0].checked = True
+
+        protocol_names = [r.title for r in self.plugin_manager.protocol_list]
+        protocol_select = []
+        if len(protocol_names) > 1:
+            self.protocol_menuitem = MenuItem(_("Protocols"),
+                                              children=App.build_menu_item_group(protocol_names,
+                                                                                 self.on_protocol_change_click))
+            protocol_select = [self.protocol_menuitem]
+            for i in self.protocol_menuitem.children:
+                if i.text == self.setting_protocol:
+                    i.checked = True
+                    break
+            else:
+                self.protocol_menuitem.children[0].checked = True
+
+        platform_options = []
+        """To judge whether Macast was launched by scripts or by packaged app.
+        """
+        if sys.platform == 'darwin' and sys.executable.endswith("Contents/MacOS/python"):
+            platform_options = [self.start_at_login_menuitem]
+            # Reset StartAtLogin to prevent the user from turning off
+            # this option from the system settings
+            Setting.set_start_at_login(self.setting_start_at_login)
+        elif sys.platform == 'win32' and "python" not in os.path.basename(sys.executable).lower():
+            platform_options = [self.start_at_login_menuitem]
+            Setting.set_start_at_login(self.setting_start_at_login)
+        if sys.platform == 'darwin':
+            self.menubar_icon_menuitem = MenuItem(_("Menubar Icon"),
+                                                  children=App.build_menu_item_group([
+                                                      _("AppIcon"),
+                                                      _("Pattern"),
+                                                  ], self.on_menubar_icon_change_click))
+        else:
+            self.menubar_icon_menuitem = MenuItem(_("Menubar Icon"),
+                                                  children=App.build_menu_item_group([
+                                                      _("AppIcon"),
+                                                      _("PatternLight"),
+                                                      _("PatternDark"),
+                                                  ], self.on_menubar_icon_change_click))
+        self.open_config_menuitem = MenuItem(_("Open Config Directory"), self.on_open_config_click)
+        self.advanced_menuitem = MenuItem(_("Advanced Setting"),
+                                          lambda _: self.open_browser('http://127.0.0.1:{}'.format(Setting.get_port())))
+        self.check_update_menuitem = MenuItem(_("Check For Updates"), self.on_check_click)
+        self.about_menuitem = MenuItem(_("Help"), self.on_about_click)
+
+        self.menubar_icon_menuitem.items()[self.setting_menubar_icon].checked = True
+        player_settings = self.service.renderer.renderer_setting.build_menu()
+        if len(player_settings) > 0:
+            player_settings.append(None)
+
+        return [self.version_menuitem, self.ip_menuitem] + \
+               renderer_select + \
+               protocol_select + \
+               [None] + \
+               player_settings + \
+               [self.menubar_icon_menuitem, self.auto_check_update_menuitem,
+                self.open_config_menuitem, self.advanced_menuitem] + \
+               platform_options + \
+               [None, self.check_update_menuitem, self.about_menuitem]
+
+    def init_setting(self):
+        self.setting_start_at_login = Setting.get(SettingProperty.StartAtLogin, 0)
+        self.setting_check = Setting.get(SettingProperty.CheckUpdate, 1)
+        self.setting_menubar_icon = Setting.get(SettingProperty.MenubarIcon, 1 if sys.platform == 'darwin' else 0)
+        self.setting_renderer = Setting.get(SettingProperty.Macast_Renderer, 'MPV')
+        self.setting_protocol = Setting.get(SettingProperty.Macast_Protocol, 'DLNA')
+        if self.setting_check:
+            threading.Thread(target=self.check_update,
+                             kwargs={
+                                 'verbose': False
+                             },
+                             daemon=True,
+                             name="CHECKUPDATE_THREAD").start()
+
+    def stop_cast(self):
+        self.service.stop()
+
+    def start_cast(self):
+        self.service.run_async()
+
+    def check_update(self, verbose=True):
+        release_url = 'https://github.com/xfangfang/Macast/releases/latest'
+        api_url = 'https://api.github.com/repos/xfangfang/Macast/releases/latest'
+        try:
+            res = json.loads(requests.get(api_url).text)
+            online_version = re.findall(r'(\d+\.*\d+)', res['tag_name'])[0]
+
+            logger.info("tag_name: {}".format(res['tag_name']))
+
+            if float(Setting.get_version()) < float(online_version):
+                self.dialog(_("Macast New Update {}").format(res['tag_name']),
+                            lambda: self.open_browser(release_url),
+                            ok="Update")
+            else:
+                if verbose:
+                    self.notification("Macast", _("You're up to date."))
+        except Exception as e:
+            logger.error("get update info error: {}".format(e))
+
+    # The followings are the callback function of program event
+
+    def update_service_status(self):
+        if Setting.is_service_running():
+            self.toggle_menuitem.text = _('Stop Cast')
+        else:
+            self.toggle_menuitem.text = _('Start Cast')
+        self.update_menu()
+
+    def service_start(self):
+        """This function is called every time the DLNA service is started.
+        Displays a notification reminding the user that the service has started
+        """
+        logger.info("service_start")
+        if self.platform is Platform.Win32:
+            msg = _("running at task bar")
+        elif self.platform is Platform.Darwin:
+            msg = _("running at menu bar")
+        else:
+            msg = _("running at desktop panel")
+        if self.platform == Platform.Darwin:
+            self.notification(_("Macast is hidden"), msg, sound=False)
+        else:
+            # Pystray may fail to send notifications due to incomplete initialization
+            # during the startup, so wait a moment
+            threading.Thread(target=lambda: (
+                time.sleep(2),
+                self.notification(_("Macast is hidden"), msg, sound=False),
+            )).start()
+        self.update_service_status()
+
+    def service_stop(self):
+        """This function is called every time the DLNA service is stopped.
+        """
+        logger.info("service_stop")
+        self.update_service_status()
+
+    def update_service_ip(self):
+        """When the IP or port of the device changes,
+        call this function to refresh the device address on the menu
+        """
+        logger.info(f"update_ip: {Setting.last_ip}")
+        if self.ip_menuitem is not None:
+            ip_text = "/".join([ip for ip, _ in Setting.get_ip()])
+            port = Setting.get_port()
+            self.ip_menuitem.text = "{}:{}".format(ip_text, port)
+        self.version_menuitem.text = "{} v{}".format(Setting.get_friendly_name(), Setting.get_version_tag())
+        self.update_menu()
+
+    def renderer_av_stop(self):
+        logger.info("renderer_av_stop")
+        if self.copy_menuitem:
+            self.remove_menu_item_by_id(self.copy_menuitem.id)
+        self.copy_menuitem = None
+
+    def renderer_start(self):
+        pass
+
+    def renderer_av_uri(self, uri):
+        logger.info("renderer_av_uri: " + uri)
+        if self.copy_menuitem is not None:
+            self.copy_menuitem.callback = lambda _: pyperclip.copy(uri)
+            return
+        self.copy_menuitem = MenuItem(
+            _("Copy Video URI"),
+            key="c",
+            callback=lambda _: pyperclip.copy(uri))
+        self.append_menu_item_after(self.toggle_menuitem.id, self.copy_menuitem)
+
+    # The followings are the callback function of menu click
+
+    def on_protocol_change_click(self, item: MenuItem):
+        protocol_config = self.plugin_manager.protocol_list[item.data]
+        self.stop_cast()
+        self.service.protocol = protocol_config.get_instance()
+        Setting.set(SettingProperty.Macast_Protocol, protocol_config.title)
+        self.setting_protocol = protocol_config.title
+        self.setting_menuitem.children = self.build_setting_menu()
+        # reload menu
+        self.set_menu(self.menu)
+        self.start_cast()
+        cherrypy.engine.publish('app_notify', _('Info'), _('Change Protocol to {}.').format(protocol_config.title))
+
+    def on_renderer_change_click(self, item: MenuItem):
+        renderer_config = self.plugin_manager.renderer_list[item.data]
+        self.stop_cast()
+        self.service.renderer = renderer_config.get_instance()
+        Setting.set(SettingProperty.Macast_Renderer, renderer_config.title)
+        self.setting_renderer = renderer_config.title
+        self.setting_menuitem.children = self.build_setting_menu()
+        # reload menu
+        self.set_menu(self.menu)
+        self.start_cast()
+        cherrypy.engine.publish('app_notify', _('Info'), _('Change Renderer to {}.').format(renderer_config.title))
+
+    def on_open_config_click(self, item):
+        self.open_directory(SETTING_DIR)
+
+    def on_check_click(self, item):
+        threading.Thread(target=self.check_update,
+                         daemon=True,
+                         name="CHECKUPDATE_M_THREAD").start()
+
+    def on_auto_check_update_click(self, item):
+        item.checked = not item.checked
+        Setting.set(SettingProperty.CheckUpdate,
+                    1 if item.checked else 0)
+
+    def on_start_at_login_click(self, item):
+        res = Setting.set_start_at_login(not item.checked)
+        if res[0] == 0:
+            item.checked = not item.checked
+            Setting.set(SettingProperty.StartAtLogin,
+                        1 if item.checked else 0)
+        else:
+            self.notification(_("Error"), _(res[1]))
+
+    def on_about_click(self, _):
+        self.open_browser('http://127.0.0.1:{}?page=4'.format(Setting.get_port()))
+
+    def on_toggle_service_click(self, item):
+        if Setting.is_service_running():
+            self.stop_cast()
+        else:
+            self.start_cast()
+
+    def on_menubar_icon_change_click(self, item):
+        for i in self.menubar_icon_menuitem.items():
+            i.checked = False
+        item.checked = True
+        Setting.set(SettingProperty.MenubarIcon, item.data)
+        icon_path = os.path.join(os.path.dirname(__file__), Macast.ICON_MAP[item.data])
+        template = None if item.data == 0 else True
+        self.update_icon(icon_path, template)
+
+    def quit(self, item):
+        if Setting.is_service_running():
+            self.stop_cast()
+        super(Macast, self).quit(item)
 
 
-    DemoApp().start()
+def get_lang():
+    locale = Setting.get_locale()
+    if not os.path.exists(os.path.join(AssetsPath.I18N, locale, 'LC_MESSAGES', 'macast.mo')):
+        locale = locale.split("_")[0]
+    logger.error("Macast Loading Language: {}".format(locale))
+    try:
+        lang = gettext.translation('macast', localedir=AssetsPath.I18N, languages=[locale])
+        lang.install()
+        return lang.gettext
+    except:
+        import builtins
+        builtins.__dict__['_'] = gettext.gettext
+        logger.error("Macast Loading Default Language en_US")
+        return gettext.gettext
+
+
+def gui(renderer=None, protocol=None):
+    lang = get_lang()
+    if renderer is None:
+        renderer = MPVRenderer(lang, Setting.mpv_default_path)
+    if protocol is None:
+        protocol = DLNAProtocol()
+    Macast(renderer, protocol, lang).start()
+
+
+def cli(renderer=None, protocol=None):
+    if renderer is None:
+        renderer = MPVRenderer(path=Setting.mpv_default_path)
+    if protocol is None:
+        protocol = DLNAProtocol()
+    Service(renderer, protocol).run()
