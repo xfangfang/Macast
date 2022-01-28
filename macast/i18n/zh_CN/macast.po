@@ -1,208 +1,495 @@
 # Copyright (c) 2021 by xfangfang. All Rights Reserved.
 
-import gettext
+import os
+import sys
+import uuid
+import json
+import time
+import ctypes
+import appdirs
 import logging
+import platform
+import locale
 import cherrypy
+import subprocess
+from enum import Enum
+import netifaces as ni
 
-from .protocol import Protocol
-from .utils import cherrypy_publish
+if sys.platform == 'darwin':
+    from AppKit import NSBundle
+elif sys.platform == 'win32':
+    import win32api
+    import win32con
 
-logger = logging.getLogger("Renderer")
+from .__pkginfo__ import __version__, __version_num__
+
+logger = logging.getLogger("Utils")
+DEFAULT_PORT = 0
+SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
+PROTOCOL_DIR = 'protocol'
+RENDERER_DIR = 'renderer'
+LOG_LEVEL = {
+    'ERROR': 40,
+    'INFO': 20,
+    'DEBUG': 10,
+    'ALL': 0
+}
 
 
-class Renderer:
-    """Media Renderer base class
-    By inheriting this class,
-    you can use a variety of players as media renderer
-    see also: class MPVRender
+class SettingProperty(Enum):
+    USN = 0
+    CheckUpdate = 1
+    StartAtLogin = 2
+    MenubarIcon = 3
+    ApplicationPort = 4
+    DLNA_FriendlyName = 5
+    Macast_Renderer = 6
+    Macast_Protocol = 7
+    Blocked_Interfaces = 8
+    Additional_Interfaces = 9
+    Macast_Log = 10
+
+
+class Setting:
+    setting = {}
+    version = None
+    setting_path = os.path.join(SETTING_DIR, "macast_setting.json")
+    last_ip = None
+    base_path = None
+    friendly_name = "Macast({})".format(platform.node())
+    temp_friendly_name = None
+    mpv_default_path = 'mpv'
+    log_level = None
+
+    @staticmethod
+    def save():
+        """Save user settings
+        """
+        if not os.path.exists(SETTING_DIR):
+            os.makedirs(SETTING_DIR)
+        with open(Setting.setting_path, "w") as f:
+            json.dump(obj=Setting.setting, fp=f, sort_keys=True, indent=4)
+
+    @staticmethod
+    def load():
+        """Load user settings
+        """
+        logger.info("Load Setting")
+        if Setting.version is None:
+            Setting.version = __version_num__
+        if bool(Setting.setting) is False:
+            if not os.path.exists(Setting.setting_path):
+                Setting.setting = {}
+            else:
+                try:
+                    with open(Setting.setting_path, "r") as f:
+                        Setting.setting = json.load(fp=f)
+                    logger.error(Setting.setting)
+                except Exception as e:
+                    logger.error(e)
+        return Setting.setting
+
+    @staticmethod
+    def reload():
+        Setting.setting = None
+        Setting.load()
+
+    @staticmethod
+    def get_system_version():
+        """Get system version
+        """
+        return str(platform.release())
+
+    @staticmethod
+    def get_system():
+        """Get system name
+        """
+        return str(platform.system())
+
+    @staticmethod
+    def get_version() -> float:
+        """Get application version in float
+        """
+        return Setting.version
+
+    @staticmethod
+    def get_version_tag() -> str:
+        """Get application version in string
+        112.45 => 112.4.5
+        """
+        return __version__
+
+    @staticmethod
+    def get_friendly_name():
+        """Get application friendly name
+        This name will show in the device search list of the DLNA client
+        and as player window default name.
+        """
+        if Setting.temp_friendly_name:
+            return Setting.temp_friendly_name
+        return Setting.get(SettingProperty.DLNA_FriendlyName, Setting.friendly_name)
+
+    @staticmethod
+    def set_temp_friendly_name(name):
+        Setting.temp_friendly_name = name
+
+    @staticmethod
+    def get_usn(refresh=False):
+        """Get device unique identification
+        """
+        dlna_id = str(uuid.uuid4())
+        if not refresh:
+            dlna_id_temp = Setting.get(SettingProperty.USN, dlna_id)
+            if dlna_id == dlna_id_temp:
+                Setting.set(SettingProperty.USN, dlna_id)
+            return dlna_id_temp
+        else:
+            Setting.set(SettingProperty.USN, dlna_id)
+            return dlna_id
+
+    @staticmethod
+    def is_ip_changed():
+        ip_now = Setting.update_ip()
+        if Setting.last_ip != ip_now:
+            Setting.last_ip = ip_now
+            return True
+        return False
+
+    @staticmethod
+    def get_ip():
+        if Setting.last_ip is None:
+            Setting.last_ip = Setting.update_ip()
+        return Setting.last_ip
+
+    @staticmethod
+    def update_ip():
+        last_ip = []
+        gateways = ni.gateways()  # {type: [{ip, interface, default},{},...], type: []}
+        interfaces = set(Setting.get(SettingProperty.Additional_Interfaces, []))
+        interface_type = [ni.AF_INET, ni.AF_LINK]
+        for t in interface_type:
+            if t in gateways:
+                for i in gateways[t]:
+                    if len(i) > 1:
+                        interfaces.add(i[1])
+        for i in Setting.get(SettingProperty.Blocked_Interfaces, []):
+            if i in interfaces:
+                interfaces.remove(i)
+        for i in interfaces:
+            try:
+                iface = ni.ifaddresses(i)
+            except ValueError as e:
+                continue
+            if ni.AF_INET in iface:
+                for j in iface[ni.AF_INET]:
+                    if 'addr' in j and 'netmask' in j:
+                        last_ip.append((j['addr'], j['netmask']))
+        ip_now = set(last_ip)
+        logger.debug(f'interfaces: {interfaces} ip: {ip_now}')
+        return ip_now
+
+    @staticmethod
+    def get_port():
+        """Get application port
+        """
+        return Setting.get(SettingProperty.ApplicationPort, DEFAULT_PORT)
+
+    @staticmethod
+    def get_locale():
+        """Get the language settings of the system
+        Default: en_US
+        """
+        if sys.platform == 'darwin':
+            lang = subprocess.check_output(
+                ["osascript", "-e",
+                 "user locale of (get system info)"]).decode().strip()
+        elif sys.platform == 'win32':
+            windll = ctypes.windll.kernel32
+            lang = locale.windows_locale[windll.GetUserDefaultUILanguage()]
+        else:
+            for v in ['LANGUAGE', 'LANG', 'LC_MESSAGES', 'LC_ALL']:
+                lang = os.environ.get(v)
+                if lang is not None:
+                    break
+            else:
+                return 'en_US'
+            lang = lang.split(':')[0].split('.')[0]
+        return lang
+
+    @staticmethod
+    def get(property, default=1):
+        """Get application settings
+        """
+        if not bool(Setting.setting):
+            Setting.load()
+        if property.name in Setting.setting:
+            return Setting.setting[property.name]
+        Setting.setting[property.name] = default
+        return default
+
+    @staticmethod
+    def set(property, data):
+        """Set application settings
+        """
+        Setting.setting[property.name] = data
+        Setting.save()
+
+    @staticmethod
+    def system_shell(shell):
+        result = subprocess.run(shell, stdout=subprocess.PIPE)
+        return result.returncode, result.stdout.decode('UTF-8').strip()
+
+    @staticmethod
+    def set_start_at_login(launch):
+        if sys.platform == 'darwin':
+            app_path = NSBundle.mainBundle().bundlePath()
+            if not app_path.startswith("/Applications"):
+                return (1, "You need move Macast.app to Applications folder.")
+            app_name = app_path.split("/")[-1].split(".")[0]
+            res = Setting.system_shell(
+                ['osascript',
+                 '-e',
+                 'tell application "System Events" ' +
+                 'to get the name of every login item'])
+            if res[0] == 1:
+                return (1, "Cannot access System Events.")
+            apps = list(map(lambda app: app.strip(), res[1].split(",")))
+            # apps which start at login
+            if launch:
+                if app_name in apps:
+                    return (0, "Macast is already in login items.")
+                res = Setting.system_shell(
+                    ['osascript',
+                     '-e',
+                     'tell application "System Events" ' +
+                     'to make login item at end with properties ' +
+                     '{{name: "{}",path:"{}", hidden:false}}'.format(
+                         app_name, app_path)
+                     ])
+            else:
+                if app_name not in apps:
+                    return (0, "Macast is already not in login items.")
+                res = Setting.system_shell(
+                    ['osascript',
+                     '-e',
+                     'tell application "System Events" ' +
+                     'to delete login item "{}"'.format(app_name)])
+            return res
+        elif sys.platform == 'win32':
+            """Find the path of Macast.exe so as to create shortcut.
+            """
+            if "python" in os.path.basename(sys.executable).lower():
+                return (1, "Not support to set start at login.")
+
+            key = win32api.RegOpenKey(win32con.HKEY_CURRENT_USER,
+                                      r'Software\Microsoft\Windows\CurrentVersion\Run',
+                                      0,
+                                      win32con.KEY_SET_VALUE)
+            logger.info(sys.executable)
+            if launch:
+                try:
+                    win32api.RegSetValueEx(key, 'Macast', 0, win32con.REG_SZ, sys.executable)
+                    win32api.RegCloseKey(key)
+                except Exception as e:
+                    logger.error(e)
+                    # cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
+                return 0, 1
+            else:
+                try:
+                    win32api.RegDeleteValue(key, 'Macast')
+                    win32api.RegCloseKey(key)
+                except Exception as e:
+                    logger.error(e)
+                    # cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
+                return 0, 1
+        else:
+            return (1, 'Not support current platform.')
+
+    @staticmethod
+    def get_base_path(path="."):
+        """PyInstaller creates a temp folder and stores path in _MEIPASS
+            https://stackoverflow.com/a/13790741
+            see also: https://pyinstaller.readthedocs.io/en/stable/\
+                runtime-information.html#run-time-information
+        """
+        logger.error("Setting.get_base_path will be removed in next version.")
+        if Setting.base_path is not None:
+            return os.path.join(Setting.base_path, path)
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            Setting.base_path = sys._MEIPASS
+        else:
+            Setting.base_path = os.path.join(os.path.dirname(__file__), '.')
+        return os.path.join(Setting.base_path, path)
+
+    @staticmethod
+    def get_server_info():
+        return '{}/{} UPnP/1.0 Macast/{}'.format(Setting.get_system(),
+                                                 Setting.get_system_version(),
+                                                 Setting.get_version_tag())
+
+    @staticmethod
+    def get_system_env():
+        # Get system env(for GNU/Linux and *BSD).
+        # https://pyinstaller.readthedocs.io/en/stable/runtime-information.html#run-time-information
+        env = dict(os.environ)
+        logger.debug(env)
+        lp_key = 'LD_LIBRARY_PATH'
+        lp_orig = env.get(lp_key + '_ORIG')
+        if lp_orig is not None:
+            env[lp_key] = lp_orig
+        else:
+            env.pop(lp_key, None)
+        return env
+
+    @staticmethod
+    def stop_service():
+        """Stop all DLNA threads
+        stop MPV
+        stop DLNA HTTP Server
+        stop SSDP
+        stop SSDP notify thread
+        """
+        if cherrypy.engine.state in [cherrypy.engine.states.STOPPED,
+                                     cherrypy.engine.states.STOPPING,
+                                     cherrypy.engine.states.EXITING,
+                                     ]:
+            return
+        while cherrypy.engine.state != cherrypy.engine.states.STARTED:
+            time.sleep(0.5)
+        cherrypy.engine.exit()
+
+    @staticmethod
+    def is_service_running():
+        return cherrypy.engine.state in [cherrypy.engine.states.STARTING,
+                                         cherrypy.engine.states.STARTED,
+                                         ]
+
+    @staticmethod
+    def restart():
+        if sys.platform == 'darwin' and sys.executable.endswith("Contents/MacOS/python"):
+            # run from py2app build
+            Setting.stop_service()
+            executable = sys.executable[:-6] + 'Macast'
+            os.execv(executable, [executable, executable])
+        elif sys.platform == 'linux' and getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            # run from pyinstaller build on linux
+            Setting.stop_service()
+            env = Setting.get_system_env()
+            executable = sys.executable
+            os.execve(executable, [executable, executable], env)
+        else:
+            cherrypy.engine.restart()
+
+    @staticmethod
+    def setup_logger():
+        if Setting.log_level is not None:
+            return LOG_LEVEL.get(Setting.log_level, 20)
+        Setting.log_level = Setting.get(SettingProperty.Macast_Log, 'INFO').upper()
+
+        log_level = LOG_LEVEL.get(Setting.log_level, 20)
+        log_file = os.path.join(SETTING_DIR, 'macast.log')
+        log_format = '%(levelname)s: [%(asctime)s] - %(name)s/%(funcName)s/%(threadName)s|%(thread)d[line:%(lineno)d] - %(message)s'
+        logging.basicConfig(
+            level=log_level,
+            format=log_format,
+            handlers=[logging.StreamHandler(), logging.FileHandler(log_file, mode='w', encoding='utf-8')]
+        )
+
+        logger.info(f'Using log level: {Setting.log_level}, {log_level}')
+
+        return log_level
+
+
+class XMLPath(Enum):
+    BASE_PATH = os.path.dirname(__file__)
+    DESCRIPTION = BASE_PATH + '/xml/Description.xml'
+    AV_TRANSPORT = BASE_PATH + '/xml/AVTransport.xml'
+    CONNECTION_MANAGER = BASE_PATH + '/xml/ConnectionManager.xml'
+    RENDERING_CONTROL = BASE_PATH + '/xml/RenderingControl.xml'
+    SETTING_PAGE = BASE_PATH + '/xml/setting.html'
+    PROTOCOL_INFO = BASE_PATH + '/xml/SinkProtocolInfo.csv'
+
+
+class AssetsPath:
+    BASE_PATH = os.path.dirname(__file__)
+    I18N = os.path.join(BASE_PATH, 'i18n')
+
+    @staticmethod
+    def join(*args):
+        return os.path.join(AssetsPath.BASE_PATH, *args)
+
+
+def load_xml(path):
+    with open(path, encoding="utf-8") as f:
+        xml = f.read()
+    return xml
+
+
+def notify_error(msg=None):
+    """publish a notification when error occured
     """
-    support_platform = set()
 
-    def __init__(self, lang=gettext.gettext):
-        global _
-        _ = lang
-        self.running = False
-        self.renderer_setting = RendererSetting()
+    def wrapper_fun(fun):
+        def wrapper(*args, **kwargs):
+            nonlocal msg
+            try:
+                return fun(*args, **kwargs)
+            except Exception as e:
+                logger.error(str(e))
+                if msg is None:
+                    msg = str(e)
+                else:
+                    logger.error(msg)
+                cherrypy.engine.publish('app_notify', 'Error', msg)
 
-    def start(self):
-        """Start render thread
-        """
-        self.running = True
+        return wrapper
 
-    def stop(self):
-        """Stop render thread
-        """
-        self.running = False
-        cherrypy.engine.publish('renderer_av_stop')
-
-    def reload(self):
-        self.stop()
-        self.start()
-
-    def methods(self):
-        return list(filter(lambda m: m.startswith('set_media_') and callable(getattr(self, m)), dir(self)))
-
-    @property
-    def protocol(self) -> Protocol:
-        return cherrypy_publish('get_protocol', Protocol)
-
-    # If you want to write a new renderer adapted to another video player,
-    # please rewrite the following methods to control the video player you use.
-    # For details, please refer to macast_renderer/mpv.py:MPVRender
-
-    def set_media_stop(self):
-        pass
-
-    def set_media_pause(self):
-        pass
-
-    def set_media_resume(self):
-        pass
-
-    def set_media_volume(self, data):
-        """ data : int, range from 0 to 100
-        """
-        pass
-
-    def set_media_mute(self, data):
-        """ data : bool
-        """
-        pass
-
-    def set_media_url(self, url: str, start: str = "0"):
-        """
-        :param url:
-        :param start: relative time
-            --start=+56, --start=00:56
-            Seeks to the start time + 56 seconds.
-            --start=-56, --start=-00:56
-            Seeks to the end time - 56 seconds.
-            --start=01:10:00
-            Seeks to 1 hour 10 min.
-            --start=50%
-            Seeks to the middle of the file.
-            --start=30
-            Seeks to 30 seconds
-        :return:
-        """
-        pass
-
-    def set_media_title(self, data):
-        """ data : string
-        """
-        pass
-
-    def set_media_position(self, data):
-        """ data : string position, 00:00:00
-        """
-        pass
-
-    def set_media_sub_file(self, data):
-        """ set subtitle file path
-        :param data: {'url': '/home/ubuntu/danmaku.ass',
-                      'title': 'danmaku'}
-        :return:
-        """
-        pass
-
-    def set_media_sub_show(self, data: bool):
-        """ set subtitle visibility
-        :param data:
-        :return:
-        """
-        pass
-
-    def set_media_text(self, data: str, duration: int = 1000):
-        """ show text on video player screen
-        :param data: string, text content
-        :param duration: ms
-        :return:
-        """
-        pass
-
-    def set_media_speed(self, data: float):
-        pass
-
-    # The following methods are usually used to update the states of
-    # DLNA Renderer according to the status obtained from the player.
-    # So, when your player state changes, call the following methods.
-    # For example, when you click the pause button of the player,
-    # call self.set_state('TransportState', 'PAUSED_PLAYBACK')
-    # Then, the DLNA client (such as your mobile phone) will
-    # automatically get this information and update it to the front-end.
-
-    def set_state_position(self, data: str):
-        """
-        :param data: string, eg: 00:00:00
-        :return:
-        """
-        self.protocol.set_state_position(data)
-
-    def set_state_duration(self, data: str):
-        """
-        :param data: string, eg: 00:00:00
-        :return:
-        """
-        self.protocol.set_state_duration(data)
-
-    def set_state_pause(self):
-        self.protocol.set_state_pause()
-
-    def set_state_play(self):
-        self.protocol.set_state_play()
-
-    def set_state_stop(self):
-        self.protocol.set_state_stop()
-
-    def set_state_eof(self):
-        self.protocol.set_state_eof()
-
-    def set_state_transport(self, data: str):
-        """
-        :param data: string in [PLAYING, PAUSED_PLAYBACK, STOPPED, NO_MEDIA_PRESENT]
-        :return:
-        """
-        self.protocol.set_state_transport(data)
-
-    def set_state_transport_error(self):
-        """
-        :return:
-        """
-        self.protocol.set_state_transport_error()
-
-    def set_state_mute(self, data: bool):
-        """
-        :param data: bool
-        :return:
-        """
-        self.protocol.set_state_mute(data)
-
-    def set_state_volume(self, data: int):
-        """
-        :param data: int, range from 0 to 100
-        :return:
-        """
-        self.protocol.set_state_volume(data)
-
-    def set_state_speed(self, data: str):
-        self.protocol.set_state_speed(data)
-
-    def set_state_subtitle(self, data: bool):
-        self.protocol.set_state_display_subtitle(data)
-
-    def set_state_url(self, data: str):
-        self.protocol.set_state_url(data)
-
-    def set_state(self, state_name, state_value):
-        self.protocol.set_state(state_name, state_value)
-
-    def get_state(self, state_name):
-        return self.protocol.get_state(state_name)
+    return wrapper_fun
 
 
-class RendererSetting:
-    """ Dummy menu settings class
+def publish_method(func):
+    def wrap(*args, **kwargs):
+        func(*args, **kwargs)
+        cherrypy.engine.publish(func.__name__, *args, **kwargs)
+
+    return wrap
+
+
+def format_class_name(instance):
     """
+    eg1: DLNAHandler -> DLNA Handler
+    eg2: AabcBabc -> Aabc Babc
+    :param instance:
+    :return:
+    """
+    name = instance.__class__.__name__
+    res = name[0]
+    for i in range(1, len(name) - 1):
+        if 'A' <= name[i] <= 'Z' and 'a' <= name[i + 1] <= 'z':
+            res += f' {name[i]}'
+        else:
+            res += name[i]
+    res += name[-1]
+    return res
 
-    def build_menu(self):
-        return []
+
+def cherrypy_publish(method, default=None):
+    res = cherrypy.engine.publish(method)
+    if len(res) > 0:
+        return res.pop()
+
+    logger.error(f'Unable to run method: {method} return default: {default}')
+    if callable(default):
+        return default()
+    return default
+
+
+def get_subnet_ip(ip, mask):
+    """
+    :param ip: eg:192.168.1.123
+    :param mask: eg:255.255.255.0
+    :return: eg: [192, 168, 1, 0]
+    """
+    a = [int(n) for n in mask.split('.')]
+    b = [int(n) for n in ip.split('.')]
+    return [a[i] & b[i] for i in range(4)]
