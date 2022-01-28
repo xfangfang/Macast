@@ -1,208 +1,202 @@
-# Copyright (c) 2021 by xfangfang. All Rights Reserved.
-
-import gettext
+import os
+import random
+import sys
 import logging
+import threading
+
 import cherrypy
+import portend
+from cherrypy._cpserver import Server
+from cherrypy.process.plugins import Monitor
 
+from .utils import Setting, XMLPath, SettingProperty
+from .plugin import ProtocolPlugin, RendererPlugin, SSDPPlugin
 from .protocol import Protocol
-from .utils import cherrypy_publish
 
-logger = logging.getLogger("Renderer")
+logger = logging.getLogger("server")
 
 
-class Renderer:
-    """Media Renderer base class
-    By inheriting this class,
-    you can use a variety of players as media renderer
-    see also: class MPVRender
+def auto_change_port(fun):
+    """See AutoPortServer"""
+
+    def wrapper(self):
+        try:
+            return fun(self)
+        except portend.Timeout as e:
+            logger.error(e)
+            bind_host, bind_port = self.bind_addr
+            if bind_port == 0:
+                raise e
+            else:
+                self.httpserver = None
+                self.bind_addr = (bind_host, 0)
+                self.start()
+
+    return wrapper
+
+
+class AutoPortServer(Server):
     """
-    support_platform = set()
+    The modified Server can give priority to the preset port (Setting.DEFAULT_PORT).
+    When the preset port or the port in the configuration file cannot be used,
+    using the port randomly assigned by the system
+    """
 
-    def __init__(self, lang=gettext.gettext):
-        global _
-        _ = lang
-        self.running = False
-        self.renderer_setting = RendererSetting()
-
+    @auto_change_port
     def start(self):
-        """Start render thread
-        """
-        self.running = True
+        super(AutoPortServer, self).start()
 
-    def stop(self):
-        """Stop render thread
-        """
-        self.running = False
-        cherrypy.engine.publish('renderer_av_stop')
+    @auto_change_port
+    def _start_http_thread(self):
+        try:
+            self.httpserver.start()
+        except KeyboardInterrupt:
+            self.bus.log('<Ctrl-C> hit: shutting down HTTP server')
+            self.interrupt = sys.exc_info()[1]
+            self.bus.exit()
+        except SystemExit:
+            self.bus.log('SystemExit raised: shutting down HTTP server')
+            self.interrupt = sys.exc_info()[1]
+            self.bus.exit()
+            raise
+        except Exception:
+            self.interrupt = sys.exc_info()[1]
+            if 'WinError 10013' in str(self.interrupt):
+                self.bus.log('Error in HTTP server: WinError 10013')
+                raise portend.Timeout
+            else:
+                self.bus.log('Error in HTTP server: shutting down',
+                             traceback=True, level=40)
+                self.interrupt = sys.exc_info()[1]
+                self.bus.exit()
+                raise
 
-    def reload(self):
-        self.stop()
-        self.start()
 
-    def methods(self):
-        return list(filter(lambda m: m.startswith('set_media_') and callable(getattr(self, m)), dir(self)))
+class Service:
+
+    def __init__(self, renderer, protocol):
+        # global log config
+        log_level = Setting.setup_logger()
+
+        self.thread = None
+        # Replace the default server
+        cherrypy.server.unsubscribe()
+        cherrypy.server = AutoPortServer()
+        cherrypy.server.bind_addr = ('0.0.0.0', Setting.get_port())
+        cherrypy.server.subscribe()
+        # start plugins
+        self.ssdp_plugin = SSDPPlugin(25)
+        self.ssdp_plugin.subscribe()
+        self._renderer = renderer
+        self.renderer_plugin = RendererPlugin(30, renderer)
+        self.renderer_plugin.subscribe()
+        self._protocol = protocol
+        self.protocol_plugin = ProtocolPlugin(27, protocol)
+        self.protocol_plugin.subscribe()
+        self.ip_monitor = Monitor(cherrypy.engine, self.update_ip, 5, name="IP_MONITOR_THREAD")
+        self.ip_monitor.subscribe()
+
+        cherrypy.config.update({
+            'server.thread_pool': 1
+        })
+        # cherrypy.engine.autoreload.files.add(Setting.setting_path)
+        cherrypy_config = {
+            '/dlna': {
+                'tools.staticdir.root': XMLPath.BASE_PATH.value,
+                'tools.staticdir.on': True,
+                'tools.staticdir.dir': "xml"
+            },
+            '/assets': {
+                'tools.staticdir.root': XMLPath.BASE_PATH.value,
+                'tools.staticdir.on': True,
+                'tools.staticdir.dir': "assets"
+            },
+            '/': {
+                'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
+                'tools.response_headers.on': True,
+                'tools.response_headers.headers':
+                    [('Content-Type', 'text/xml; charset="utf-8"'),
+                     ('Server', Setting.get_server_info())],
+            }
+        }
+
+        self.cherrypy_application = cherrypy.tree.mount(self.protocol.handler, '/', config=cherrypy_config)
+        cherrypy.engine.signals.subscribe()
+
+    @staticmethod
+    def update_ip():
+        if Setting.is_ip_changed():
+            cherrypy.engine.publish('update_ip')
 
     @property
-    def protocol(self) -> Protocol:
-        return cherrypy_publish('get_protocol', Protocol)
+    def renderer(self):
+        return self._renderer
 
-    # If you want to write a new renderer adapted to another video player,
-    # please rewrite the following methods to control the video player you use.
-    # For details, please refer to macast_renderer/mpv.py:MPVRender
-
-    def set_media_stop(self):
-        pass
-
-    def set_media_pause(self):
-        pass
-
-    def set_media_resume(self):
-        pass
-
-    def set_media_volume(self, data):
-        """ data : int, range from 0 to 100
+    @renderer.setter
+    def renderer(self, value):
         """
-        pass
+        Change the renderer which server are using
 
-    def set_media_mute(self, data):
-        """ data : bool
-        """
-        pass
-
-    def set_media_url(self, url: str, start: str = "0"):
-        """
-        :param url:
-        :param start: relative time
-            --start=+56, --start=00:56
-            Seeks to the start time + 56 seconds.
-            --start=-56, --start=-00:56
-            Seeks to the end time - 56 seconds.
-            --start=01:10:00
-            Seeks to 1 hour 10 min.
-            --start=50%
-            Seeks to the middle of the file.
-            --start=30
-            Seeks to 30 seconds
+        ATTENTION: This Method will stop the server
+        :param value:
         :return:
         """
-        pass
+        if Setting.is_service_running():
+            Setting.stop_service()
+        self._renderer = value
+        self.renderer_plugin.renderer = self._renderer
 
-    def set_media_title(self, data):
-        """ data : string
+    @property
+    def protocol(self):
+        return self._protocol
+
+    @protocol.setter
+    def protocol(self, value: Protocol):
         """
-        pass
+        Change the protocol which server are using
 
-    def set_media_position(self, data):
-        """ data : string position, 00:00:00
-        """
-        pass
-
-    def set_media_sub_file(self, data):
-        """ set subtitle file path
-        :param data: {'url': '/home/ubuntu/danmaku.ass',
-                      'title': 'danmaku'}
+        ATTENTION: This Method will stop the server
+        :param value:
         :return:
         """
-        pass
+        if Setting.is_service_running():
+            Setting.stop_service()
+        self._protocol = value
+        self.protocol_plugin.protocol = self._protocol
+        self.cherrypy_application.root = self._protocol.handler
+        self._protocol.handler.reload()
 
-    def set_media_sub_show(self, data: bool):
-        """ set subtitle visibility
-        :param data:
-        :return:
+    def run(self):
+        """Start macast thread
         """
-        pass
+        cherrypy.engine.start()
+        # update current port
+        _, port = cherrypy.server.bound_addr
+        logger.info("Server current run on port: {}".format(port))
+        if port != Setting.get(SettingProperty.ApplicationPort, 0):
+            # todo 验证正确性
+            usn = Setting.get_usn(refresh=True)
+            logger.info("Change usn to: {}".format(usn))
+            Setting.set(SettingProperty.ApplicationPort, port)
+            name = "Macast({0:04d})".format(random.randint(0, 9999))
+            logger.info("Change name to: {}".format(name))
+            Setting.set_temp_friendly_name(name)
+            self.protocol.handler.reload()
+            cherrypy.engine.publish('ssdp_update_ip')
+        # service started
+        cherrypy.engine.block()
+        # service stopped
+        logger.info("Service stopped")
 
-    def set_media_text(self, data: str, duration: int = 1000):
-        """ show text on video player screen
-        :param data: string, text content
-        :param duration: ms
-        :return:
+    def stop(self):
+        """Stop macast thread
         """
-        pass
+        Setting.stop_service()
+        if self.thread is not None:
+            self.thread.join()
 
-    def set_media_speed(self, data: float):
-        pass
-
-    # The following methods are usually used to update the states of
-    # DLNA Renderer according to the status obtained from the player.
-    # So, when your player state changes, call the following methods.
-    # For example, when you click the pause button of the player,
-    # call self.set_state('TransportState', 'PAUSED_PLAYBACK')
-    # Then, the DLNA client (such as your mobile phone) will
-    # automatically get this information and update it to the front-end.
-
-    def set_state_position(self, data: str):
-        """
-        :param data: string, eg: 00:00:00
-        :return:
-        """
-        self.protocol.set_state_position(data)
-
-    def set_state_duration(self, data: str):
-        """
-        :param data: string, eg: 00:00:00
-        :return:
-        """
-        self.protocol.set_state_duration(data)
-
-    def set_state_pause(self):
-        self.protocol.set_state_pause()
-
-    def set_state_play(self):
-        self.protocol.set_state_play()
-
-    def set_state_stop(self):
-        self.protocol.set_state_stop()
-
-    def set_state_eof(self):
-        self.protocol.set_state_eof()
-
-    def set_state_transport(self, data: str):
-        """
-        :param data: string in [PLAYING, PAUSED_PLAYBACK, STOPPED, NO_MEDIA_PRESENT]
-        :return:
-        """
-        self.protocol.set_state_transport(data)
-
-    def set_state_transport_error(self):
-        """
-        :return:
-        """
-        self.protocol.set_state_transport_error()
-
-    def set_state_mute(self, data: bool):
-        """
-        :param data: bool
-        :return:
-        """
-        self.protocol.set_state_mute(data)
-
-    def set_state_volume(self, data: int):
-        """
-        :param data: int, range from 0 to 100
-        :return:
-        """
-        self.protocol.set_state_volume(data)
-
-    def set_state_speed(self, data: str):
-        self.protocol.set_state_speed(data)
-
-    def set_state_subtitle(self, data: bool):
-        self.protocol.set_state_display_subtitle(data)
-
-    def set_state_url(self, data: str):
-        self.protocol.set_state_url(data)
-
-    def set_state(self, state_name, state_value):
-        self.protocol.set_state(state_name, state_value)
-
-    def get_state(self, state_name):
-        return self.protocol.get_state(state_name)
-
-
-class RendererSetting:
-    """ Dummy menu settings class
-    """
-
-    def build_menu(self):
-        return []
+    def run_async(self):
+        if Setting.is_service_running():
+            return
+        self.thread = threading.Thread(target=self.run, name="SERVICE_THREAD")
+        self.thread.start()
