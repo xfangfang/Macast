@@ -1,0 +1,168 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: macast\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-08 17:22+0800\n"
+"PO-Revision-Date: 2022-01-28 02:00\n"
+"Last-Translator: Albano Battistella <albano_battistella@hotmail.com>\n"
+"Language-Team: Spanish\n"
+"Language: es_ES\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: pygettext.py 1.5\n"
+"X-Generator: Poedit 3.0\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Crowdin-Project: macast\n"
+"X-Crowdin-Project-ID: 496963\n"
+"X-Crowdin-Language: es-ES\n"
+"X-Crowdin-File: /dev_test/macast/i18n/it/LC_MESSAGES/macast.po\n"
+"X-Crowdin-File-ID: 53\n"
+
+msgid "Stop Cast"
+msgstr ""
+
+msgid "Setting"
+msgstr ""
+
+msgid "Quit"
+msgstr ""
+
+msgid "Auto Check Updates"
+msgstr ""
+
+msgid "Start At Login"
+msgstr ""
+
+msgid "Renderers"
+msgstr ""
+
+msgid "Menubar Icon"
+msgstr ""
+
+msgid "AppIcon"
+msgstr ""
+
+msgid "Pattern"
+msgstr ""
+
+msgid "PatternLight"
+msgstr ""
+
+msgid "PatternDark"
+msgstr ""
+
+msgid "Open Config Directory"
+msgstr ""
+
+msgid "Check For Updates"
+msgstr ""
+
+msgid "Help"
+msgstr ""
+
+msgid "Macast New Update {}"
+msgstr ""
+
+msgid "You're up to date."
+msgstr ""
+
+msgid "Start Cast"
+msgstr ""
+
+msgid "running at task bar"
+msgstr ""
+
+msgid "running at menu bar"
+msgstr ""
+
+msgid "running at desktop panel"
+msgstr ""
+
+msgid "Macast is hidden"
+msgstr ""
+
+msgid "Copy Video URI"
+msgstr ""
+
+msgid "Info"
+msgstr ""
+
+msgid "Change Renderer to {}."
+msgstr ""
+
+msgid "Error"
+msgstr ""
+
+msgid "Player Position"
+msgstr ""
+
+msgid "LeftTop"
+msgstr ""
+
+msgid "LeftBottom"
+msgstr ""
+
+msgid "RightTop"
+msgstr ""
+
+msgid "RightBottom"
+msgstr ""
+
+msgid "Center"
+msgstr ""
+
+msgid "Player Size"
+msgstr ""
+
+msgid "Small"
+msgstr ""
+
+msgid "Normal"
+msgstr ""
+
+msgid "Large"
+msgstr ""
+
+msgid "Auto"
+msgstr ""
+
+msgid "Fullscreen"
+msgstr ""
+
+msgid "Hardware Decode"
+msgstr ""
+
+msgid "Force Dedicated GPU"
+msgstr ""
+
+msgid "Reload Player"
+msgstr ""
+
+msgid "please wait"
+msgstr ""
+
+msgid "Cannot start player"
+msgstr ""
+
+msgid "You need move Macast.app to Applications folder."
+msgstr ""
+
+msgid "Update"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Ok"
+msgstr ""
+
+msgid "Cannot access System Events"
+msgstr ""
+
+msgid "Check for updates"
+msgstr ""
+
+msgid "New Update {}"
+msgstr ""
+
