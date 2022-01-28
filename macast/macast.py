@@ -449,7 +449,7 @@ class Macast(App):
         # reload menu
         self.set_menu(self.menu)
         self.start_cast()
-        cherrypy.engine.publish('app_notify', _('Info'), _('Change Protocol to {}.').format(protocol_config.title))
+        cherrypy.engine.publish('app_notify', _('Info'), _('Change Protocol to {}').format(protocol_config.title))
 
     def on_renderer_change_click(self, item: MenuItem):
         renderer_config = self.plugin_manager.renderer_list[item.data]
@@ -461,7 +461,7 @@ class Macast(App):
         # reload menu
         self.set_menu(self.menu)
         self.start_cast()
-        cherrypy.engine.publish('app_notify', _('Info'), _('Change Renderer to {}.').format(renderer_config.title))
+        cherrypy.engine.publish('app_notify', _('Info'), _('Change Renderer to {}').format(renderer_config.title))
 
     def on_open_config_click(self, item):
         self.open_directory(SETTING_DIR)
@@ -483,7 +483,7 @@ class Macast(App):
             Setting.set(SettingProperty.StartAtLogin,
                         1 if item.checked else 0)
         else:
-            self.notification(_("Error"), _(res[1]))
+            self.notification(_("Error"), res[1])
 
     def on_about_click(self, _):
         self.open_browser('http://127.0.0.1:{}?page=4'.format(Setting.get_port()))

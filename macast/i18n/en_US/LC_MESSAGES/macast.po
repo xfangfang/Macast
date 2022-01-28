@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-01-28 12:12+0800\n"
+"POT-Creation-Date: 2022-01-28 13:46+0800\n"
 "PO-Revision-Date: 2022-01-28 12:14+0800\n"
 "Last-Translator: fang <xfangfang@126.com>\n"
 "Language-Team: English\n"
@@ -118,16 +118,32 @@ msgid "Info"
 msgstr "Info"
 
 #: macast/macast.py:452
-msgid "Change Protocol to {}."
-msgstr "Change Protocol to {}."
+msgid "Change Protocol to {}"
+msgstr "Change Protocol to {}"
 
 #: macast/macast.py:464
-msgid "Change Renderer to {}."
-msgstr "Change Renderer to {}."
+msgid "Change Renderer to {}"
+msgstr "Change Renderer to {}"
 
 #: macast/macast.py:486
 msgid "Error"
 msgstr "Error"
+
+#: macast/utils.py:249
+msgid "You need move Macast.app to Applications folder"
+msgstr "You need move Macast.app to Applications folder"
+
+#: macast/utils.py:257
+msgid "Cannot access System Events"
+msgstr "Cannot access System Events"
+
+#: macast/utils.py:284
+msgid "Not support to set start at login"
+msgstr "Not support to set start at login"
+
+#: macast/utils.py:308
+msgid "Not support current platform"
+msgstr "Not support current platform"
 
 #: macast_renderer/mpv.py:540
 msgid "Player Position"

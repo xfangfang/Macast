@@ -9,7 +9,7 @@ import ctypes
 import appdirs
 import logging
 import platform
-import locale
+import gettext
 import cherrypy
 import subprocess
 from enum import Enum
@@ -18,12 +18,14 @@ import netifaces as ni
 if sys.platform == 'darwin':
     from AppKit import NSBundle
 elif sys.platform == 'win32':
+    import locale
     import win32api
     import win32con
 
 from .__pkginfo__ import __version__, __version_num__
 
 logger = logging.getLogger("Utils")
+_ = gettext.gettext
 DEFAULT_PORT = 0
 SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
 PROTOCOL_DIR = 'protocol'
@@ -244,7 +246,7 @@ class Setting:
         if sys.platform == 'darwin':
             app_path = NSBundle.mainBundle().bundlePath()
             if not app_path.startswith("/Applications"):
-                return (1, "You need move Macast.app to Applications folder.")
+                return 1, _("You need move Macast.app to Applications folder")
             app_name = app_path.split("/")[-1].split(".")[0]
             res = Setting.system_shell(
                 ['osascript',
@@ -252,12 +254,12 @@ class Setting:
                  'tell application "System Events" ' +
                  'to get the name of every login item'])
             if res[0] == 1:
-                return (1, "Cannot access System Events.")
+                return 1, _("Cannot access System Events")
             apps = list(map(lambda app: app.strip(), res[1].split(",")))
             # apps which start at login
             if launch:
                 if app_name in apps:
-                    return (0, "Macast is already in login items.")
+                    return 0, "Macast is already in login items"
                 res = Setting.system_shell(
                     ['osascript',
                      '-e',
@@ -268,7 +270,7 @@ class Setting:
                      ])
             else:
                 if app_name not in apps:
-                    return (0, "Macast is already not in login items.")
+                    return 0, "Macast is already not in login items"
                 res = Setting.system_shell(
                     ['osascript',
                      '-e',
@@ -279,7 +281,7 @@ class Setting:
             """Find the path of Macast.exe so as to create shortcut.
             """
             if "python" in os.path.basename(sys.executable).lower():
-                return (1, "Not support to set start at login.")
+                return 1, _("Not support to set start at login")
 
             key = win32api.RegOpenKey(win32con.HKEY_CURRENT_USER,
                                       r'Software\Microsoft\Windows\CurrentVersion\Run',
@@ -303,7 +305,7 @@ class Setting:
                     # cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
                 return 0, 1
         else:
-            return (1, 'Not support current platform.')
+            return 1, _('Not support current platform')
 
     @staticmethod
     def get_base_path(path="."):
