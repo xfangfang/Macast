@@ -1,0 +1,3 @@
+files:
+  - source: '*.py'
+    translation: /macast/i18n/%locale_with_underscore%/macast.po
