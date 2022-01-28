@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: macast\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-09-08 17:22+0800\n"
-"PO-Revision-Date: 2022-01-28 02:00\n"
+"POT-Creation-Date: 2021-11-02 12:23+0800\n"
+"PO-Revision-Date: 2022-01-28 02:06\n"
 "Last-Translator: \n"
 "Language-Team: Chinese Simplified\n"
 "Language: zh_CN\n"
@@ -16,153 +16,165 @@ msgstr ""
 "X-Crowdin-Project: macast\n"
 "X-Crowdin-Project-ID: 496963\n"
 "X-Crowdin-Language: zh-CN\n"
-"X-Crowdin-File: /dev_test/macast/i18n/fi/LC_MESSAGES/macast.po\n"
-"X-Crowdin-File-ID: 51\n"
+"X-Crowdin-File: /dev_test/macast/i18n/zh_CN/LC_MESSAGES/macast.po\n"
+"X-Crowdin-File-ID: 55\n"
 
 msgid "Stop Cast"
-msgstr ""
+msgstr "停止接受投屏"
 
 msgid "Setting"
-msgstr ""
+msgstr "设置"
 
 msgid "Quit"
-msgstr ""
+msgstr "退出"
 
 msgid "Auto Check Updates"
-msgstr ""
+msgstr "自动检查更新"
 
 msgid "Start At Login"
-msgstr ""
+msgstr "开机自启"
 
 msgid "Renderers"
-msgstr ""
+msgstr "选择播放器"
+
+msgid "Protocols"
+msgstr "选择协议"
 
 msgid "Menubar Icon"
-msgstr ""
+msgstr "状态栏图标"
 
 msgid "AppIcon"
-msgstr ""
+msgstr "应用图标"
 
 msgid "Pattern"
-msgstr ""
+msgstr "单色图案"
 
 msgid "PatternLight"
-msgstr ""
+msgstr "浅色图案"
 
 msgid "PatternDark"
-msgstr ""
+msgstr "深色图案"
 
 msgid "Open Config Directory"
-msgstr ""
+msgstr "打开配置目录"
+
+msgid "Advanced Setting"
+msgstr "高级设置"
 
 msgid "Check For Updates"
-msgstr ""
+msgstr "检查更新"
 
 msgid "Help"
-msgstr ""
+msgstr "帮助"
 
 msgid "Macast New Update {}"
-msgstr ""
+msgstr "Macast有新版本 {}"
 
 msgid "You're up to date."
-msgstr ""
+msgstr "现在已经是最新版"
 
 msgid "Start Cast"
-msgstr ""
+msgstr "开始接受投屏"
 
 msgid "running at task bar"
-msgstr ""
+msgstr "运行在任务栏"
 
 msgid "running at menu bar"
-msgstr ""
+msgstr "运行在菜单栏"
 
 msgid "running at desktop panel"
-msgstr ""
+msgstr "运行在状态栏"
 
 msgid "Macast is hidden"
-msgstr ""
+msgstr "Macast进入后台"
 
 msgid "Copy Video URI"
-msgstr ""
+msgstr "复制视频链接"
 
 msgid "Info"
-msgstr ""
+msgstr "通知"
 
 msgid "Change Renderer to {}."
-msgstr ""
+msgstr "播放器更换到 {}"
 
 msgid "Error"
-msgstr ""
+msgstr "错误"
 
 msgid "Player Position"
-msgstr ""
+msgstr "播放器位置"
 
 msgid "LeftTop"
-msgstr ""
+msgstr "左上"
 
 msgid "LeftBottom"
-msgstr ""
+msgstr "左下"
 
 msgid "RightTop"
-msgstr ""
+msgstr "右上"
 
 msgid "RightBottom"
-msgstr ""
+msgstr "右下"
 
 msgid "Center"
-msgstr ""
+msgstr "中央"
 
 msgid "Player Size"
-msgstr ""
+msgstr "播放器大小"
 
 msgid "Small"
-msgstr ""
+msgstr "小"
 
 msgid "Normal"
-msgstr ""
+msgstr "中"
 
 msgid "Large"
-msgstr ""
+msgstr "大"
 
 msgid "Auto"
-msgstr ""
+msgstr "自动"
 
 msgid "Fullscreen"
-msgstr ""
+msgstr "全屏"
+
+msgid "Player Ontop"
+msgstr "播放器窗口置顶"
 
 msgid "Hardware Decode"
-msgstr ""
+msgstr "硬件解码"
 
 msgid "Force Dedicated GPU"
-msgstr ""
+msgstr "强制使用独立显卡"
+
+msgid "Player Settings"
+msgstr "播放器相关设置"
 
 msgid "Reload Player"
-msgstr ""
+msgstr "重载播放器"
 
 msgid "please wait"
-msgstr ""
+msgstr "请等待"
 
 msgid "Cannot start player"
-msgstr ""
+msgstr "无法启动播放器"
 
 msgid "You need move Macast.app to Applications folder."
-msgstr ""
+msgstr "你需要把Macast.app放置在系统应用文件夹下"
 
 msgid "Update"
-msgstr ""
+msgstr "更新"
 
 msgid "Cancel"
-msgstr ""
+msgstr "取消"
 
 msgid "Ok"
-msgstr ""
+msgstr "好的"
 
 msgid "Cannot access System Events"
-msgstr ""
+msgstr "请在 系统设置->隐私->自动化 完成Macast的授权"
 
 msgid "Check for updates"
-msgstr ""
+msgstr "检查更新"
 
 msgid "New Update {}"
-msgstr ""
+msgstr "有新版本 {}"
 
