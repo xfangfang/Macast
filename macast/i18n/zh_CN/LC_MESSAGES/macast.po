@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: macast\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2022-01-28 12:12+0800\n"
-"PO-Revision-Date: 2022-01-28 04:21\n"
+"PO-Revision-Date: 2022-01-28 05:08\n"
 "Last-Translator: fang <xfangfang@126.com>\n"
 "Language-Team: Chinese Simplified\n"
 "Language: zh_CN\n"
@@ -119,7 +119,7 @@ msgstr "通知"
 
 #: macast/macast.py:452
 msgid "Change Protocol to {}."
-msgstr ""
+msgstr "将协议更改为 {}"
 
 #: macast/macast.py:464
 msgid "Change Renderer to {}."
