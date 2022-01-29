@@ -202,7 +202,6 @@ class Setting:
         """
         if not bool(Setting.setting):
             Setting.load()
-            print(property)
         if property.name in Setting.setting:
             return Setting.setting[property.name]
         Setting.setting[property.name] = default
