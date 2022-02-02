@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: macast\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2022-01-28 13:46+0800\n"
-"PO-Revision-Date: 2022-02-01 13:39\n"
+"PO-Revision-Date: 2022-02-02 15:49\n"
 "Last-Translator: fang <xfangfang@126.com>\n"
 "Language-Team: Chinese Traditional\n"
 "Language: zh_TW\n"
@@ -55,7 +55,7 @@ msgstr "軟體圖標"
 
 #: macast/macast.py:302
 msgid "Pattern"
-msgstr "軟體圖標"
+msgstr "圖案"
 
 #: macast/macast.py:308
 msgid "PatternLight"
@@ -83,7 +83,7 @@ msgstr "獲取幫助"
 
 #: macast/macast.py:362
 msgid "Macast New Update {}"
-msgstr "Macast有新版本"
+msgstr "Macast有新版本 {}"
 
 #: macast/macast.py:367
 msgid "You're up to date."
@@ -119,11 +119,11 @@ msgstr "訊息"
 
 #: macast/macast.py:452
 msgid "Change Protocol to {}"
-msgstr "將通訊協定更改為{}"
+msgstr "將通訊協定更改為 {}"
 
 #: macast/macast.py:464
 msgid "Change Renderer to {}"
-msgstr "將播放器更改為{}"
+msgstr "將播放器更改為 {}"
 
 #: macast/macast.py:486
 msgid "Error"
@@ -131,7 +131,7 @@ msgstr "錯誤"
 
 #: macast/utils.py:249
 msgid "You need move Macast.app to Applications folder"
-msgstr "你需要把Macast. app放置在系統應用資料夾下"
+msgstr "你需要把Macast.app放置在系統應用資料夾下"
 
 #: macast/utils.py:257
 msgid "Cannot access System Events"
