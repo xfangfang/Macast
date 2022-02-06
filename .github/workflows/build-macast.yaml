@@ -146,20 +146,6 @@ jobs:
           $client.DownloadFile('https://github.com/xfangfang/Macast/releases/download/v0.1/gettext0.21-iconv1.16-static-64.zip','gettext.zip')
           7z x -ogettext gettext.zip bin/msgfmt.exe
 
-      - name: Build
-        id: compile
-        run: |
-          Get-ChildItem i18n | ForEach-Object -Process{gettext/bin/msgfmt -o $_/LC_MESSAGES/macast.mo $_/LC_MESSAGES/macast.po;echo $_.name}
-          $VERSION=cat macast/.version
-          echo "DIST_EXE=Macast-Windows-v${VERSION}.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "VERSION=v${VERSION}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          pyinstaller --noconfirm -F -w --additional-hooks-dir=. --add-data="macast/.version;." --add-data="macast/xml/*;macast/xml"  --add-data="i18n/zh_CN/LC_MESSAGES/*.mo;i18n/zh_CN/LC_MESSAGES" --add-data="macast/assets/*;macast/assets" --add-data="macast/assets/fonts/*;macast/assets/fonts" --add-binary="bin/mpv.exe;bin" --icon=macast/assets/icon.ico Macast.py
-          cp dist/Macast.exe Macast-Windows-v${VERSION}.exe
-          pyinstaller --noconfirm -F --additional-hooks-dir=. --add-data="macast/.version;." --add-data="macast/xml/*;macast/xml"  --add-data="i18n/zh_CN/LC_MESSAGES/*.mo;i18n/zh_CN/LC_MESSAGES" --add-data="macast/assets/*;macast/assets" --add-data="macast/assets/fonts/*;macast/assets/fonts" --add-binary="bin/mpv.exe;bin" --icon=macast/assets/icon.ico Macast.py
-          cp dist/Macast.exe Macast-Windows-v${VERSION}-debug.exe
-          echo "::set-output name=status::success"
-
       - name: Upload dist
         uses: actions/upload-artifact@v2
         if: steps.compile.outputs.status == 'success'
