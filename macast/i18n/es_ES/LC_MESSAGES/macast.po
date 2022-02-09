@@ -1,0 +1,220 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: macast\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2022-01-28 13:46+0800\n"
+"PO-Revision-Date: 2022-02-09 04:01\n"
+"Last-Translator: fang <xfangfang@126.com>\n"
+"Language-Team: Spanish\n"
+"Language: es_ES\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Crowdin-Project: macast\n"
+"X-Crowdin-Project-ID: 496979\n"
+"X-Crowdin-Language: es-ES\n"
+"X-Crowdin-File: /dev/macast/i18n/en_US/LC_MESSAGES/macast.po\n"
+"X-Crowdin-File-ID: 109\n"
+
+#: macast/macast.py:236 macast/macast.py:375
+msgid "Stop Cast"
+msgstr "Detener transmisión"
+
+#: macast/macast.py:237
+msgid "Setting"
+msgstr "Ajustes"
+
+#: macast/macast.py:238
+msgid "Quit"
+msgstr "Salir"
+
+#: macast/macast.py:252
+msgid "Auto Check Updates"
+msgstr "Buscar actualizaciones automáticamente"
+
+#: macast/macast.py:255
+msgid "Start At Login"
+msgstr "Ejecutar al inicio de sesión"
+
+#: macast/macast.py:262
+msgid "Renderers"
+msgstr "Renderizadores"
+
+#: macast/macast.py:276
+msgid "Protocols"
+msgstr "Protocolos"
+
+#: macast/macast.py:299 macast/macast.py:305
+msgid "Menubar Icon"
+msgstr "Icono de la barra de menú"
+
+#: macast/macast.py:301 macast/macast.py:307
+msgid "AppIcon"
+msgstr "Icono de la aplicación"
+
+#: macast/macast.py:302
+msgid "Pattern"
+msgstr "Patrón"
+
+#: macast/macast.py:308
+msgid "PatternLight"
+msgstr "Patrón claro"
+
+#: macast/macast.py:309
+msgid "PatternDark"
+msgstr "Patrón oscuro"
+
+#: macast/macast.py:311
+msgid "Open Config Directory"
+msgstr "Abrir directorio de configuración"
+
+#: macast/macast.py:312
+msgid "Advanced Setting"
+msgstr "Ajustes avanzados"
+
+#: macast/macast.py:314
+msgid "Check For Updates"
+msgstr "Buscar actualizaciones"
+
+#: macast/macast.py:315
+msgid "Help"
+msgstr "Ayuda"
+
+#: macast/macast.py:362
+msgid "Macast New Update {}"
+msgstr "Nueva actualización de Macast {}"
+
+#: macast/macast.py:367
+msgid "You're up to date."
+msgstr "Estás actualizado."
+
+#: macast/macast.py:377
+msgid "Start Cast"
+msgstr "Iniciar transmisión"
+
+#: macast/macast.py:386
+msgid "running at task bar"
+msgstr "ejecutándose en la barra de tareas"
+
+#: macast/macast.py:388
+msgid "running at menu bar"
+msgstr "ejecutándose en la barra de menú"
+
+#: macast/macast.py:390
+msgid "running at desktop panel"
+msgstr "ejecutándose en el panel de escritorio"
+
+#: macast/macast.py:392 macast/macast.py:398
+msgid "Macast is hidden"
+msgstr "Macast está oculto"
+
+#: macast/macast.py:435
+msgid "Copy Video URI"
+msgstr "Copiar la URL del video"
+
+#: macast/macast.py:452 macast/macast.py:464
+msgid "Info"
+msgstr "Información"
+
+#: macast/macast.py:452
+msgid "Change Protocol to {}"
+msgstr "Cambiar protocolo a {}"
+
+#: macast/macast.py:464
+msgid "Change Renderer to {}"
+msgstr "Cambiar renderizador a {}"
+
+#: macast/macast.py:486
+msgid "Error"
+msgstr "Error"
+
+#: macast/utils.py:249
+msgid "You need move Macast.app to Applications folder"
+msgstr "Necesita mover Macast.app a la carpeta Aplicaciones"
+
+#: macast/utils.py:257
+msgid "Cannot access System Events"
+msgstr "No se puede acceder a Eventos del sistema (System Events)"
+
+#: macast/utils.py:284
+msgid "Not support to set start at login"
+msgstr "Incompatible con \"Ejecutar al inicio de sesión\""
+
+#: macast/utils.py:308
+msgid "Not support current platform"
+msgstr "Plataforma actual no soportada"
+
+#: macast_renderer/mpv.py:540
+msgid "Player Position"
+msgstr "Posición del reproductor"
+
+#: macast_renderer/mpv.py:542
+msgid "LeftTop"
+msgstr "Arriba a la izquierda"
+
+#: macast_renderer/mpv.py:543
+msgid "LeftBottom"
+msgstr "Abajo a la izquierda"
+
+#: macast_renderer/mpv.py:544
+msgid "RightTop"
+msgstr "Arriba a la derecha"
+
+#: macast_renderer/mpv.py:545
+msgid "RightBottom"
+msgstr "Abajo a la derecha"
+
+#: macast_renderer/mpv.py:546
+msgid "Center"
+msgstr "Centro"
+
+#: macast_renderer/mpv.py:548
+msgid "Player Size"
+msgstr "Tamaño del reproductor"
+
+#: macast_renderer/mpv.py:550
+msgid "Small"
+msgstr "Pequeño"
+
+#: macast_renderer/mpv.py:551
+msgid "Normal"
+msgstr "Normal"
+
+#: macast_renderer/mpv.py:552
+msgid "Large"
+msgstr "Grande"
+
+#: macast_renderer/mpv.py:553
+msgid "Auto"
+msgstr "Automático"
+
+#: macast_renderer/mpv.py:554
+msgid "Fullscreen"
+msgstr "Pantalla completa"
+
+#: macast_renderer/mpv.py:556
+msgid "Player Ontop"
+msgstr "Reproductor sobre la pantalla"
+
+#: macast_renderer/mpv.py:574 macast_renderer/mpv.py:576
+#: macast_renderer/mpv.py:586
+msgid "Hardware Decode"
+msgstr "Decodificación por hardware"
+
+#: macast_renderer/mpv.py:577
+msgid "Force Dedicated GPU"
+msgstr "Forzar GPU dedicada"
+
+#: macast_renderer/mpv.py:595
+msgid "Player Settings"
+msgstr "Ajustes del reproductor"
+
+#: macast_renderer/mpv.py:604
+msgid "Reload Player"
+msgstr "Recargar reproductor"
+
+#: macast_renderer/mpv.py:605
+msgid "please wait"
+msgstr "por favor espere"
+
