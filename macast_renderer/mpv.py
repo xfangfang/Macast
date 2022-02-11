@@ -338,7 +338,6 @@ class MPVRenderer(Renderer):
                 '--image-display-duration=inf',
                 '--idle=yes',
                 '--no-terminal',
-                '--on-all-workspaces',
                 '--hwdec=yes',
                 '--save-position-on-quit=yes',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
@@ -350,6 +349,7 @@ class MPVRenderer(Renderer):
                                 default=SettingProperty.PlayerOntop_True.value)
             if ontop:
                 params.append('--ontop')
+                params.append('--on-all-workspaces')
 
             # set player position
             player_position = Setting.get(SettingProperty.PlayerPosition,
@@ -383,7 +383,6 @@ class MPVRenderer(Renderer):
             if sys.platform == 'darwin':
                 params += [
                     '--ontop-level=system',
-                    '--on-all-workspaces',
                     '--macos-app-activation-policy=accessory',
                 ]
 
