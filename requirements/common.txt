@@ -3,6 +3,7 @@ cherrypy
 lxml
 pillow
 requests
+tendo
 netifaces
 git+https://github.com/xfangfang/pystray.git
 git+https://github.com/xfangfang/pyperclip.git
