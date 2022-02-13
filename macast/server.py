@@ -62,6 +62,8 @@ class AutoPortServer(Server):
         except Exception:
             self.interrupt = sys.exc_info()[1]
             if 'WinError 10013' in str(self.interrupt):
+                # port is free but cannot use
+                # check your hyper-v setting
                 self.bus.log('Error in HTTP server: WinError 10013')
                 raise portend.Timeout
             else:
@@ -173,7 +175,7 @@ class Service:
         # update current port
         _, port = cherrypy.server.bound_addr
         logger.info("Server current run on port: {}".format(port))
-        if port != Setting.get(SettingProperty.ApplicationPort, 0):
+        if port != Setting.get_port():
             # todo 验证正确性
             usn = Setting.get_usn(refresh=True)
             logger.info("Change usn to: {}".format(usn))
@@ -200,3 +202,44 @@ class Service:
             return
         self.thread = threading.Thread(target=self.run, name="SERVICE_THREAD")
         self.thread.start()
+
+
+class SettingService:
+
+    def __init__(self):
+        self.thread = None
+        self.setting_server = AutoPortServer()
+        self.setting_server.bind_addr = ('localhost', Setting.get_setting_port())
+
+    def stop(self):
+        """ Stop macast setting http server
+        :return:
+        """
+        if self.thread is None:
+            logger.warning("Macast setting http server is not started yet")
+            return
+        self.thread.join()
+        self.thread = None
+
+    def run(self):
+        """ Starting in another thread will not block cherrypy
+        :return:
+        """
+        if self.thread is not None:
+            logger.warning("Macast setting http server is already started")
+            return
+        self.thread = threading.Thread(target=self._run, name="SETTING_THREAD", daemon=True)
+        self.thread.start()
+
+    def _run(self):
+        """ Start macast setting http server
+        :return:
+        """
+
+        logger.info(f'Start macast setting http server at http://localhost:{Setting.get_setting_port()}')
+
+        self.setting_server.start()
+        _, port = self.setting_server.bound_addr
+        if port != Setting.get_setting_port():
+            Setting.set(SettingProperty.Macast_Setting_Port, port)
+            logger.warning(f"Change setting http server port to {port}")

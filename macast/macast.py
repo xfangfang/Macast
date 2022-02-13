@@ -16,8 +16,8 @@ import importlib
 from .utils import SettingProperty, SETTING_DIR, notify_error, format_class_name
 from .gui import App, MenuItem, Platform
 from .protocol import DLNAProtocol
-from .server import Service
 from .utils import RENDERER_DIR, PROTOCOL_DIR, Setting, AssetsPath
+from .server import Service, SettingService
 from macast_renderer.mpv import MPVRenderer
 
 logger = logging.getLogger("main")
@@ -200,9 +200,6 @@ class Macast(App):
         self.setting_renderer = ''
         self.setting_protocol = ''
         self.init_setting()
-
-        # setting logger
-        Setting.setup_logger()
 
         # load plugins from file
         self.plugin_manager = MacastPluginManager(
@@ -513,7 +510,7 @@ def get_lang():
     locale = Setting.get_locale()
     if not os.path.exists(os.path.join(AssetsPath.I18N, locale, 'LC_MESSAGES', 'macast.mo')):
         locale = locale.split("_")[0]
-    logger.error("Macast Loading Language: {}".format(locale))
+    logger.info("Macast Loading Language: {}".format(locale))
     try:
         lang = gettext.translation('macast', localedir=AssetsPath.I18N, languages=[locale])
         lang.install()
@@ -525,7 +522,14 @@ def get_lang():
         return gettext.gettext
 
 
+@notify_error("Unhandled error")
 def gui(renderer=None, protocol=None):
+    # setup logger
+    Setting.setup_logger()
+
+    # start setting http server
+    SettingService().run()
+
     lang = get_lang()
     if renderer is None:
         renderer = MPVRenderer(lang, Setting.mpv_default_path)
@@ -534,7 +538,14 @@ def gui(renderer=None, protocol=None):
     Macast(renderer, protocol, lang).start()
 
 
+@notify_error("Unhandled error")
 def cli(renderer=None, protocol=None):
+    # setup logger
+    Setting.setup_logger()
+
+    # start setting http server
+    SettingService().run()
+
     if renderer is None:
         renderer = MPVRenderer(path=Setting.mpv_default_path)
     if protocol is None:

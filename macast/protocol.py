@@ -17,6 +17,7 @@ from enum import Enum
 from cherrypy import _cpnative_server
 
 from .utils import load_xml, XMLPath, Setting, cherrypy_publish, SETTING_DIR
+from .utils import load_xml, XMLPath, Setting, cherrypy_publish, SETTING_DIR, AssetsPath
 from .ssdp import SSDPServer
 
 logger = logging.getLogger("Protocol")
@@ -125,7 +126,7 @@ class Protocol:
         pass
 
     def set_state_display_subtitle(self, data: bool):
-        """ set custom subtitle file path
+        """ set whether display the subtitle
         :param data: bool, whether display the subtitle
         :return:
         """
@@ -915,37 +916,44 @@ class Handler:
         finally:
             self.__downloading = False
             Setting.restart()
-            # cherrypy.engine.restart()
 
-    def GET(self, param=None, *args, **kwargs):
-        if not Setting.is_service_running():
-            raise cherrypy.HTTPError(503, 'Server restarting')
+    def GET(self, param=None, method=None, *args, **kwargs):
+        # open in main service port
+        if cherrypy.request.local.port != Setting.get_setting_port():
+            cherrypy.response.headers['Content-Type'] = 'text/html'
+            return b'''<h1>Macast is running</h1>'''
+
+        # setting api
         if param == 'api':
             cherrypy.response.headers['Content-Type'] = 'application/json;charset:utf-8'
-            query = kwargs.get('query', '')
-            res = {
-                'api?query=log': 'get logs of macast',
-                'api?query=settings': 'get settings of macast',
-            }
-            if query == 'log':
-                log_path = os.path.join(SETTING_DIR, 'macast.log')
-                data = ''
-                try:
-                    with open(log_path, 'r', encoding='utf-8') as f:
-                        data = f.read()
-                except:
-                    pass
-                res = {"logs": data}
-            elif query == 'launch-param':
+            # query = kwargs.get('query', '')
+            if method == 'log':
+                res = {"logs": load_xml(AssetsPath.LOG)}
+            elif method == 'launch_param':
                 res = Setting.setting
-            elif query == 'plugin-info':
+            elif method == 'server_status':
+                res = {
+                    'status': Setting.is_service_running(),
+                    'lang': Setting.get_locale(),
+                }
+            elif method == 'plugin_info':
                 info = cherrypy_publish('get_plugin_info', [])
                 res = {
                     'platform': sys.platform,
                     'version': Setting.version,
                     'plugins': info
                 }
+            else:
+                res = {
+                    '/api/log': 'get logs of macast',
+                    '/api/settings': 'get settings of macast',
+                    '/api/server_status': 'get macast service status',
+                    '/api/launch_param': 'get macast launch param',
+                    '/api/plugin_info': 'get macast local plugin info',
+                }
             return json.dumps(res, indent=4).encode()
+
+        # setting page
         if param is not None:
             raise cherrypy.HTTPRedirect('/')
         cherrypy.response.headers['Content-Type'] = 'text/html'
@@ -953,22 +961,36 @@ class Handler:
         return load_xml(XMLPath.SETTING_PAGE.value).encode()
 
     def POST(self, *args, **kwargs):
+        # open in main service port
+        if cherrypy.request.local.port != Setting.get_setting_port():
+            raise cherrypy.HTTPError(403, 'Forbidden')
+
+        # setting api
+        if args[0] != 'api':
+            raise cherrypy.HTTPError(403, 'Forbidden')
+
         cherrypy.response.headers['Content-Type'] = 'application/json;charset:utf-8'
         res = {'code': 0, 'message': 'success'}
-        if kwargs.get('save-launch-param', None) is not None:
-            setting = kwargs.get('save-launch-param', None)
+        method = kwargs.get('method', None)
+        data = kwargs.get('data', None)
+
+        if method == 'save_launch_param':
             try:
-                setting = json.loads(setting)
+                setting = json.loads(data)
             except Exception as e:
                 res['code'] = 1
                 res['message'] = 'json format error'
             else:
                 Setting.setting = setting
                 Setting.save()
-                Setting.restart()
-                # cherrypy.engine.restart()
-        elif kwargs.get('install-plugin', None) is not None:
-            plugin = kwargs.get('install-plugin', None)
+                # Setting.restart_async()
+        elif method == 'restart_server':
+            Setting.restart_async()
+        elif method == 'open_folder':
+            app = cherrypy_publish('get_macast_app', None)
+            if app is not None:
+                app.open_directory(SETTING_DIR)
+        elif method == 'install_plugin':
             if self.__downloading:
                 cherrypy.engine.publish('app_notify', 'ERROR', 'Downloading other plugin now')
                 res['code'] = 1
@@ -977,7 +999,7 @@ class Handler:
                 cherrypy.engine.publish('app_notify', 'INFO', 'installing plugin...')
                 self.__downloading = True
                 try:
-                    plugin = json.loads(plugin)
+                    plugin = json.loads(data)
                     url = plugin.get('url', '')
                     plugin_name = url.split('/')[-1]
                     local_path = os.path.join(SETTING_DIR, plugin.get('type', 'renderer'), plugin_name)
@@ -986,8 +1008,6 @@ class Handler:
                 except Exception as e:
                     res['code'] = 1
                     res['message'] = 'json format error'
-        else:
-            logger.info(kwargs)
 
         return json.dumps(res, indent=4).encode()
 
@@ -1020,7 +1040,7 @@ class DLNAHandler(Handler):
             friendly_name=Setting.get_friendly_name(),
             manufacturer="xfangfang",
             manufacturer_url="https://github.com/xfangfang",
-            model_description="AVTransport Media Renderer",
+            model_description="Macast DLNA Media Renderer",
             model_name="Macast",
             model_url="https://xfangfang.github.io/Macast",
             model_number=Setting.get_version_tag(),

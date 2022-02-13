@@ -2,10 +2,13 @@
 
 import os
 import sys
+import threading
 import uuid
 import json
 import time
 import ctypes
+from typing import Any
+
 import appdirs
 import logging
 import platform
@@ -28,6 +31,7 @@ logger = logging.getLogger("Utils")
 _ = gettext.gettext
 DEFAULT_PORT = 0
 SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
+LOG_DIR = appdirs.user_log_dir('Macast', 'xfangfang')
 PROTOCOL_DIR = 'protocol'
 RENDERER_DIR = 'renderer'
 LOG_LEVEL = {
@@ -50,6 +54,7 @@ class SettingProperty(Enum):
     Blocked_Interfaces = 8
     Additional_Interfaces = 9
     Macast_Log = 10
+    Macast_Setting_Port = 11
 
 
 class Setting:
@@ -86,7 +91,7 @@ class Setting:
                 try:
                     with open(Setting.setting_path, "r") as f:
                         Setting.setting = json.load(fp=f)
-                    logger.error(Setting.setting)
+                    logger.info(Setting.setting)
                 except Exception as e:
                     logger.error(e)
         return Setting.setting
@@ -197,6 +202,12 @@ class Setting:
         return Setting.get(SettingProperty.ApplicationPort, DEFAULT_PORT)
 
     @staticmethod
+    def get_setting_port():
+        """Get application port
+        """
+        return Setting.get(SettingProperty.Macast_Setting_Port, DEFAULT_PORT)
+
+    @staticmethod
     def get_locale():
         """Get the language settings of the system
         Default: en_US
@@ -219,21 +230,33 @@ class Setting:
         return lang
 
     @staticmethod
-    def get(property, default=1):
+    def get(prop, default: Any = 1):
         """Get application settings
         """
         if not bool(Setting.setting):
             Setting.load()
-        if property.name in Setting.setting:
-            return Setting.setting[property.name]
-        Setting.setting[property.name] = default
+
+        if isinstance(prop, str):
+            prop_name = prop
+        else:
+            prop_name = prop.name
+
+        if prop_name in Setting.setting:
+            return Setting.setting[prop_name]
+        Setting.setting[prop_name] = default
         return default
 
     @staticmethod
-    def set(property, data):
+    def set(prop, data):
         """Set application settings
         """
-        Setting.setting[property.name] = data
+
+        if isinstance(prop, str):
+            prop_name = prop
+        else:
+            prop_name = prop.name
+
+        Setting.setting[prop_name] = data
         Setting.save()
 
     @staticmethod
@@ -314,7 +337,7 @@ class Setting:
             see also: https://pyinstaller.readthedocs.io/en/stable/\
                 runtime-information.html#run-time-information
         """
-        logger.error("Setting.get_base_path will be removed in next version.")
+        logger.warning("Setting.get_base_path will be removed in next version.")
         if Setting.base_path is not None:
             return os.path.join(Setting.base_path, path)
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -383,6 +406,10 @@ class Setting:
             cherrypy.engine.restart()
 
     @staticmethod
+    def restart_async():
+        threading.Thread(target=Setting.restart, name="RESTART_THREAD", daemon=True).start()
+
+    @staticmethod
     def setup_logger():
         if Setting.log_level is not None:
             return LOG_LEVEL.get(Setting.log_level, 20)
@@ -398,6 +425,7 @@ class Setting:
         )
 
         logger.info(f'Using log level: {Setting.log_level}, {log_level}')
+        logger.info(f'Load Setting: {Setting.setting}')
 
         return log_level
 
@@ -415,6 +443,10 @@ class XMLPath(Enum):
 class AssetsPath:
     BASE_PATH = os.path.dirname(__file__)
     I18N = os.path.join(BASE_PATH, 'i18n')
+    XML = os.path.join(BASE_PATH, 'xml')
+    ASSETS = os.path.join(BASE_PATH, 'assets')
+    SCRIPTS = os.path.join(BASE_PATH, 'scripts')
+    LOG = os.path.join(SETTING_DIR, 'macast.log')
 
     @staticmethod
     def join(*args):
@@ -422,8 +454,12 @@ class AssetsPath:
 
 
 def load_xml(path):
-    with open(path, encoding="utf-8") as f:
-        xml = f.read()
+    try:
+        with open(path, encoding="utf-8") as f:
+            xml = f.read()
+    except Exception as e:
+        xml = ''
+        logger.exception(f'Error reading {path}', exc_info=e)
     return xml
 
 
@@ -437,11 +473,9 @@ def notify_error(msg=None):
             try:
                 return fun(*args, **kwargs)
             except Exception as e:
-                logger.error(str(e))
                 if msg is None:
                     msg = str(e)
-                else:
-                    logger.error(msg)
+                logger.exception(msg, exc_info=e)
                 cherrypy.engine.publish('app_notify', 'Error', msg)
 
         return wrapper
