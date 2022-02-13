@@ -1,0 +1,10 @@
+{
+  "Plugin": "插件",
+  "Setting": "设置",
+  "Log": "日志",
+  "Help": "帮助",
+  "plugin_tip_repo": "前往插件仓库获取更多信息",
+  "plugin_tip_folder": "打开 Macast 配置目录",
+  "restart_tip": "Macast将会重启",
+  "Save": "保存"
+}

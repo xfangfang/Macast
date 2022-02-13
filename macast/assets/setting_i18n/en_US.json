@@ -1,0 +1,10 @@
+{
+  "Plugin": "Plugin",
+  "Setting": "Setting",
+  "Log": "Log",
+  "Help": "Help",
+  "plugin_tip_repo": "Find more information at plugins repository.",
+  "plugin_tip_folder": "Open Macast configuration directory.",
+  "restart_tip": "Macast will be restarted.",
+  "Save": "Save"
+}
