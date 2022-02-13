@@ -8,57 +8,104 @@
     <script src="/assets/vue@2.6.14.js"></script>
     <script src="/assets/vue-resource@1.5.3.js"></script>
     <script src="/assets/element-ui@2.15.7.js"></script>
+    <script src="/assets/setting_i18n/default_i18n.js"></script>
     <link rel="shortcut icon" type="image/x-icon" href="/assets/icon.png">
     <link href="https://fonts.font.im/css?family=Noto+Sans" rel="stylesheet">
     <link rel="stylesheet" type="text/css" href="/assets/element-ui@2.15.7.css">
 </head>
 <body>
+<style lang="scss">
+    [v-cloak] {
+        display: none !important;
+    }
+</style>
 
-<div id="app">
+<div id="app" v-cloak>
     <el-tabs v-model="activeIndex" @tab-click="handleSelect">
-        <el-tab-pane label="Plugin" name="1">
+        <el-tab-pane :label=$t("message.Plugin") name="1">
             <div class="macast-plugins">
                 <macast-plugin v-for="item in plugins" :key="item.renderer"
                                :item="item" v-on:refresh_plugin="refresh_plugin">
                 </macast-plugin>
                 <p v-if="loading">loading</p>
             </div>
-            <a :href="this.repo_url" target="_blank">
-                <el-tooltip class="item" effect="dark" content="Find more information at plugins repo."
-                            placement="top-end">
-                    <el-button class="macast-plugin-repo" icon="el-icon-search" circle>
+            <div class="macast-plugin-shortcut">
+                <el-tooltip class="item" effect="dark" :content=$t("message.plugin_tip_folder")
+                            placement="left">
+                    <el-button class="macast-plugin-shortcut-item" circle v-on:click="open_folder">
+                        <svg aria-hidden="true" focusable="false" data-prefix="far" data-icon="folder-open" role="img"
+                             xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"
+                             class="svg-inline--fa fa-folder-open fa-w-18 fa-3x">
+                            <path fill="currentColor"
+                                  d="M527.9 224H480v-48c0-26.5-21.5-48-48-48H272l-64-64H48C21.5 64 0 85.5 0 112v288c0 26.5 21.5 48 48 48h400c16.5 0 31.9-8.5 40.7-22.6l79.9-128c20-31.9-3-73.4-40.7-73.4zM48 118c0-3.3 2.7-6 6-6h134.1l64 64H426c3.3 0 6 2.7 6 6v42H152c-16.8 0-32.4 8.8-41.1 23.2L48 351.4zm400 282H72l77.2-128H528z"
+                                  class=""></path>
+                        </svg>
                     </el-button>
                 </el-tooltip>
-            </a>
-        </el-tab-pane>
-        <el-tab-pane label="Setting" name="2">
-            <div>
-                <el-input
-                        type="textarea"
-                        :autosize="{ minRows: 2, maxRows: 20}"
-                        placeholder="Macast launch parameters"
-                        v-model="textarea">
-                </el-input>
+                <a :href="this.repo_url" target="_blank">
+                    <el-tooltip class="item" effect="dark" :content=$t("message.plugin_tip_repo")
+                                placement="left">
 
-                <el-tooltip class="item" effect="dark" content="Macast will be restarted" placement="right">
-                    <el-button :loading="connecting" :disabled="!is_json" v-on:click="save" round
-                               style="margin-top: 10px">Save
-                    </el-button>
-                </el-tooltip>
-                <p v-if="!is_json">json format error</p>
+                        <el-button class="macast-plugin-shortcut-item" circle>
+                            <svg aria-hidden="true" focusable="false" data-prefix="fab" data-icon="github" role="img"
+                                 xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"
+                                 class="svg-inline--fa fa-github fa-w-16 fa-fw fa-lg">
+                                <path fill="currentColor"
+                                      d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"
+                                      class=""></path>
+                            </svg>
+                        </el-button>
+                    </el-tooltip>
+                </a>
             </div>
+
         </el-tab-pane>
-        <el-tab-pane label="Log" name="3">
-            <span>This page does not display all logs. If you want to view all logs, please run from the source code or refer to </span>
-            <el-link type="primary"
-                     href="https://github.com/xfangfang/Macast/blob/main/.github/ISSUE_TEMPLATE/bug_report.md"
-                     target="_blank">this instruction.
-            </el-link>
+        <el-tab-pane :label=$t("message.Setting") name="2">
+
+            <el-collapse value="1" accordion>
+                <el-collapse-item name="1">
+                    <template slot="title">
+                        <h2><i class="header-icon el-icon-set-up" style="margin-right: 8px"></i> Common</h2>
+                    </template>
+                    <macast-setting v-for="item in settings"
+                                    v-model="item.data"
+                                    :type="item.type"
+                                    :options="item.options"
+                                    :label="item.label"></macast-setting>
+                </el-collapse-item>
+                <el-collapse-item name="2">
+                    <template slot="title">
+                        <h2><i class="header-icon el-icon-cpu" style="margin-right: 8px"></i> Raw</h2>
+                    </template>
+                    <el-input
+                            type="textarea"
+                            :autosize="{ minRows: 2, maxRows: 30}"
+                            placeholder="Macast launch parameters"
+                            v-model="textarea">
+                    </el-input>
+                    <p v-if="!is_json">json format error</p>
+                </el-collapse-item>
+            </el-collapse>
+            <el-tooltip class="item" effect="dark" :content=$t("message.restart_tip") placement="right">
+                <el-button :loading="connecting"
+                           :disabled="!is_json"
+                           v-on:click="save_launch_param"
+                           round
+                           style="margin-top: 10px">{{$t("message.Save")}}
+                </el-button>
+            </el-tooltip>
+
+
+        </el-tab-pane>
+        <el-tab-pane :label=$t("message.Log") name="3">
+
             <br/>
             <br/>
-            <span v-html="macast_log"></span>
+            <pre v-for="(item, index) in macast_log" :key="index" :item="item" :class="item.log_type">
+            {{item.index}} | {{item.content}}
+            </pre>
         </el-tab-pane>
-        <el-tab-pane label="Help" name="4">
+        <el-tab-pane :label=$t("message.Help") name="4">
 
             <h1>FAQ</h1>
 
@@ -246,6 +293,27 @@
     </el-card>
 </script>
 
+<script type="text/x-template" id="setting">
+    <div class="setting-item">
+        <div class="setting-item-label">
+            {{label}}
+        </div>
+        <div class="setting-item-value">
+            <el-select v-if="type == 'select'" v-model="data" placeholder="">
+                <el-option
+                        v-for="item in options"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value">
+                </el-option>
+            </el-select>
+            <el-input v-else-if="type == 'input'" v-model="data" placeholder="" clearable></el-input>
+            <el-switch v-else-if="type == 'switch'" v-model="data"></el-switch>
+            <el-slider v-else-if="type == 'slider'" v-model="data"></el-slider>
+        </div>
+    </div>
+</script>
+
 <script type="text/javascript">
     const NotFound = {template: '<p>Page not found</p>'}
     Vue.component('macast-plugin', {
@@ -258,7 +326,7 @@
             }
         },
         async mounted() {
-            this.get_github_avatar()
+            await this.get_github_avatar()
         },
         methods: {
             async get_github_avatar() {
@@ -282,7 +350,44 @@
             },
         }
     })
+
+    Vue.component('macast-setting', {
+        template: '#setting',
+        props: ['data', 'type', 'options', 'label'],
+        model: {
+            prop: 'data',
+            event: 'change'
+        },
+        data() {
+            return {
+                circleUrl: '/assets/avatar.png',
+                loading: false
+            }
+        },
+        async mounted() {
+            console.log(this.options)
+        },
+        methods: {},
+        watch: {
+            data(value) {
+                this.$emit('change', value);
+            }
+        }
+    })
+
+    const loadedLanguages = ['en_US']
+
+    const i18n = new VueI18n({
+        locale: 'en_US',
+        fallbackLocale: 'en_US',
+        messages: {
+            en_US: DEFAULT_LANG
+        },
+    })
+
+
     new Vue({
+        i18n,
         el: '#app',
         data: {
             currentRoute: window.location.pathname,
@@ -305,7 +410,57 @@
             interval_id: 0,
             connecting: false,
 
-            DLNA_FriendlyName: "",
+            settings: [
+                {
+                    label: 'DLNA Friendly Name',
+                    type: 'input',
+                    data: 'Macast'
+                },
+                {
+                    label: 'DLNA USN',
+                    type: 'input',
+                    data: '00000000-0000-0000-0000-000000000000'
+                },
+                {
+                    label: 'Log Level',
+                    type: 'select',
+                    data: 'INFO',
+                    options: [{
+                        value: 'ERROR',
+                        label: 'ERROR'
+                    }, {
+                        value: 'INFO',
+                        label: 'INFO'
+                    }, {
+                        value: 'DEBUG',
+                        label: 'DEBUG'
+                    }, {
+                        value: 'ALL',
+                        label: 'ALL'
+                    }]
+                },
+                {
+                    label: 'Start at Login',
+                    type: 'switch',
+                    data: false
+                },
+                {
+                    label: 'Protocol Port',
+                    type: 'input',
+                    data: 0
+                },
+                {
+                    label: 'Setting Port',
+                    type: 'input',
+                    data: 0
+                },
+                {
+                    label: 'Default Volume',
+                    type: 'slider',
+                    data: 80
+                }
+            ],
+
 
             //log
             macast_log: ''
@@ -320,11 +475,12 @@
                 }
             });
             let page = this.getQueryString('page');
+            if (!(page in ['1', '2', '3', '4'])) {
+                page = '1'
+            }
             console.log(page);
             this.switch_page(page);
-            this.load_local_plugin();
-            this.load_repo_plugin();
-            this.get_log();
+            this.get_macast_status();
         },
         activated() {
 
@@ -337,9 +493,23 @@
                 } catch (e) {
                     return false;
                 }
-            },
+            }
         },
         methods: {
+            async loadLanguage(language) {
+                if (loadedLanguages.includes(language)) {
+                    console.log("Already include language!")
+                    return
+                }
+                await this.$http.get(`/assets/setting_i18n/${language}.json`).then(res => {
+                    i18n.setLocaleMessage(language, {message: res.data})
+                    loadedLanguages.push(language)
+                    i18n.locale = language;
+                    i18n.fallbackLocale = 'en_US';
+                }).catch(err => {
+                    console.log('Using default language: en_US')
+                })
+            },
             getQueryString(name) {
                 let reg = `(^|&)${name}=([^&]*)(&|$)`
                 let r = window.location.search.substr(1).match(reg);
@@ -347,10 +517,22 @@
                 return null;
             },
             async get_log() {
-                let url = '/api?query=log';
+                let url = '/api/log';
                 this.$http.get(url).then(res => {
-                    let logs = res.data.logs.replace(new RegExp("\n", "gm"), '<br/>')
-                    this.macast_log = logs;
+                    let log_lines = res.data.logs.split('\n')
+                    this.macast_log = log_lines.map((content, index) => {
+                        let log_type = 'log_type_warning'
+                        if (content.indexOf('INFO') === 0) {
+                            log_type = 'log_type_info'
+                        } else if (content.indexOf('DEBUG') === 0) {
+                            log_type = 'log_type_debug'
+                        } else if (content.indexOf('ERROR') === 0) {
+                            log_type = 'log_type_error'
+                        } else if (content.indexOf('WARNING') === 0) {
+                            log_type = 'log_type_warning'
+                        }
+                        return {index, content, log_type}
+                    }).reverse()
                 }).catch(err => {
                     this.$message.error('Error connecting to Macast');
                 });
@@ -360,25 +542,22 @@
             },
             async switch_page(page_name) {
                 console.log('switch page:', page_name)
+                await this.set_history(page_name);
                 switch (page_name) {
-                    case '1':
-                        this.load_local_plugin();
-                        this.load_repo_plugin();
-                        this.set_history(page_name);
-                        break;
                     case '2':
                         this.connecting = true;
-                        let res = await this.get_settings()
+                        let res = await this.get_macast_settings()
                         this.connecting = false
-                        this.set_history(page_name);
                         break;
                     case '3':
-                        this.set_history(page_name);
-                        this.get_log();
+                        await this.get_log();
                         break;
                     case '4':
-                        this.set_history(page_name);
                         break;
+                    default:
+                        await this.load_local_plugin();
+                        await this.load_repo_plugin();
+
                 }
             },
             async set_history(page_name) {
@@ -398,12 +577,12 @@
                     return true;
                 }).catch(err => {
                     console.log(err);
-                    this.$message.error('Error connecting to plugin repo.');
+                    this.$message.error('Error connecting to plugin repository.');
                     return false;
                 })
             },
             async load_local_plugin() {
-                let url = '/api?query=plugin-info'
+                let url = '/api/plugin_info'
                 return this.$http.get(url).then(res => {
                     console.log(res.data)
                     this.macast_version = res.data.macast_version;
@@ -420,45 +599,75 @@
                     return false;
                 })
             },
-            async get_settings() {
-                let url = '/api?query=launch-param'
+            async get_macast_settings() {
+                let url = '/api/launch_param'
                 return this.$http.get(url).then(res => {
                     return res.text()
                 }).then(res => {
                     console.log(res)
                     res = res.replace(new RegExp("\\\\u", "gm"), '%u')
                     this.textarea = unescape(res)
+
+                    let settings = JSON.parse(this.textarea)
+                    // USN StartAtLogin Macast_Log DLNA_FriendlyName CheckUpdate ApplicationPort Macast_Setting_Port
+                    this.settings[0].data = settings['DLNA_FriendlyName']
+                    this.settings[1].data = settings['USN']
+                    this.settings[2].data = settings['Macast_Log']
+                    this.settings[3].data = settings['StartAtLogin'] === 1
+                    this.settings[4].data = settings['ApplicationPort']
+                    this.settings[5].data = settings['Macast_Setting_Port']
+                    this.settings[6].data = settings['PlayerDefaultVolume']
+
+                    console.log(settings)
                     return true;
                 }).catch(err => {
                     console.log(err)
-                    this.$message.error('Error connecting to Macast');
+                    this.$message.error('Error connecting to Macast, maybe Macast is restarting');
                     return false;
                 })
             },
-            save() {
+            async get_macast_status() {
+                let url = '/api/server_status'
+                return this.$http.get(url).then(res => {
+                    this.loadLanguage(res.data.lang);
+                    return res.data.status
+                }).catch(err => {
+                    return false;
+                })
+            },
+            async open_folder() {
+                let url = '/api'
+                let uploadData = new window.FormData()
+                uploadData.append('method', 'open_folder')
+                this.$http.post(url, uploadData).then(res => {
+                    this.$message.success('Opening Macast folder');
+                }).catch(err => {
+                    this.$message.error('Error connecting to Macast');
+                })
+            },
+            async save_launch_param() {
                 console.log(this.textarea)
                 let url = '/api'
                 let uploadData = new window.FormData()
-                uploadData.append('save-launch-param', this.textarea)
+                uploadData.append('method', 'save_launch_param')
+                uploadData.append('data', this.textarea)
                 this.$http.post(url, uploadData).then(res => {
-                    console.log(res)
+                    console.log('Return - save_launch_param:', res.data)
+                    this.$message.success('Macast is restarting');
                 }).catch(err => {
-                    console.log(err)
+                    console.log('Error - save_launch_param:', err)
                     this.$message.error('Error connecting to Macast');
                 })
                 this.connecting = true;
                 this.interval_id = setInterval(
                     async () => {
-                        let res = await this.get_settings()
-                        console.log('get_settings:', res)
+                        let res = await this.get_macast_status()
+                        console.log('get_macast_status:', res)
                         if (res) {
                             clearInterval(this.interval_id)
                             this.connecting = false;
-                            this.$notify({
-                                title: 'Success',
-                                message: 'Macast restart',
-                                duration: 0
-                            });
+                            this.$message.success('Macast started');
+                            await this.get_macast_settings()
                         }
                     }, 1000)
             },
@@ -569,6 +778,7 @@
             }
         }
     })
+
 </script>
 
 <style lang="scss">
@@ -625,17 +835,19 @@
         margin-left: 8px;
     }
 
-    .macast-plugin-repo {
-        width: 3rem;
-        height: 3rem;
+    .macast-plugin-shortcut {
         position: fixed;
         bottom: 1rem;
         right: 1rem;
         z-index: 9999;
+        display: flex;
+        flex-direction: column;
     }
 
-    .item {
+    .macast-plugin-shortcut-item {
         margin-bottom: 18px;
+        width: 3rem;
+        height: 3rem;
     }
 
     .clearfix:before,
@@ -655,6 +867,47 @@
 
     /*plugin style end*/
 
+    /*log style start*/
+
+    pre {
+        margin: 0.5em 0px;
+        white-space: pre-line;
+    }
+
+    .log_type_error {
+        color: red;
+    }
+
+    .log_type_debug {
+        color: darkgray;
+    }
+
+    .log_type_info {
+        color: teal;
+    }
+
+    .log_type_warning {
+        color: coral;
+    }
+
+    /*log style end*/
+
+    /*setting style start*/
+
+    .setting-item {
+        display: flex;
+        margin: 16px;
+    }
+
+    .setting-item-label {
+        width: 30%;
+    }
+
+    .setting-item-value {
+        flex-grow: 1;
+    }
+
+    /*setting style end*/
 
 </style>
 

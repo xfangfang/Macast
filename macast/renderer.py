@@ -5,9 +5,10 @@ import logging
 import cherrypy
 
 from .protocol import Protocol
+from .utils import cherrypy_publish
+from .gui import Tool
 
 logger = logging.getLogger("Renderer")
-logger.setLevel(logging.INFO)
 
 
 class Renderer:
@@ -22,7 +23,7 @@ class Renderer:
         global _
         _ = lang
         self.running = False
-        self.renderer_setting = RendererSetting()
+        self.renderer_setting = Tool()
 
     def start(self):
         """Start render thread
@@ -44,11 +45,7 @@ class Renderer:
 
     @property
     def protocol(self) -> Protocol:
-        protocols = cherrypy.engine.publish('get_protocol')
-        if len(protocols) == 0:
-            logger.error("Unable to find an available protocol.")
-            return Protocol()
-        return protocols.pop()
+        return cherrypy_publish('get_protocol', Protocol)
 
     # If you want to write a new renderer adapted to another video player,
     # please rewrite the following methods to control the video player you use.
@@ -202,11 +199,3 @@ class Renderer:
 
     def get_state(self, state_name):
         return self.protocol.get_state(state_name)
-
-
-class RendererSetting:
-    """ Dummy menu settings class
-    """
-
-    def build_menu(self):
-        return []

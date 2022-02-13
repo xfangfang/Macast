@@ -3,6 +3,7 @@ recursive-include macast .version
 recursive-include macast/xml *.xml
 recursive-include macast/xml *.html
 recursive-include macast/xml *.csv
+recursive-include macast/i18n *
 recursive-include macast/scripts *.lua
 recursive-include macast/assets *.png
 recursive-include macast/assets *.icns

@@ -1,0 +1,3 @@
+files:
+  - source: /macast/i18n/en_US/LC_MESSAGES/macast.po
+    translation: /macast/i18n/%locale_with_underscore%/LC_MESSAGES/macast.po

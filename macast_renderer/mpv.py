@@ -17,15 +17,14 @@ import gettext
 from enum import Enum
 
 from macast.utils import Setting
-from macast.renderer import Renderer, RendererSetting
-from macast.gui import App, MenuItem
+from macast.renderer import Renderer
+from macast.gui import App, MenuItem, Tool
 
 if os.name == 'nt':
     import _winapi
     from multiprocessing.connection import PipeConnection
 
 logger = logging.getLogger("MPVRenderer")
-logger.setLevel(logging.INFO)
 
 
 class ObserveProperty(Enum):
@@ -196,7 +195,7 @@ class MPVRenderer(Renderer):
                     sec = int(res['data'])
                     duration = '%d:%02d:%02d' % (sec // 3600, (sec % 3600) // 60, sec % 60)
                     cherrypy.engine.publish('mpv_update_duration', duration)
-                    logger.info("update duration " + duration)
+                    logger.debug("update duration " + duration)
                     if self.protocol.get_state_transport_state() == 'PLAYING':
                         logger.debug("Living media")
                 self.set_state_duration(duration)
@@ -234,7 +233,6 @@ class MPVRenderer(Renderer):
             elif res['event'] == 'start-file':
                 self.playing = True
                 # self.set_state_transport('TRANSITIONING')
-                cherrypy.engine.publish('renderer_av_uri', self.protocol.get_state_url())
             elif res['event'] == 'seek':
                 pass
                 # self.set_state_transport('TRANSITIONING')
@@ -273,13 +271,13 @@ class MPVRenderer(Renderer):
         Communicating with mpv
         """
         if self.ipc_running:
-            logger.error("mpv ipc is already runing")
+            logger.info("mpv ipc is already runing")
             return
         self.ipc_running = True
         while self.ipc_running and self.running and self.mpv_thread.is_alive():
             try:
                 time.sleep(0.5)
-                logger.error("mpv ipc socket start connect")
+                logger.info("mpv ipc socket start connect")
                 if os.name == 'nt':
                     handler = _winapi.CreateFile(
                         self.mpv_sock,
@@ -296,7 +294,7 @@ class MPVRenderer(Renderer):
                 self.ipc_once_connected = True
                 self.set_observe()
             except Exception as e:
-                logger.error("mpv ipc socket reconnecting: {}".format(str(e)))
+                logger.info("mpv ipc socket reconnecting: {}".format(str(e)))
                 continue
             res = b''
             msgs = None
@@ -325,13 +323,13 @@ class MPVRenderer(Renderer):
                 finally:
                     res = b''
             self.ipc_sock.close()
-            logger.error("mpv ipc stopped")
+            logger.info("mpv ipc stopped")
 
     def start_mpv(self):
         """Start mpv thread
         """
         error_time = 3
-        while self.running and error_time > 0:
+        while self.running and error_time > 0 and Setting.is_service_running():
             self.set_state_speed('1')
             # mpv default params
             params = [
@@ -340,7 +338,6 @@ class MPVRenderer(Renderer):
                 '--image-display-duration=inf',
                 '--idle=yes',
                 '--no-terminal',
-                '--on-all-workspaces',
                 '--hwdec=yes',
                 '--save-position-on-quit=yes',
                 '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
@@ -352,6 +349,7 @@ class MPVRenderer(Renderer):
                                 default=SettingProperty.PlayerOntop_True.value)
             if ontop:
                 params.append('--ontop')
+                params.append('--on-all-workspaces')
 
             # set player position
             player_position = Setting.get(SettingProperty.PlayerPosition,
@@ -385,7 +383,6 @@ class MPVRenderer(Renderer):
             if sys.platform == 'darwin':
                 params += [
                     '--ontop-level=system',
-                    '--on-all-workspaces',
                     '--macos-app-activation-policy=accessory',
                 ]
 
@@ -415,12 +412,13 @@ class MPVRenderer(Renderer):
                 # There should be a problem with the MPV startup parameters
                 time.sleep(1)
                 error_time -= 1
-                logger.error("mpv restarting")
+                logger.info("mpv restarting")
         if error_time <= 0:
             # some thing wrong with mpv
             cherrypy.engine.publish("app_notify", "Macast", "MPV Can't start")
             logger.error("mpv cannot start")
             threading.Thread(target=lambda: Setting.stop_service(), name="MPV_STOP_SERVICE").start()
+        logger.info("mpv done")
 
     def start(self):
         """Start mpv and mpv ipc
@@ -449,6 +447,13 @@ class MPVRenderer(Renderer):
         # stop mpv ipc
         self.ipc_running = False
         self.ipc_thread.join()
+
+        try:
+            logger.info('Remove MPV IPC socket file')
+            os.remove(self.mpv_sock)
+        except:
+            logger.error('Cannot remove MPV IPC socket file')
+            pass
 
     def reload(self):
         """Reload MPV
@@ -506,8 +511,9 @@ class SettingProperty(Enum):
     PlayerDefaultVolume = 500
 
 
-class MPVRendererSetting(RendererSetting):
+class MPVRendererSetting(Tool):
     def __init__(self):
+        super(MPVRendererSetting, self).__init__()
         self.playerPositionItem = None
         self.playerSizeItem = None
         self.playerHWItem = None
@@ -549,9 +555,9 @@ class MPVRendererSetting(RendererSetting):
                 if res == 0:
                     gpu_info = json.loads(gpu_info)
                     has_dedicated_gpu = len(gpu_info['SPDisplaysDataType']) > 1
-                    logger.error("GPU list:")
+                    logger.info("GPU list:")
                     for gpu in gpu_info['SPDisplaysDataType']:
-                        logger.error('GPU:' + gpu['sppci_model'])
+                        logger.info('GPU:' + gpu['sppci_model'])
             except Exception as e:
                 logger.error("Error get gpu info")
 
@@ -577,7 +583,6 @@ class MPVRendererSetting(RendererSetting):
         self.playerOntopItem.checked = True if self.setting_player_ontop == 1 else False
 
         return [
-            MenuItem(_("Player Settings"), enabled=False),
             self.playerPositionItem,
             self.playerSizeItem,
             self.playerHWItem,
@@ -593,19 +598,22 @@ class MPVRendererSetting(RendererSetting):
 
     def on_renderer_ontop_clicked(self, item):
         item.checked = not item.checked
-        Setting.set(SettingProperty.PlayerOntop, 1 if item.checked else 0)
+        self.setting_player_ontop = 1 if item.checked else 0
+        Setting.set(SettingProperty.PlayerOntop, self.setting_player_ontop)
         self.reloadPlayer()
 
     def on_renderer_position_clicked(self, item):
         for i in self.playerPositionItem.items():
             i.checked = False
         item.checked = True
-        Setting.set(SettingProperty.PlayerPosition, item.data)
+        self.setting_player_position = item.data
+        Setting.set(SettingProperty.PlayerPosition, self.setting_player_position)
         self.reloadPlayer()
 
     def on_renderer_hw_toggled(self, item):
         item.checked = not item.checked
-        Setting.set(SettingProperty.PlayerHW, 1 if item.checked else 0)
+        self.setting_player_hw = 1 if item.checked else 0
+        Setting.set(SettingProperty.PlayerHW, self.setting_player_hw)
         self.reloadPlayer()
 
     def on_renderer_hw_clicked(self, item):

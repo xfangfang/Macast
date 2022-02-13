@@ -3,30 +3,49 @@
 # Cherrypy Plugins
 # Cherrypy uses Plugin to run background thread
 #
-
-from cherrypy.process import plugins
-import logging
 import threading
+import cherrypy
+import logging
+from cherrypy.process import plugins
 
 from .ssdp import SSDPServer
-from .utils import Setting
 
 logger = logging.getLogger("PLUGIN")
 
 
-class RendererPlugin(plugins.SimplePlugin):
+class PriorityPlugin(plugins.SimplePlugin):
+    """Add startup priority to CherryPy's SimplePlugin
+    The main reason for adding this function is that when starting the software,
+    you need to start service discovery services such as SSDP first,
+    and then start Protocol and Renderer services.
+    """
+
+    def __init__(self, priority=50):
+        super(PriorityPlugin, self).__init__(cherrypy.engine)
+        self.priority = priority
+
+    def subscribe(self):
+        """Register this object as a (multi-channel) listener on the bus."""
+        for channel in self.bus.listeners:
+            # Subscribe self.start, self.exit, etc. if present.
+            method = getattr(self, channel, None)
+            if method is not None:
+                self.bus.subscribe(channel, method, self.priority)
+
+
+class RendererPlugin(PriorityPlugin):
     """Run a background player thread
     """
 
-    def __init__(self, bus, renderer):
+    def __init__(self, priority, renderer):
         logger.info('Initializing RenderPlugin')
-        super(RendererPlugin, self).__init__(bus)
+        super(RendererPlugin, self).__init__(priority)
         self.renderer = renderer
 
     def start(self):
         """Start RenderPlugin
         """
-        logger.info('starting RenderPlugin')
+        logger.info('Starting RenderPlugin')
         self.renderer.start()
         self.bus.subscribe('reload_renderer', self.renderer.reload)
         self.bus.subscribe('get_renderer', self.get_renderer)
@@ -54,13 +73,13 @@ class RendererPlugin(plugins.SimplePlugin):
         self.start()
 
 
-class ProtocolPlugin(plugins.SimplePlugin):
+class ProtocolPlugin(PriorityPlugin):
     """Run a background protocol thread
     """
 
-    def __init__(self, bus, protocol):
+    def __init__(self, priority, protocol):
         logger.info('Initializing ProtocolPlugin')
-        super(ProtocolPlugin, self).__init__(bus)
+        super(ProtocolPlugin, self).__init__(priority)
         self.protocol = protocol
 
     def reload_protocol(self):
@@ -72,7 +91,7 @@ class ProtocolPlugin(plugins.SimplePlugin):
     def start(self):
         """Start ProtocolPlugin
         """
-        logger.info('starting ProtocolPlugin')
+        logger.info('Starting ProtocolPlugin')
         self.protocol.start()
         self.bus.subscribe('reload_protocol', self.protocol.reload)
         self.bus.subscribe('get_protocol', self.get_protocol)
@@ -100,77 +119,90 @@ class ProtocolPlugin(plugins.SimplePlugin):
         self.start()
 
 
-class SSDPPlugin(plugins.SimplePlugin):
+class SSDPPlugin(PriorityPlugin):
     """Run a background SSDP thread
     """
 
     def __init__(self, bus):
         logger.info('Initializing SSDPPlugin')
         super(SSDPPlugin, self).__init__(bus)
-        self.restart_lock = threading.Lock()
         self.ssdp = SSDPServer()
-        self.devices = []
-        self.build_device_info()
 
-    def build_device_info(self):
-        self.devices = [
-            'uuid:{}::upnp:rootdevice'.format(Setting.get_usn()),
-            'uuid:{}'.format(Setting.get_usn()),
-            'uuid:{}::urn:schemas-upnp-org:device:MediaRenderer:1'.format(
-                Setting.get_usn()),
-            'uuid:{}::urn:schemas-upnp-org:service:RenderingControl:1'.format(
-                Setting.get_usn()),
-            'uuid:{}::urn:schemas-upnp-org:service:ConnectionManager:1'.format(
-                Setting.get_usn()),
-            'uuid:{}::urn:schemas-upnp-org:service:AVTransport:1'.format(
-                Setting.get_usn())
-        ]
-
-    def notify(self):
-        """ssdp do notify
-        """
-        for device in self.devices:
-            self.ssdp.do_notify(device)
-
-    def register(self):
+    def register(self, devices, desc, server, cache):
         """register device
         """
-        for device in self.devices:
-            self.ssdp.register(device,
-                               device[43:] if device[43:] != '' else device,
-                               'http://{{}}:{}/description.xml'.format(Setting.get_port()),
-                               Setting.get_server_info(),
-                               'max-age=66')
-
-    def unregister(self):
-        """unregister device
-        """
-        for device in self.devices:
-            self.ssdp.unregister(device)
+        for device in devices:
+            self.ssdp.register(device.get('usn', ''),
+                               device.get('nt', ''),
+                               desc,
+                               server,
+                               cache)
 
     def update_ip(self):
-        """Update the device ip address
+        """ restart ssdp thread to update ip
         """
-        with self.restart_lock:
-            self.ssdp.stop(byebye=False)
-            self.build_device_info()
-            self.register()
-            self.ssdp.start()
+        logger.info('SSDP Restart to update ip')
+        self.ssdp.sending_byebye = False  # don't send bye bye
+        self.ssdp.stop()
+        self.ssdp.start()
 
     def start(self):
         """Start SSDPPlugin
         """
-        logger.info('starting SSDPPlugin')
-        self.register()
+        logger.info('Starting SSDPPlugin')
         self.ssdp.start()
-        self.bus.subscribe('ssdp_notify', self.notify)
-        self.bus.subscribe('ssdp_update_ip', self.update_ip)
+        self.bus.subscribe('get_ssdp_server', self.get_ssdp_server)
+        self.bus.subscribe('update_ip', self.update_ip)
+        self.bus.subscribe('ssdp_register', self.register)
+        self.bus.subscribe('ssdp_unregister', self.ssdp.unregister_all)
 
     def stop(self):
         """Stop SSDPPlugin
         """
-        logger.info('Stoping SSDPPlugin')
-        self.bus.unsubscribe('ssdp_notify', self.notify)
-        self.bus.unsubscribe('ssdp_update_ip', self.update_ip)
-        with self.restart_lock:
-            self.ssdp.stop(byebye=True)
+        logger.info('Stopping SSDPPlugin')
+        self.bus.unsubscribe('get_ssdp_server', self.get_ssdp_server)
+        self.bus.unsubscribe('update_ip', self.update_ip)
+        self.bus.unsubscribe('ssdp_register', self.register)
+        self.bus.unsubscribe('ssdp_unregister', self.ssdp.unregister_all)
+        self.ssdp.stop()
+
+    def get_ssdp_server(self):
+        return self.ssdp
+
+
+class ToolPlugin(PriorityPlugin):
+
+    def __init__(self, bus, tools):
+        logger.info('Initializing ToolPlugin')
+        super(ToolPlugin, self).__init__(bus)
+        self.tool_list = tools
+        self.tool_list_lock = threading.Lock()
+        self.running = False
+        self.bus.subscribe('append_tool', self.append_tool)
+        self.bus.subscribe('remove_tool', self.remove_tool)
+
+    def start(self):
+        logger.info("Starting ToolPlugin")
+        self.running = True
+        with self.tool_list_lock:
+            for tool in self.tool_list:
+                tool.start()
+
+    def stop(self):
+        logger.info('Stopping ToolPlugin')
+        self.running = False
+        with self.tool_list_lock:
+            for tool in self.tool_list:
+                tool.stop()
+
+    def append_tool(self, tool):
+        if self.running:
+            tool.start()
+        with self.tool_list_lock:
+            self.tool_list.append(tool)
+
+    def remove_tool(self, tool):
+        if self.running:
+            tool.stop()
+        with self.tool_list_lock:
+            self.tool_list.remove(tool)

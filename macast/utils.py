@@ -2,14 +2,17 @@
 
 import os
 import sys
+import threading
 import uuid
 import json
 import time
 import ctypes
+from typing import Any
+
 import appdirs
 import logging
 import platform
-import locale
+import gettext
 import cherrypy
 import subprocess
 from enum import Enum
@@ -21,14 +24,26 @@ if sys.platform != "win32":
 if sys.platform == 'darwin':
     from AppKit import NSBundle
 elif sys.platform == 'win32':
+    import locale
     import win32api
     import win32con
 
+from .__pkginfo__ import __version__, __version_num__
+
 logger = logging.getLogger("Utils")
+_ = gettext.gettext
 DEFAULT_PORT = 0
 SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
+LOG_DIR = appdirs.user_log_dir('Macast', 'xfangfang')
 PROTOCOL_DIR = 'protocol'
 RENDERER_DIR = 'renderer'
+TOOL_DIR = 'tool'
+LOG_LEVEL = {
+    'ERROR': 40,
+    'INFO': 20,
+    'DEBUG': 10,
+    'ALL': 0
+}
 
 
 class SettingProperty(Enum):
@@ -42,7 +57,10 @@ class SettingProperty(Enum):
     Macast_Protocol = 7
     Blocked_Interfaces = 8
     Additional_Interfaces = 9
-    SingleMode = 10
+    Macast_Log = 10
+    Macast_Setting_Port = 11
+    Macast_Tool = 12
+    SingleMode = 13
 
 
 class Setting:
@@ -54,6 +72,7 @@ class Setting:
     friendly_name = "Macast({})".format(platform.node())
     temp_friendly_name = None
     mpv_default_path = 'mpv'
+    log_level = None
 
     @staticmethod
     def save():
@@ -70,11 +89,7 @@ class Setting:
         """
         logger.info("Load Setting")
         if Setting.version is None:
-            try:
-                with open(Setting.get_base_path('.version'), 'r') as f:
-                    Setting.version = f.read().strip()
-            except FileNotFoundError as e:
-                Setting.version = "0.0"
+            Setting.version = __version_num__
         if bool(Setting.setting) is False:
             if not os.path.exists(Setting.setting_path):
                 Setting.setting = {}
@@ -82,7 +97,7 @@ class Setting:
                 try:
                     with open(Setting.setting_path, "r") as f:
                         Setting.setting = json.load(fp=f)
-                    logger.error(Setting.setting)
+                    logger.info(Setting.setting)
                 except Exception as e:
                     logger.error(e)
         return Setting.setting
@@ -105,10 +120,17 @@ class Setting:
         return str(platform.system())
 
     @staticmethod
-    def get_version():
-        """Get application version
+    def get_version() -> float:
+        """Get application version in float
         """
         return Setting.version
+
+    @staticmethod
+    def get_version_tag() -> str:
+        """Get application version in string
+        112.45 => 112.4.5
+        """
+        return __version__
 
     @staticmethod
     def get_friendly_name():
@@ -140,12 +162,20 @@ class Setting:
 
     @staticmethod
     def is_ip_changed():
-        if Setting.last_ip != Setting.get_ip():
+        ip_now = Setting.update_ip()
+        if Setting.last_ip != ip_now:
+            Setting.last_ip = ip_now
             return True
         return False
 
     @staticmethod
     def get_ip():
+        if Setting.last_ip is None:
+            Setting.last_ip = Setting.update_ip()
+        return Setting.last_ip
+
+    @staticmethod
+    def update_ip():
         last_ip = []
         gateways = ni.gateways()  # {type: [{ip, interface, default},{},...], type: []}
         interfaces = set(Setting.get(SettingProperty.Additional_Interfaces, []))
@@ -158,7 +188,6 @@ class Setting:
         for i in Setting.get(SettingProperty.Blocked_Interfaces, []):
             if i in interfaces:
                 interfaces.remove(i)
-        logger.debug(interfaces)
         for i in interfaces:
             try:
                 iface = ni.ifaddresses(i)
@@ -168,15 +197,21 @@ class Setting:
                 for j in iface[ni.AF_INET]:
                     if 'addr' in j and 'netmask' in j:
                         last_ip.append((j['addr'], j['netmask']))
-        Setting.last_ip = set(last_ip)
-        logger.debug(Setting.last_ip)
-        return Setting.last_ip
+        ip_now = set(last_ip)
+        logger.debug(f'interfaces: {interfaces} ip: {ip_now}')
+        return ip_now
 
     @staticmethod
     def get_port():
         """Get application port
         """
         return Setting.get(SettingProperty.ApplicationPort, DEFAULT_PORT)
+
+    @staticmethod
+    def get_setting_port():
+        """Get application port
+        """
+        return Setting.get(SettingProperty.Macast_Setting_Port, DEFAULT_PORT)
 
     @staticmethod
     def get_locale():
@@ -191,30 +226,43 @@ class Setting:
             windll = ctypes.windll.kernel32
             lang = locale.windows_locale[windll.GetUserDefaultUILanguage()]
         else:
-            lang = os.environ.get('LANGUAGE')
-            if lang is None:
-                lang = os.environ['LANG']
-            if lang is None:
+            for v in ['LANGUAGE', 'LANG', 'LC_MESSAGES', 'LC_ALL']:
+                lang = os.environ.get(v)
+                if lang is not None:
+                    break
+            else:
                 return 'en_US'
             lang = lang.split(':')[0].split('.')[0]
         return lang
 
     @staticmethod
-    def get(property, default=1):
+    def get(prop, default: Any = 1):
         """Get application settings
         """
         if not bool(Setting.setting):
             Setting.load()
-        if property.name in Setting.setting:
-            return Setting.setting[property.name]
-        Setting.setting[property.name] = default
+
+        if isinstance(prop, str):
+            prop_name = prop
+        else:
+            prop_name = prop.name
+
+        if prop_name in Setting.setting:
+            return Setting.setting[prop_name]
+        Setting.setting[prop_name] = default
         return default
 
     @staticmethod
-    def set(property, data):
+    def set(prop, data):
         """Set application settings
         """
-        Setting.setting[property.name] = data
+
+        if isinstance(prop, str):
+            prop_name = prop
+        else:
+            prop_name = prop.name
+
+        Setting.setting[prop_name] = data
         Setting.save()
 
     @staticmethod
@@ -227,7 +275,7 @@ class Setting:
         if sys.platform == 'darwin':
             app_path = NSBundle.mainBundle().bundlePath()
             if not app_path.startswith("/Applications"):
-                return (1, "You need move Macast.app to Applications folder.")
+                return 1, _("You need move Macast.app to Applications folder")
             app_name = app_path.split("/")[-1].split(".")[0]
             res = Setting.system_shell(
                 ['osascript',
@@ -235,12 +283,12 @@ class Setting:
                  'tell application "System Events" ' +
                  'to get the name of every login item'])
             if res[0] == 1:
-                return (1, "Cannot access System Events.")
+                return 1, _("Cannot access System Events")
             apps = list(map(lambda app: app.strip(), res[1].split(",")))
             # apps which start at login
             if launch:
                 if app_name in apps:
-                    return (0, "Macast is already in login items.")
+                    return 0, "Macast is already in login items"
                 res = Setting.system_shell(
                     ['osascript',
                      '-e',
@@ -251,7 +299,7 @@ class Setting:
                      ])
             else:
                 if app_name not in apps:
-                    return (0, "Macast is already not in login items.")
+                    return 0, "Macast is already not in login items"
                 res = Setting.system_shell(
                     ['osascript',
                      '-e',
@@ -262,7 +310,7 @@ class Setting:
             """Find the path of Macast.exe so as to create shortcut.
             """
             if "python" in os.path.basename(sys.executable).lower():
-                return (1, "Not support to set start at login.")
+                return 1, _("Not support to set start at login")
 
             key = win32api.RegOpenKey(win32con.HKEY_CURRENT_USER,
                                       r'Software\Microsoft\Windows\CurrentVersion\Run',
@@ -286,7 +334,7 @@ class Setting:
                     # cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
                 return 0, 1
         else:
-            return (1, 'Not support current platform.')
+            return 1, _('Not support current platform')
 
     @staticmethod
     def get_base_path(path="."):
@@ -295,6 +343,7 @@ class Setting:
             see also: https://pyinstaller.readthedocs.io/en/stable/\
                 runtime-information.html#run-time-information
         """
+        logger.warning("Setting.get_base_path will be removed in next version.")
         if Setting.base_path is not None:
             return os.path.join(Setting.base_path, path)
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -307,7 +356,7 @@ class Setting:
     def get_server_info():
         return '{}/{} UPnP/1.0 Macast/{}'.format(Setting.get_system(),
                                                  Setting.get_system_version(),
-                                                 Setting.get_version())
+                                                 Setting.get_version_tag())
 
     @staticmethod
     def get_system_env():
@@ -361,6 +410,30 @@ class Setting:
             os.execve(executable, [executable, executable], env)
         else:
             cherrypy.engine.restart()
+
+    @staticmethod
+    def restart_async():
+        threading.Thread(target=Setting.restart, name="RESTART_THREAD", daemon=True).start()
+
+    @staticmethod
+    def setup_logger():
+        if Setting.log_level is not None:
+            return LOG_LEVEL.get(Setting.log_level, 20)
+        Setting.log_level = Setting.get(SettingProperty.Macast_Log, 'INFO').upper()
+
+        log_level = LOG_LEVEL.get(Setting.log_level, 20)
+        log_file = os.path.join(SETTING_DIR, 'macast.log')
+        log_format = '%(levelname)s: [%(asctime)s] - %(name)s/%(funcName)s/%(threadName)s|%(thread)d[line:%(lineno)d] - %(message)s'
+        logging.basicConfig(
+            level=log_level,
+            format=log_format,
+            handlers=[logging.StreamHandler(), logging.FileHandler(log_file, mode='w', encoding='utf-8')]
+        )
+
+        logger.info(f'Using log level: {Setting.log_level}, {log_level}')
+        logger.info(f'Load Setting: {Setting.setting}')
+
+        return log_level
 
 
 class XMLPath(Enum):
@@ -439,9 +512,26 @@ class SingleInstance(object):
 
 
 
+class AssetsPath:
+    BASE_PATH = os.path.dirname(__file__)
+    I18N = os.path.join(BASE_PATH, 'i18n')
+    XML = os.path.join(BASE_PATH, 'xml')
+    ASSETS = os.path.join(BASE_PATH, 'assets')
+    SCRIPTS = os.path.join(BASE_PATH, 'scripts')
+    LOG = os.path.join(SETTING_DIR, 'macast.log')
+
+    @staticmethod
+    def join(*args):
+        return os.path.join(AssetsPath.BASE_PATH, *args)
+
+
 def load_xml(path):
-    with open(path, encoding="utf-8") as f:
-        xml = f.read()
+    try:
+        with open(path, encoding="utf-8") as f:
+            xml = f.read()
+    except Exception as e:
+        xml = ''
+        logger.exception(f'Error reading {path}', exc_info=e)
     return xml
 
 
@@ -455,11 +545,9 @@ def notify_error(msg=None):
             try:
                 return fun(*args, **kwargs)
             except Exception as e:
-                logger.error(str(e))
                 if msg is None:
                     msg = str(e)
-                else:
-                    logger.error(msg)
+                logger.exception(msg, exc_info=e)
                 cherrypy.engine.publish('app_notify', 'Error', msg)
 
         return wrapper
@@ -497,4 +585,19 @@ def cherrypy_publish(method, default=None):
     res = cherrypy.engine.publish(method)
     if len(res) > 0:
         return res.pop()
+
+    logger.error(f'Unable to run method: {method} return default: {default}')
+    if callable(default):
+        return default()
     return default
+
+
+def get_subnet_ip(ip, mask):
+    """
+    :param ip: eg:192.168.1.123
+    :param mask: eg:255.255.255.0
+    :return: eg: [192, 168, 1, 0]
+    """
+    a = [int(n) for n in mask.split('.')]
+    b = [int(n) for n in ip.split('.')]
+    return [a[i] & b[i] for i in range(4)]

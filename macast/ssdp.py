@@ -12,14 +12,14 @@
 #
 
 import sys
-import random
+import time
 import socket
 import logging
 import threading
 import cherrypy
 from email.utils import formatdate
 
-from .utils import Setting
+from .utils import Setting, get_subnet_ip
 
 SSDP_PORT = 1900
 SSDP_ADDR = '239.255.255.250'
@@ -39,19 +39,19 @@ class Sock:
         except Exception as e:
             logger.error(e)
         self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 0)
-        # self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 10)
+        # self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
 
-    def send_it(self, response, destination):
+    def send(self, response, destination):
         try:
             self.sock.sendto(response.format(self.ip).encode(), destination)
         except (AttributeError, socket.error) as msg:
-            logger.warning("failure sending out data: from {} to {}".format(self.ip, destination))
+            logger.error(f"failure sending out data{msg}: from {self.ip} to {destination}")
 
     def close(self):
         try:
-            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP,  self.ssdp_addr + self.interface)
-        except Exception:
-            pass
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, self.ssdp_addr + self.interface)
+        except Exception as e:
+            logger.error(f'failure drop membership on {self.ip}: {e}')
         self.sock.close()
 
 
@@ -67,34 +67,54 @@ class SSDPServer:
         self.sock = None
         self.running = False
         self.ssdp_thread = None
-        self.sending_byebye = True
-        # when ip is changed, we need SSDP thread to restart
-        # But we don't like SSDP sending any byebye data
+        self.sending_byebye = True  # send byebye when shutdown ssdp thread
+        self.ssdp_notify_thread = None
+        self.ssdp_device_lock = threading.Lock()
+        self.notify_internal = 3
 
     def start(self):
         """Start ssdp background thread
         """
-        if not self.running:
-            self.running = True
-            self.sending_byebye = True
-            self.ssdp_thread = threading.Thread(target=self.run, name="SSDP_THREAD")
-            self.ssdp_thread.start()
+        if self.running:
+            logger.error('SSDP is already started.')
+            return
 
-    def stop(self, byebye=True):
+        self.running = True
+        self.sending_byebye = True
+        self.ip_list = list(Setting.get_ip())
+        if len(self.ip_list) == 0:
+            logger.error("SSDP Thread Stopped because cannot get ip address")
+            return
+        if sys.platform == 'win32':
+            self.ip_list.append(('192.168.137.1', '255.255.255.0'))
+        if self.ssdp_thread is None:
+            self.ssdp_thread = threading.Thread(target=self.ssdp_main_thread, name="SSDP_THREAD")
+            self.ssdp_thread.start()
+        if self.ssdp_notify_thread is None:
+            self.ssdp_notify_thread = threading.Thread(target=self.ssdp_notify,
+                                                       name="SSDP_NOTIFY_THREAD",
+                                                       daemon=True)
+            self.ssdp_notify_thread.start()
+
+    def stop(self):
         """Stop ssdp background thread
         """
-        if self.running:
-            self.running = False
-            # Wake up the socket, this will speed up exiting ssdp thread.
-            try:
-                socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
-            except Exception as e:
-                pass
-            self.sending_byebye = byebye
-            if self.ssdp_thread is not None:
-                self.ssdp_thread.join()
+        if not self.running:
+            logger.error('SSDP is already stopped.')
+            return
 
-    def run(self):
+        self.running = False
+        # Wake up the socket, this will speed up exiting ssdp thread.
+        try:
+            socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
+        except Exception as e:
+            pass
+        if self.ssdp_thread is not None:
+            self.ssdp_thread.join()
+
+    def ssdp_main_thread(self):
+        logger.info('SSDP_MAIN_THREAD START')
+
         # create UDP server
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -123,18 +143,16 @@ class SSDPServer:
 
         # self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 10)
 
-        self.ip_list = list(Setting.get_ip())
-        if sys.platform == 'win32':
-            self.ip_list.append(('192.168.137.1', '255.255.255.0'))
         self.sock_list = []
         for ip, mask in self.ip_list:
             try:
-                logger.error('add membership {}'.format(ip))
+                logger.debug('add membership {}'.format(ip))
                 mreq = socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ip)
                 self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
                 self.sock_list.append(Sock(ip))
             except Exception as e:
-                logger.error(e)
+                if 'WinError 10013' not in str(e):
+                    logger.error(e)
 
         try:
             self.sock.bind(('0.0.0.0', SSDP_PORT))
@@ -151,9 +169,9 @@ class SSDPServer:
                 self.datagram_received(data, addr)
             except socket.timeout:
                 continue
-        self.shutdown()
+        self.ssdp_byebye()
         for ip, mask in self.ip_list:
-            logger.error("drop membership {}".format(ip))
+            logger.debug(f"drop membership {ip}")
             mreq = socket.inet_aton(SSDP_ADDR) + socket.inet_aton(ip)
             try:
                 self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, mreq)
@@ -161,13 +179,42 @@ class SSDPServer:
                 continue
         self.sock.close()
         self.sock = None
+        self.ssdp_thread = None
+        logger.info('SSDP_MAIN_THREAD DONE')
 
-    def shutdown(self):
-        for st in self.known:
-            self.do_byebye(st)
-        usn = [st for st in self.known]
-        for st in usn:
-            self.unregister(st)
+    def ssdp_byebye(self):
+        if not self.sending_byebye:
+            return
+        with self.ssdp_device_lock:
+            byebye_list = [self.known[usn].get('BYE', '') for usn in self.known]
+        try:
+            if self.sock is not None:
+                for byebye_device in byebye_list:
+                    self.send_each(byebye_device, (SSDP_ADDR, SSDP_PORT))
+        except (AttributeError, socket.error) as msg:
+            logger.error(f"error sending bye bye notification: {msg}")
+        self.unregister_all()
+
+    def ssdp_notify(self):
+        logger.info('SSDP_NOTIFY_THREAD START')
+        while self.running:
+            time.sleep(self.notify_internal)
+            if not self.running:
+                break
+            with self.ssdp_device_lock:
+                notify_list = [(usn, self.known[usn].get('NOTIFY', '')) for usn in self.known]
+            try:
+                if self.sock is None:
+                    continue
+                for usn, notify_device in notify_list:
+                    logger.log(1, f'Sending notify for: {usn}')
+                    self.send_each(notify_device, (SSDP_ADDR, SSDP_PORT))
+                    self.send_each(notify_device, (SSDP_ADDR, SSDP_PORT))
+            except (AttributeError, socket.error) as msg:
+                logger.error(f"failure sending out alive notification: {msg}")
+
+        logger.info('SSDP_NOTIFY_THREAD DONE')
+        self.ssdp_notify_thread = None
 
     def datagram_received(self, data, host_port):
         """Handle a received multicast datagram."""
@@ -191,133 +238,137 @@ class SSDPServer:
         headers = dict(map(lambda x: (x[0].lower(), x[1]), headers))
 
         if cmd[0] != 'NOTIFY':
-            logger.info('SSDP command %s %s - from %s:%d' %
-                        (cmd[0], cmd[1], host, port))
+            logger.debug(f'SSDP command {cmd[0]} {cmd[1]} - from {host}:{port}')
         if cmd[0] == 'M-SEARCH' and cmd[1] == '*':
             # SSDP discovery
-            logger.debug('M-SEARCH *')
-            logger.debug(data)
+            logger.debug(f'M-SEARCH * {data}')
             self.discovery_request(headers, (host, port))
         elif cmd[0] == 'NOTIFY' and cmd[1] == '*':
             # SSDP presence
             # logger.debug('NOTIFY *')
             pass
         else:
-            logger.warning('Unknown SSDP command %s %s' % (cmd[0], cmd[1]))
+            logger.error(f'Unknown SSDP command {cmd[0]} {cmd[1]}')
 
-    def register(self, usn, st, location, server=SERVER_ID,
-                 cache_control='max-age=1800'):
-        """Register a service or device that this SSDP server will
-        respond to."""
+    def register(self, usn, nt, location, server=SERVER_ID, cache_control=1800):
+        """
+        Register a service or device that this SSDP server will respond to.
+        :param usn: Unique Service Name
+        :param nt: Notification Type
+        :param location: Contains a URL to the UPnP description of the root device.
+        :param server: Concatenation of OS name, OS version, UPnP/1.0, product name, and product version.
+        :param cache_control: Must have max-age directive that specifies number of seconds the advertisement is valid.
+        :return:
+        """
+        """"""
 
-        logging.info('Registering %s (%s)' % (st, location))
+        logging.info(f'Registering {nt} ({location})')
 
-        self.known[usn] = {}
-        self.known[usn]['USN'] = usn
-        self.known[usn]['LOCATION'] = location
-        self.known[usn]['ST'] = st
-        self.known[usn]['EXT'] = ''
-        self.known[usn]['SERVER'] = server
-        self.known[usn]['CACHE-CONTROL'] = cache_control
+        # notify
+        resp_notify = [
+            'NOTIFY * HTTP/1.1',
+            f'HOST: {SSDP_ADDR}:{SSDP_PORT}',
+            'NTS: ssdp:alive',
+        ]
+
+        # bye bye
+        resp_byebye = [
+            'NOTIFY * HTTP/1.1',
+            f'HOST: {SSDP_ADDR}:{SSDP_PORT}',
+            'NTS: ssdp:byebye']
+
+        resp_ext = [
+            f'USN: {usn}',
+            f'LOCATION: {location}',
+            f'NT: {nt}',
+            'EXT: ',
+            f'SERVER: {server}',
+            f'CACHE-CONTROL: max-age={cache_control}',
+            '',
+            ''
+        ]
+
+        resp_notify.extend(resp_ext)
+        resp_byebye.extend(resp_ext)
+
+        with self.ssdp_device_lock:
+            self.known[usn] = {
+                'NOTIFY': '\r\n'.join(resp_notify),
+                'BYE': '\r\n'.join(resp_byebye),
+                'USN': usn,
+                'LOCATION': location,
+                'NT': nt,
+                'EXT': '',
+                'SERVER': server,
+                'CACHE-CONTROL': f'max-age={cache_control}'
+            }
 
     def unregister(self, usn):
-        logger.info("Un-registering %s" % usn)
-        del self.known[usn]
+        """
+        Unregister a service or device that this SSDP server will respond to.
+        :param usn: Unique Service Name
+        :return:
+        """
+        logger.info(f"Un-registering {usn}")
 
-    def is_known(self, usn):
-        return usn in self.known
+        with self.ssdp_device_lock:
+            if usn in self.known:
+                del self.known[usn]
 
-    def send_it(self, response, destination):
+    def unregister_all(self):
+        logger.info(f"Un-registering-all")
+
+        with self.ssdp_device_lock:
+            self.known = {}
+
+    def send_each(self, response: str, destination: (str, int)):
+        """
+        Let each socket send multicast data to its own network interface
+        :param response: data
+        :param destination: Multicast address
+        :return:
+        """
         for sock in self.sock_list:
-            sock.send_it(response, destination)
-
-    def get_subnet_ip(self, ip, mask):
-        a = [int(n) for n in mask.split('.')]
-        b = [int(n) for n in ip.split('.')]
-        return [a[i] & b[i] for i in range(4)]
+            sock.send(response, destination)
 
     def discovery_request(self, headers, host_port):
-        """Process a discovery request.  The response must be sent to
-        the address specified by (host, port)."""
+        """
+        Process a discovery request.
+        The response must be sent to the address specified by (host, port).
+        :param headers:
+        :param host_port:
+        :return:
+        """
 
         (host, port) = host_port
 
-        logger.info('Discovery request from (%s,%d) for %s' % (host, port,
-                                                               headers['st']))
+        logger.debug(f'Discovery request from ({host}:{port}) for {headers["st"]}')
+
         # Do we know about this service?
-        for i in self.known.values():
-            if i['ST'] == headers['st'] or headers['st'] == 'ssdp:all':
-                response = ['HTTP/1.1 200 OK']
+        with self.ssdp_device_lock:
+            devices = list(self.known.values())
 
-                usn = None
-                for k, v in i.items():
-                    if k == 'USN':
-                        usn = v
-                    response.append('%s: %s' % (k, v))
+        for i in devices:
+            if i['NT'] == headers['st'] or headers['st'] == 'ssdp:all':
+                resp = [
+                    'HTTP/1.1 200 OK',
+                    f'USN: {i["USN"]}',
+                    f'LOCATION: {i["LOCATION"]}',
+                    f'NT: {i["NT"]}',
+                    'EXT: ',
+                    f'SERVER: {i["SERVER"]}',
+                    f'CACHE-CONTROL: {i["CACHE-CONTROL"]}',
+                    f'DATE: {formatdate(timeval=None, localtime=False, usegmt=True)}',
+                    '',
+                    ''
+                ]
+                destination = (host, port)
+                logger.debug(f'send discovery {i["USN"]} response  to {destination}')
+                logger.debug(resp)
 
-                if usn:
-                    response.append('DATE: %s' % formatdate(timeval=None,
-                                                            localtime=False,
-                                                            usegmt=True))
-
-                    response.extend(('', ''))
-                    delay = random.randint(0, int(headers['mx']))
-                    destination = (host, port)
-                    logger.debug('send discovery response delayed by %ds for %s to %r' % (delay, usn, destination))
-                    # logger.debug(response)
-                    # asyncio.sleep(delay)
-                    for ip, mask in self.ip_list:
-                        if self.get_subnet_ip(ip, mask) == self.get_subnet_ip(host, mask):
-                            self.sock.sendto('\r\n'.join(response).format(ip).encode(), destination)
-                            break
-
-    def do_notify(self, usn):
-        """Do notification"""
-        logger.debug('Sending alive notification for %s' % usn)
-
-        if usn not in self.known:
-            return
-
-        resp = [
-            'NOTIFY * HTTP/1.1',
-            'HOST: %s:%d' % (SSDP_ADDR, SSDP_PORT),
-            'NTS: ssdp:alive',
-        ]
-        stcpy = dict(self.known[usn].items())
-        stcpy['NT'] = stcpy['ST']
-        del stcpy['ST']
-
-        resp.extend(map(lambda x: ': '.join(x), stcpy.items()))
-        resp.extend(('', ''))
-        try:
-            self.send_it('\r\n'.join(resp), (SSDP_ADDR, SSDP_PORT))
-            self.send_it('\r\n'.join(resp), (SSDP_ADDR, SSDP_PORT))
-        except (AttributeError, socket.error) as msg:
-            logger.warning("failure sending out alive notification: %r" % msg)
-
-    def do_byebye(self, usn):
-        """Do byebye"""
-        if not self.sending_byebye:
-            return
-
-        logger.info('Sending byebye notification for %s' % usn)
-
-        resp = [
-            'NOTIFY * HTTP/1.1',
-            'HOST: %s:%d' % (SSDP_ADDR, SSDP_PORT),
-            'NTS: ssdp:byebye',
-        ]
-        try:
-            stcpy = dict(self.known[usn].items())
-            stcpy['NT'] = stcpy['ST']
-            del stcpy['ST']
-
-            resp.extend(map(lambda x: ': '.join(x), stcpy.items()))
-            resp.extend(('', ''))
-            if self.sock:
-                try:
-                    self.send_it('\r\n'.join(resp), (SSDP_ADDR, SSDP_PORT))
-                except (AttributeError, socket.error) as msg:
-                    logger.error("error sending byebye notification: %r" % msg)
-        except KeyError as msg:
-            logger.error("error building byebye notification: %r" % msg)
+                # Find which subnet the discovery is from
+                # and send back the response
+                for ip, mask in self.ip_list:
+                    if get_subnet_ip(ip, mask) == get_subnet_ip(host, mask):
+                        self.sock.sendto('\r\n'.join(resp).format(ip).encode(), destination)
+                        break

@@ -3,8 +3,10 @@
 import sys
 import logging
 import subprocess
+import cherrypy
 from enum import Enum
-from .utils import Setting
+from .utils import Setting, format_class_name
+from typing import Callable, List
 
 if sys.platform == 'darwin':
     import rumps
@@ -13,8 +15,7 @@ else:
     import webbrowser
     from PIL import Image
 
-logger = logging.getLogger("gui")
-logger.setLevel(logging.INFO)
+logger = logging.getLogger("GUI")
 
 
 class Platform(Enum):
@@ -26,6 +27,15 @@ class Platform(Enum):
 class MenuItem:
     def __init__(self, text, callback=None, checked=None, enabled=True,
                  children=None, data=None, key=None):
+        """
+        :param text: the text shows on this menu item
+        :param callback: the function serving as callback for when a click event occurs on this menu item
+        :param checked: True if you want show a check mark on this menu item
+        :param enabled: Literally
+        :param children: a list of MenuItem, if it is not empty, callback will not be called
+        :param data: set additional data to this menu item, it can be obtained through callback
+        :param key: the key shortcut to click this menu item
+        """
         self.view = None
         if sys.platform == 'darwin':
             self.platform = Platform.Darwin
@@ -42,6 +52,8 @@ class MenuItem:
         self.data = data
         self.id = text
         self.key = key
+
+        logger.log(1, f'Create MenuItem: {text} with data: {data}')
 
     @property
     def text(self):
@@ -86,14 +98,32 @@ class MenuItem:
         return [] if self.children is None else self.children
 
     def _pystrayCallback(self, app, item):
+        """ Decoration of pystray callback function
+        :param app: pystray app instance
+        :param item: pystray menu item instance
+        :return:
+        """
+        logger.debug(f'Click menu item: {self.text} with data: {self.data}')
         self.callback(self)
 
     def _rumpsCallback(self, item):
+        """ Decoration of rumps callback function
+        :param item: rumps menu item instance
+        :return:
+        """
+        logger.debug(f'Click menu item: {self.text} with data: {self.data}')
         self.callback(self)
 
 
 class App:
-    def __init__(self, name, icon, menu, template=True):
+    def __init__(self, name: str, icon: str, menu: [MenuItem], template=True):
+        """
+
+        :param name: App name
+        :param icon: Menubar icon
+        :param menu: a list of MenuItem, see the DemoApp at the end of this file for example
+        :param template: If true, the icon color will be switched according to the system theme color, Macos only.
+        """
         self.name = name
         self.icon = icon
         self.app = None
@@ -124,6 +154,8 @@ class App:
                                         lambda:
                                         self._build_menu_pystray(self.menu)))
 
+        cherrypy.engine.subscribe('get_macast_app', lambda: self)
+
     def init_platform_darwin(self):
         pass
 
@@ -133,7 +165,7 @@ class App:
     def init_platform_others(self):
         pass
 
-    def _build_menu_rumps(self, menu):
+    def _build_menu_rumps(self, menu: [MenuItem]):
         items = []
         for item in menu:
             if item is None:
@@ -145,14 +177,16 @@ class App:
                 items.append(self._build_menu_item_rumps(item))
         return items
 
-    def _build_menu_item_rumps(self, item):
+    def _build_menu_item_rumps(self, item: MenuItem):
         callback = item._rumpsCallback if item.enabled else None
         menu_item = rumps.MenuItem(item.text, callback, item.key)
         menu_item.state = 1 if item.checked else 0
         item.view = menu_item
+        # rumps using `text` as key to find a menu item
+        item.id = item.text
         return menu_item
 
-    def _build_menu_pystray(self, menu):
+    def _build_menu_pystray(self, menu: [MenuItem]):
         items = []
         for item in menu:
             if item is None:
@@ -173,7 +207,7 @@ class App:
                 items.append(menu_item)
         return items
 
-    def update_icon(self, icon, template=True):
+    def update_icon(self, icon: str, template=True):
         self.icon = icon
         if self.platform == Platform.Darwin:
             self.app.template = template
@@ -188,7 +222,7 @@ class App:
         if self.platform != Platform.Darwin:
             self.app.update_menu()
 
-    def set_menu(self, menu):
+    def set_menu(self, menu: [MenuItem]):
         self.menu = menu
         if self.platform == Platform.Darwin:
             self.app.menu.clear()
@@ -196,39 +230,43 @@ class App:
         else:
             self.app.menu = pystray.Menu(lambda: self._build_menu_pystray(menu))
 
-    def _find_menu_item_index_by_id(self, id):
+    def _find_menu_item_index_by_id(self, item_id: str):
+        """
+        This method is only for linux and windows
+        :param item_id:
+        :return:
+        """
         #  TODO find all items
         for i, item in enumerate(self.menu):
-            if item.id is not None and item.id == id:
+            if item.id is not None and item.id == item_id:
                 return i
-        logger.error("Canot find id:{}.".format(id))
+        logger.error("Canot find id:{}.".format(item_id))
         return -1
 
-    def append_menu_item_after(self, id, menu_item):
+    def append_menu_item_after(self, item_id: str, menu_item: MenuItem):
         if self.platform == Platform.Darwin:
-            self.app.menu.insert_after(id, self._build_menu_item_rumps(menu_item))
+            self.app.menu.insert_after(item_id, self._build_menu_item_rumps(menu_item))
         else:
-            index = self._find_menu_item_index_by_id(id)
-            print("index: ", index)
+            index = self._find_menu_item_index_by_id(item_id)
             if index != -1:
                 self.menu.insert(index + 1, menu_item)
                 self.app.update_menu()
 
-    def append_menu_item_before(self, id, menu_item):
+    def append_menu_item_before(self, item_id: str, menu_item: MenuItem):
         if self.platform == Platform.Darwin:
-            self.app.menu.insert_before(id, self._build_menu_item_rumps(menu_item))
+            self.app.menu.insert_before(item_id, self._build_menu_item_rumps(menu_item))
         else:
-            index = self._find_menu_item_index_by_id(id)
+            index = self._find_menu_item_index_by_id(item_id)
             if index != -1:
                 self.menu.insert(index, menu_item)
                 self.app.update_menu()
 
-    def remove_menu_item_by_id(self, id):
+    def remove_menu_item_by_id(self, item_id: str):
         if self.platform == Platform.Darwin:
-            if id in self.app.menu:
-                self.app.menu.pop(id)
+            if item_id in self.app.menu:
+                self.app.menu.pop(item_id)
         else:
-            index = self._find_menu_item_index_by_id(id)
+            index = self._find_menu_item_index_by_id(item_id)
             if index != -1:
                 self.menu.pop(index)
                 self.app.update_menu()
@@ -246,14 +284,14 @@ class App:
                 pass
             self.app.stop()
 
-    def alert(self, content):
-        if self.platform == Platform.Darwin:
+    def alert(self, content: str):
+        if sys.platform == 'darwin':
             rumps.alert(content)
         else:
             self.notification(content, "Macast")
 
-    def notification(self, title, content, sound=True):
-        if self.platform == Platform.Darwin:
+    def notification(self, title: str, content: str, sound=True):
+        if sys.platform == 'darwin':
             rumps.notification(title, "", content, sound=sound)
         else:
             try:
@@ -261,27 +299,35 @@ class App:
             except NotImplementedError as e:
                 pass
 
-    def dialog(self, content, callback=None, cancel="Cancel", ok="Ok"):
-        if self.platform == Platform.Darwin:
+    def dialog(self, content: str, callback=None, cancel="Cancel", ok="Ok"):
+        if sys.platform == 'darwin':
             try:
                 res = Setting.system_shell(
                     ['osascript',
                      '-e',
-                     'display dialog "{}" buttons {{"{}","{}"}}'.format(
-                         content, cancel, ok)
+                     f'display dialog "{content}" '
+                     f'with icon POSIX file "{Setting.get_base_path("assets/icon.icns")}"'
+                     f'with title "Macast" buttons {{"{cancel}","{ok}"}}'
                      ])
                 if ok in res[1] and callback:
                     callback()
             except Exception as e:
                 self.notification("Error", "Cannot access System Events")
-                logger.error(e)
+                logger.error(f"Cannot access System Events: {e}")
                 callback()
         else:
             self.notification("Macast", content)
-            if callback:
+            if callable(callback):
                 callback()
 
-    def get_env(self):
+    @staticmethod
+    def get_env():
+        """
+        The program packaged with pyinstaller on Linux can't read system variables correctly,
+        so it can't run programs such as xdg-open.
+        You can get the correct environment variables by using this method
+        :return: env in dict
+        """
         # https://github.com/pyinstaller/pyinstaller/issues/3668#issuecomment-742547785
         env = Setting.get_system_env()
         toDelete = []
@@ -292,29 +338,89 @@ class App:
             env.pop(k, None)
         return env
 
-    def open_browser(self, url):
+    def open_browser(self, url: str):
+        """
+        Open a website using the default browser
+        :param url:
+        :return:
+        """
         if self.platform == Platform.Darwin:
             subprocess.Popen(['open', url])
         elif self.platform == Platform.Win32:
-            webbrowser.open(url)
+            webbrowser.open_new(url)
         else:
-            subprocess.Popen(["xdg-open", url], env=self.get_env())
+            subprocess.Popen(["xdg-open", url], env=App.get_env())
 
-    def open_directory(self, path):
+    def open_directory(self, path: str):
+        """
+        Open a local folder
+        :param path: directory path
+        :return:
+        """
         if self.platform == Platform.Darwin:
             subprocess.Popen(['open', path])
         elif self.platform == Platform.Win32:
             subprocess.Popen(['explorer.exe', path])
         else:
-            subprocess.Popen(["xdg-open", path], env=self.get_env())
+            subprocess.Popen(["xdg-open", path], env=App.get_env())
 
     @staticmethod
-    def build_menu_item_group(titles, callback):
+    def build_menu_item_group(titles: [str], callback: Callable[[MenuItem], None]):
         items = []
         for index, title in enumerate(titles):
             item = MenuItem(title, callback, data=index)
             items.append(item)
         return items
+
+    @staticmethod
+    def build_menu_item_select(title: str,
+                               sub_menu_titles: [str],
+                               callback: Callable[[MenuItem], None],
+                               selection) -> MenuItem:
+
+        menuitem = MenuItem(title,
+                            children=App.build_menu_item_group(
+                                sub_menu_titles,
+                                callback
+                            ))
+        if isinstance(selection, list):
+            for i in menuitem.children:
+                if i.text in selection:
+                    i.checked = True
+        else:
+            for i in menuitem.children:
+                if i.text == selection:
+                    i.checked = True
+                    break
+            else:
+                if len(menuitem.children) > 0:
+                    menuitem.children[0].checked = True
+
+        return menuitem
+
+
+class Tool:
+
+    def __init__(self):
+        self._title = None
+
+    @property
+    def title(self):
+        if self._title is not None:
+            return self._title
+        return format_class_name(self)
+
+    def build_menu(self) -> List[MenuItem]:
+        return []
+
+    def build_menu_html(self):
+        return []
+
+    def start(self):
+        logger.info(f"{self.title} Started")
+
+    def stop(self):
+        logger.info(f"{self.title} Stopped")
 
 
 if __name__ == '__main__':
@@ -360,5 +466,6 @@ if __name__ == '__main__':
 
         def quit(self, _):
             super(DemoApp, self).quit(_)
+
 
     DemoApp().start()
