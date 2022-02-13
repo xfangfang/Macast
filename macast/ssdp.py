@@ -19,7 +19,7 @@ import threading
 import cherrypy
 from email.utils import formatdate
 
-from .utils import Setting, get_subnet_ip
+from .utils import Setting, get_subnet_ip, notify_error, SettingProperty
 
 SSDP_PORT = 1900
 SSDP_ADDR = '239.255.255.250'
@@ -70,7 +70,7 @@ class SSDPServer:
         self.sending_byebye = True  # send byebye when shutdown ssdp thread
         self.ssdp_notify_thread = None
         self.ssdp_device_lock = threading.Lock()
-        self.notify_internal = 3
+        self.notify_internal = Setting.get(SettingProperty.SSDP_Notify_Frequency, 30)
 
     def start(self):
         """Start ssdp background thread
@@ -112,6 +112,7 @@ class SSDPServer:
         if self.ssdp_thread is not None:
             self.ssdp_thread.join()
 
+    @notify_error("Error in ssdp thread")
     def ssdp_main_thread(self):
         logger.info('SSDP_MAIN_THREAD START')
 
@@ -342,19 +343,21 @@ class SSDPServer:
 
         (host, port) = host_port
 
-        logger.debug(f'Discovery request from ({host}:{port}) for {headers["st"]}')
+        service_type = headers.get("st", headers.get('ST', ''))
+
+        logger.debug(f'Discovery request from ({host}:{port}) for {service_type}')
 
         # Do we know about this service?
         with self.ssdp_device_lock:
             devices = list(self.known.values())
 
         for i in devices:
-            if i['NT'] == headers['st'] or headers['st'] == 'ssdp:all':
+            if i['NT'] == service_type or service_type == 'ssdp:all':
                 resp = [
                     'HTTP/1.1 200 OK',
                     f'USN: {i["USN"]}',
                     f'LOCATION: {i["LOCATION"]}',
-                    f'NT: {i["NT"]}',
+                    f'ST: {i["NT"]}',
                     'EXT: ',
                     f'SERVER: {i["SERVER"]}',
                     f'CACHE-CONTROL: {i["CACHE-CONTROL"]}',

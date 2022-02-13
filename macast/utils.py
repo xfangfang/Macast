@@ -61,6 +61,7 @@ class SettingProperty(Enum):
     Macast_Setting_Port = 11
     Macast_Tool = 12
     SingleMode = 13
+    SSDP_Notify_Frequency = 14
 
 
 class Setting:
