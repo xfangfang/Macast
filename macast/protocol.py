@@ -16,7 +16,7 @@ from queue import Queue
 from enum import Enum
 from cherrypy import _cpnative_server
 
-from .utils import load_xml, XMLPath, Setting, cherrypy_publish, SETTING_DIR
+from .gui import Tool
 from .utils import load_xml, XMLPath, Setting, cherrypy_publish, SETTING_DIR, AssetsPath
 from .ssdp import SSDPServer
 
@@ -26,6 +26,7 @@ logger = logging.getLogger("Protocol")
 class Protocol:
     def __init__(self):
         self._handler = None
+        self.protocol_setting = Tool()
 
     @property
     def handler(self):

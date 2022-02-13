@@ -6,6 +6,7 @@ import cherrypy
 
 from .protocol import Protocol
 from .utils import cherrypy_publish
+from .gui import Tool
 
 logger = logging.getLogger("Renderer")
 
@@ -22,7 +23,7 @@ class Renderer:
         global _
         _ = lang
         self.running = False
-        self.renderer_setting = RendererSetting()
+        self.renderer_setting = Tool()
 
     def start(self):
         """Start render thread
@@ -198,11 +199,3 @@ class Renderer:
 
     def get_state(self, state_name):
         return self.protocol.get_state(state_name)
-
-
-class RendererSetting:
-    """ Dummy menu settings class
-    """
-
-    def build_menu(self):
-        return []

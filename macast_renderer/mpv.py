@@ -17,8 +17,8 @@ import gettext
 from enum import Enum
 
 from macast.utils import Setting
-from macast.renderer import Renderer, RendererSetting
-from macast.gui import App, MenuItem
+from macast.renderer import Renderer
+from macast.gui import App, MenuItem, Tool
 
 if os.name == 'nt':
     import _winapi
@@ -511,8 +511,9 @@ class SettingProperty(Enum):
     PlayerDefaultVolume = 500
 
 
-class MPVRendererSetting(RendererSetting):
+class MPVRendererSetting(Tool):
     def __init__(self):
+        super(MPVRendererSetting, self).__init__()
         self.playerPositionItem = None
         self.playerSizeItem = None
         self.playerHWItem = None
@@ -582,7 +583,6 @@ class MPVRendererSetting(RendererSetting):
         self.playerOntopItem.checked = True if self.setting_player_ontop == 1 else False
 
         return [
-            MenuItem(_("Player Settings"), enabled=False),
             self.playerPositionItem,
             self.playerSizeItem,
             self.playerHWItem,
@@ -598,19 +598,22 @@ class MPVRendererSetting(RendererSetting):
 
     def on_renderer_ontop_clicked(self, item):
         item.checked = not item.checked
-        Setting.set(SettingProperty.PlayerOntop, 1 if item.checked else 0)
+        self.setting_player_ontop = 1 if item.checked else 0
+        Setting.set(SettingProperty.PlayerOntop, self.setting_player_ontop)
         self.reloadPlayer()
 
     def on_renderer_position_clicked(self, item):
         for i in self.playerPositionItem.items():
             i.checked = False
         item.checked = True
-        Setting.set(SettingProperty.PlayerPosition, item.data)
+        self.setting_player_position = item.data
+        Setting.set(SettingProperty.PlayerPosition, self.setting_player_position)
         self.reloadPlayer()
 
     def on_renderer_hw_toggled(self, item):
         item.checked = not item.checked
-        Setting.set(SettingProperty.PlayerHW, 1 if item.checked else 0)
+        self.setting_player_hw = 1 if item.checked else 0
+        Setting.set(SettingProperty.PlayerHW, self.setting_player_hw)
         self.reloadPlayer()
 
     def on_renderer_hw_clicked(self, item):

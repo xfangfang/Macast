@@ -10,7 +10,7 @@ from cherrypy._cpserver import Server
 from cherrypy.process.plugins import Monitor
 
 from .utils import Setting, XMLPath, SettingProperty
-from .plugin import ProtocolPlugin, RendererPlugin, SSDPPlugin
+from .plugin import ProtocolPlugin, RendererPlugin, SSDPPlugin, ToolPlugin
 from .protocol import Protocol
 
 logger = logging.getLogger("server")
@@ -19,7 +19,7 @@ logger = logging.getLogger("server")
 def auto_change_port(fun):
     """See AutoPortServer"""
 
-    def wrapper(self):
+    def wrapper(self: Server):
         try:
             return fun(self)
         except portend.Timeout as e:
@@ -76,7 +76,10 @@ class AutoPortServer(Server):
 
 class Service:
 
-    def __init__(self, renderer, protocol):
+    def __init__(self, renderer, protocol, tool=None):
+        if tool is None:
+            tool = []
+
         # global log config
         log_level = Setting.setup_logger()
 
@@ -95,8 +98,13 @@ class Service:
         self._protocol = protocol
         self.protocol_plugin = ProtocolPlugin(27, protocol)
         self.protocol_plugin.subscribe()
+        self.tool_plugin = ToolPlugin(29, tool)
+        self.tool_plugin.subscribe()
         self.ip_monitor = Monitor(cherrypy.engine, self.update_ip, 5, name="IP_MONITOR_THREAD")
         self.ip_monitor.subscribe()
+
+        # todo remove cherrypy.autoreload
+        # cherrypy.autoreload
 
         cherrypy.config.update({
             'server.thread_pool': 1

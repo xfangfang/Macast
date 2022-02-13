@@ -34,6 +34,7 @@ SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
 LOG_DIR = appdirs.user_log_dir('Macast', 'xfangfang')
 PROTOCOL_DIR = 'protocol'
 RENDERER_DIR = 'renderer'
+TOOL_DIR = 'tool'
 LOG_LEVEL = {
     'ERROR': 40,
     'INFO': 20,
@@ -55,6 +56,7 @@ class SettingProperty(Enum):
     Additional_Interfaces = 9
     Macast_Log = 10
     Macast_Setting_Port = 11
+    Macast_Tool = 12
 
 
 class Setting:

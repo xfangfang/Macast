@@ -3,9 +3,10 @@
 import sys
 import logging
 import subprocess
+import cherrypy
 from enum import Enum
-from .utils import Setting
-from typing import Callable
+from .utils import Setting, format_class_name
+from typing import Callable, List
 
 if sys.platform == 'darwin':
     import rumps
@@ -153,6 +154,8 @@ class App:
                                         lambda:
                                         self._build_menu_pystray(self.menu)))
 
+        cherrypy.engine.subscribe('get_macast_app', lambda: self)
+
     def init_platform_darwin(self):
         pass
 
@@ -282,13 +285,13 @@ class App:
             self.app.stop()
 
     def alert(self, content: str):
-        if self.platform == Platform.Darwin:
+        if sys.platform == 'darwin':
             rumps.alert(content)
         else:
             self.notification(content, "Macast")
 
     def notification(self, title: str, content: str, sound=True):
-        if self.platform == Platform.Darwin:
+        if sys.platform == 'darwin':
             rumps.notification(title, "", content, sound=sound)
         else:
             try:
@@ -297,7 +300,7 @@ class App:
                 pass
 
     def dialog(self, content: str, callback=None, cancel="Cancel", ok="Ok"):
-        if self.platform == Platform.Darwin:
+        if sys.platform == 'darwin':
             try:
                 res = Setting.system_shell(
                     ['osascript',
@@ -368,6 +371,56 @@ class App:
             item = MenuItem(title, callback, data=index)
             items.append(item)
         return items
+
+    @staticmethod
+    def build_menu_item_select(title: str,
+                               sub_menu_titles: [str],
+                               callback: Callable[[MenuItem], None],
+                               selection) -> MenuItem:
+
+        menuitem = MenuItem(title,
+                            children=App.build_menu_item_group(
+                                sub_menu_titles,
+                                callback
+                            ))
+        if isinstance(selection, list):
+            for i in menuitem.children:
+                if i.text in selection:
+                    i.checked = True
+        else:
+            for i in menuitem.children:
+                if i.text == selection:
+                    i.checked = True
+                    break
+            else:
+                if len(menuitem.children) > 0:
+                    menuitem.children[0].checked = True
+
+        return menuitem
+
+
+class Tool:
+
+    def __init__(self):
+        self._title = None
+
+    @property
+    def title(self):
+        if self._title is not None:
+            return self._title
+        return format_class_name(self)
+
+    def build_menu(self) -> List[MenuItem]:
+        return []
+
+    def build_menu_html(self):
+        return []
+
+    def start(self):
+        logger.info(f"{self.title} Started")
+
+    def stop(self):
+        logger.info(f"{self.title} Stopped")
 
 
 if __name__ == '__main__':

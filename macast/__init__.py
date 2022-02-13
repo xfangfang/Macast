@@ -10,6 +10,6 @@ from .__pkginfo__ import __version__, __url__, __email__, __author__
 
 from .macast import Service, Macast, gui, cli
 from .utils import SETTING_DIR, Setting, SettingProperty
-from .renderer import Renderer, RendererSetting
+from .renderer import Renderer
 from .plugin import RendererPlugin
-from .gui import App, MenuItem, Platform
+from .gui import App, MenuItem, Platform, Tool

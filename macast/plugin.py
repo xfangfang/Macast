@@ -3,9 +3,10 @@
 # Cherrypy Plugins
 # Cherrypy uses Plugin to run background thread
 #
+import threading
 import cherrypy
-from cherrypy.process import plugins
 import logging
+from cherrypy.process import plugins
 
 from .ssdp import SSDPServer
 
@@ -13,6 +14,11 @@ logger = logging.getLogger("PLUGIN")
 
 
 class PriorityPlugin(plugins.SimplePlugin):
+    """Add startup priority to CherryPy's SimplePlugin
+    The main reason for adding this function is that when starting the software,
+    you need to start service discovery services such as SSDP first,
+    and then start Protocol and Renderer services.
+    """
 
     def __init__(self, priority=50):
         super(PriorityPlugin, self).__init__(cherrypy.engine)
@@ -162,3 +168,41 @@ class SSDPPlugin(PriorityPlugin):
 
     def get_ssdp_server(self):
         return self.ssdp
+
+
+class ToolPlugin(PriorityPlugin):
+
+    def __init__(self, bus, tools):
+        logger.info('Initializing ToolPlugin')
+        super(ToolPlugin, self).__init__(bus)
+        self.tool_list = tools
+        self.tool_list_lock = threading.Lock()
+        self.running = False
+        self.bus.subscribe('append_tool', self.append_tool)
+        self.bus.subscribe('remove_tool', self.remove_tool)
+
+    def start(self):
+        logger.info("Starting ToolPlugin")
+        self.running = True
+        with self.tool_list_lock:
+            for tool in self.tool_list:
+                tool.start()
+
+    def stop(self):
+        logger.info('Stopping ToolPlugin')
+        self.running = False
+        with self.tool_list_lock:
+            for tool in self.tool_list:
+                tool.stop()
+
+    def append_tool(self, tool):
+        if self.running:
+            tool.start()
+        with self.tool_list_lock:
+            self.tool_list.append(tool)
+
+    def remove_tool(self, tool):
+        if self.running:
+            tool.stop()
+        with self.tool_list_lock:
+            self.tool_list.remove(tool)
