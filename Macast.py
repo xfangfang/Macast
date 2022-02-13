@@ -4,12 +4,11 @@ import os
 import sys
 import gettext
 import logging
-from tendo import singleton
 
 
 from macast import Setting, SETTING_DIR
 from macast.macast import gui
-from macast.utils import SettingProperty
+from macast.utils import SettingProperty, SingleInstance, SingleInstanceException
 
 logger = logging.getLogger("Macast")
 logger.setLevel(logging.DEBUG)
@@ -67,7 +66,7 @@ if __name__ == '__main__':
     set_mpv_default_path()
     if get_single_mode():
         try:
-            me = singleton.SingleInstance()
-        except singleton.SingleInstanceException:
+            me = SingleInstance()
+        except SingleInstanceException:
             sys.exit(-1)
     gui(lang=_)
