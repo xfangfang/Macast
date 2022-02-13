@@ -187,7 +187,7 @@ class Service:
             # todo 验证正确性
             usn = Setting.get_usn(refresh=True)
             logger.info("Change usn to: {}".format(usn))
-            Setting.set(SettingProperty.ApplicationPort, port)
+            Setting.set(SettingProperty.Application_Port, port)
             name = "Macast({0:04d})".format(random.randint(0, 9999))
             logger.info("Change name to: {}".format(name))
             Setting.set_temp_friendly_name(name)

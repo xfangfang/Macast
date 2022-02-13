@@ -387,9 +387,9 @@ class Macast(App):
                [None, self.check_update_menuitem, self.about_menuitem]
 
     def init_setting(self):
-        self.setting_start_at_login = Setting.get(SettingProperty.StartAtLogin, 0)
-        self.setting_check = Setting.get(SettingProperty.CheckUpdate, 1)
-        self.setting_menubar_icon = Setting.get(SettingProperty.MenubarIcon, 1 if sys.platform == 'darwin' else 0)
+        self.setting_start_at_login = Setting.get(SettingProperty.Start_At_Login, 0)
+        self.setting_check = Setting.get(SettingProperty.Check_Update, 1)
+        self.setting_menubar_icon = Setting.get(SettingProperty.Menubar_Icon, 1 if sys.platform == 'darwin' else 0)
         self.setting_renderer = Setting.get(SettingProperty.Macast_Renderer, 'MPV')
         self.setting_protocol = Setting.get(SettingProperty.Macast_Protocol, 'DLNA')
         self.setting_tool = Setting.get(SettingProperty.Macast_Tool, [])
@@ -548,14 +548,14 @@ class Macast(App):
 
     def on_auto_check_update_click(self, item):
         item.checked = not item.checked
-        Setting.set(SettingProperty.CheckUpdate,
+        Setting.set(SettingProperty.Check_Update,
                     1 if item.checked else 0)
 
     def on_start_at_login_click(self, item):
         res = Setting.set_start_at_login(not item.checked)
         if res[0] == 0:
             item.checked = not item.checked
-            Setting.set(SettingProperty.StartAtLogin,
+            Setting.set(SettingProperty.Start_At_Login,
                         1 if item.checked else 0)
         else:
             self.notification(_("Error"), res[1])
@@ -570,7 +570,7 @@ class Macast(App):
         for i in self.menubar_icon_menuitem.items():
             i.checked = False
         item.checked = True
-        Setting.set(SettingProperty.MenubarIcon, item.data)
+        Setting.set(SettingProperty.Menubar_Icon, item.data)
         icon_path = os.path.join(os.path.dirname(__file__), Macast.ICON_MAP[item.data])
         template = None if item.data == 0 else True
         self.update_icon(icon_path, template)

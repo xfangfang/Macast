@@ -48,11 +48,11 @@ LOG_LEVEL = {
 
 class SettingProperty(Enum):
     USN = 0
-    CheckUpdate = 1
-    StartAtLogin = 2
-    MenubarIcon = 3
-    ApplicationPort = 4
-    DLNA_FriendlyName = 5
+    Check_Update = 1
+    Start_At_Login = 2
+    Menubar_Icon = 3
+    Application_Port = 4
+    DLNA_Friendly_Name = 5
     Macast_Renderer = 6
     Macast_Protocol = 7
     Blocked_Interfaces = 8
@@ -60,7 +60,7 @@ class SettingProperty(Enum):
     Macast_Log = 10
     Macast_Setting_Port = 11
     Macast_Tool = 12
-    SingleMode = 13
+    Single_Mode = 13
     SSDP_Notify_Frequency = 14
 
 
@@ -141,7 +141,7 @@ class Setting:
         """
         if Setting.temp_friendly_name:
             return Setting.temp_friendly_name
-        return Setting.get(SettingProperty.DLNA_FriendlyName, Setting.friendly_name)
+        return Setting.get(SettingProperty.DLNA_Friendly_Name, Setting.friendly_name)
 
     @staticmethod
     def set_temp_friendly_name(name):
@@ -206,7 +206,7 @@ class Setting:
     def get_port():
         """Get application port
         """
-        return Setting.get(SettingProperty.ApplicationPort, DEFAULT_PORT)
+        return Setting.get(SettingProperty.Application_Port, DEFAULT_PORT)
 
     @staticmethod
     def get_setting_port():
@@ -446,6 +446,7 @@ class XMLPath(Enum):
     SETTING_PAGE = BASE_PATH + '/xml/setting.html'
     PROTOCOL_INFO = BASE_PATH + '/xml/SinkProtocolInfo.csv'
 
+
 class SingleInstanceException(BaseException):
     pass
 
@@ -459,7 +460,7 @@ class SingleInstance(object):
         else:
             basename = os.path.splitext(SETTING_DIR)[0].replace(
                 "/", "-").replace(":", "").replace("\\", "-") + '-%s' % flavor_id + '.lock'
-            
+
             self.lockfile = os.path.normpath(
                 tempfile.gettempdir() + '/' + basename)
 
@@ -510,7 +511,6 @@ class SingleInstance(object):
             else:
                 print("Unloggable error: %s" % e)
             sys.exit(-1)
-
 
 
 class AssetsPath:

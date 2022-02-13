@@ -984,7 +984,7 @@ class Handler:
             else:
                 Setting.setting = setting
                 Setting.save()
-                # Setting.restart_async()
+                Setting.restart_async()
         elif method == 'restart_server':
             Setting.restart_async()
         elif method == 'open_folder':
