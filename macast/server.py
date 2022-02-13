@@ -100,7 +100,8 @@ class Service:
         self.protocol_plugin.subscribe()
         self.tool_plugin = ToolPlugin(29, tool)
         self.tool_plugin.subscribe()
-        self.ip_monitor = Monitor(cherrypy.engine, self.update_ip, 5, name="IP_MONITOR_THREAD")
+        check_ip_freq = Setting.get(SettingProperty.Check_IP_Frequency, 5)
+        self.ip_monitor = Monitor(cherrypy.engine, self.update_ip, check_ip_freq, name="IP_MONITOR_THREAD")
         self.ip_monitor.subscribe()
 
         # todo remove cherrypy.autoreload

@@ -62,6 +62,7 @@ class SettingProperty(Enum):
     Macast_Tool = 12
     Single_Mode = 13
     SSDP_Notify_Frequency = 14
+    Check_IP_Frequency = 15
 
 
 class Setting:
