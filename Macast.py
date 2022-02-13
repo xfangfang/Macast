@@ -3,8 +3,9 @@
 import os
 import sys
 import logging
-from macast import Setting
+from macast import Setting, SETTING_DIR
 from macast.macast import gui
+from macast.utils import SettingProperty, SingleInstance, SingleInstanceException
 
 logger = logging.getLogger("Macast")
 
@@ -27,6 +28,16 @@ def set_mpv_default_path():
     return mpv_path
 
 
+def get_single_mode():
+    singleMode = Setting.get(SettingProperty.SingleMode)
+    return singleMode
+
+
 if __name__ == '__main__':
     set_mpv_default_path()
+    if get_single_mode():
+        try:
+            me = SingleInstance()
+        except SingleInstanceException:
+            sys.exit(-1)
     gui()
