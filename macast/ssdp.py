@@ -152,7 +152,7 @@ class SSDPServer:
                 self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
                 self.sock_list.append(Sock(ip))
             except Exception as e:
-                if 'WinError 10013' not in str(e):
+                if 'WinError 10013' not in str(e) and 'WinError 10049' not in str(e) :
                     logger.error(e)
 
         try:
