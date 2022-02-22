@@ -3,6 +3,7 @@
 import os
 import sys
 import logging
+import importlib
 from macast import Setting
 from macast.macast import gui
 from macast.utils import SettingProperty, SingleInstance, SingleInstanceException
@@ -35,4 +36,7 @@ if __name__ == '__main__':
             me = SingleInstance()
         except SingleInstanceException:
             sys.exit(-1)
+    if '_PYIBoot_SPLASH' in os.environ and importlib.util.find_spec("pyi_splash"):
+        import pyi_splash
+        pyi_splash.close()
     gui()
