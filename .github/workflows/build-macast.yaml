@@ -38,7 +38,9 @@ jobs:
         run: |
           ls -R
           export VERSION=`python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version__)"`
+          export VERSION_NUM=`python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version_num__)"`
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
+          echo "VERSION_NUM=v$VERSION_NUM" >> $GITHUB_ENV
           echo "DIST_DMG=Macast-MacOS-v${VERSION}.dmg" >> $GITHUB_ENV
           echo "DIST_EXE=Macast-Windows-v${VERSION}.exe" >> $GITHUB_ENV
           echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" >> $GITHUB_ENV
@@ -53,7 +55,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           name: Macast ${{ env.VERSION }}
-          tag: ${{ env.VERSION }}
+          tag: ${{ env.VERSION_NUM }}
           omitBodyDuringUpdate: true
           body: This release is built by github-action.
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -70,25 +72,37 @@ jobs:
         run: |
           docker pull xfangfang/build-macast
 
+      - name: SSH connection to Actions
+        uses: P3TERX/ssh2actions@v1.0.0
+        if: (github.event.inputs.ssh_ubuntu == 'true' && github.event.inputs.ssh_ubuntu  != 'false') || contains(github.event.action, 'ssh_ubuntu')
+        env:
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
       - name: Build
         id: compile
         run: |
           export VERSION=`python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version__)"`
+          export VERSION_NUM=`python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version_num__)"`
           export DIST_AMD64_DEB=Macast-Linux-v${VERSION}-amd64.deb
           export DIST_AMD64=Macast-Linux-v${VERSION}-amd64
           echo "DIST_AMD64_DEB=${DIST_AMD64_DEB}" >> $GITHUB_ENV
           echo "DIST_AMD64=${DIST_AMD64}" >> $GITHUB_ENV
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
-          docker run --rm -v "$(pwd):/src/" xfangfang/build-macast \
+          docker run --rm -v "$(pwd):/src/" xfangfang/build-macast:amd64-220223 \
               'pip install -r requirements.txt && \
               pip install -U pyinstaller && \
               python setup.py compile_catalog -f -D macast -d macast/i18n && \
+              export BUILD_LANG=$(for i in $(ls macast/i18n);do echo --add-data=macast/i18n/$i/LC_MESSAGES/*.mo:macast/i18n/$i/LC_MESSAGES; done) &&\
+              echo $BUILD_LANG
+              export BUILD_ASSETS=$(for i in $(ls macast/assets);do [ -d macast/assets/$i ] && echo --add-data=macast/assets/$i/*:macast/assets/$i; done) &&\
+              echo $BUILD_ASSETS &&\
               pyinstaller --noconfirm -F -w \
                 --additional-hooks-dir=. \
+                $BUILD_LANG \
+                $BUILD_ASSETS \
                 --add-data="macast/xml/*:macast/xml" \
-                --add-data="macast/i18n/zh_CN/LC_MESSAGES/*.mo:i18n/zh_CN/LC_MESSAGES" \
-                --add-data="macast/assets/*:macast/assets" \
-                --add-data="macast/assets/fonts/*:macast/assets/fonts" \
+                --add-data="macast/assets/*.png:macast/assets" \
                 --exclude-module=tkinter \
                 --distpath="app" \
               Macast.py'
@@ -98,20 +112,13 @@ jobs:
           mkdir -p dist/DEBIAN
           mkdir -p dist/usr/bin
           mkdir -p dist/usr/share/applications
-          mkdir -p dist/usr/share/icons
-          echo -e "Package: Macast\nVersion: ${VERSION}\nArchitecture: amd64\nMaintainer: xfangfang\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
-          echo -e "[Desktop Entry]\nName=Macast\nComment=DLNA Media Renderer\nExec=/usr/bin/macast\nIcon=/usr/share/icons/Macast.png\nTerminal=false\nType=Application\nCategories=Video" > dist/usr/share/applications/macast.desktop
+          mkdir -p dist/usr/share/icons/hicolor/128x128/apps
+          echo -e "Package: cn.xfangfang.macast\nVersion: ${VERSION_NUM}\nStandards-Version: ${VERSION}\nArchitecture: amd64\nMaintainer: xfangfang <xfangfang@126.com>\nSection:video\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
+          echo -e "[Desktop Entry]\nName=Macast\nComment=DLNA Media Renderer\nTryExec=mpv\nExec=/usr/bin/macast\nIcon=/usr/share/icons/hicolor/128x128/apps/macast.png\nTerminal=false\nType=Application\nCategories=AudioVideo;Audio;Video;Player;TV;" > dist/usr/share/applications/macast.desktop
           cp app/Macast dist/usr/bin/macast
-          cp macast/assets/icon.png dist/usr/share/icons/Macast.png
+          cp macast/assets/icon.png dist/usr/share/icons/hicolor/128x128/apps/macast.png
           dpkg -b dist $DIST_AMD64_DEB
           echo "::set-output name=status::success"
-
-      - name: SSH connection to Actions
-        uses: P3TERX/ssh2actions@v1.0.0
-        if: (github.event.inputs.ssh_ubuntu == 'true' && github.event.inputs.ssh_ubuntu  != 'false') || contains(github.event.action, 'ssh_ubuntu')
-        env:
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
       - name: Upload dist linux x64
         uses: actions/upload-artifact@v2
@@ -144,21 +151,21 @@ jobs:
       - name: Build
         id: compile
         run: |
-          python3 setup.py compile_catalog -f -D macast -d macast/i18n
-          $VERSION=python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version__)"
+          python3 setup.py compile_catalog -f -D macast -d macast\i18n
+          $VERSION=python3 -c "exec(open('macast\__pkginfo__.py').read()); print(__version__)"
           echo "DIST_EXE=Macast-Windows-v${VERSION}.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "VERSION=v${VERSION}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          $BUILD_LANG=(ls macast\i18n | ForEach-Object {echo --add-data="macast/i18n/$_/LC_MESSAGES/*.mo;macast/i18n/$_/LC_MESSAGES"})
-          $BUILD_ASSETS_1=(ls macast\assets | ?{$_.PsIsContainer -eq $true} | ForEach-Object {echo --add-data="macast/assets/$_/*;macast/assets/$_"})
-          $BUILD_ASSETS_2=("--add-data=macast/assets/*;macast/assets","--add-data=macast/xml/*;macast/xml","--add-binary=bin/mpv.exe;bin")
+          $BUILD_LANG=(ls macast\i18n | ForEach-Object {echo --add-data="macast\i18n\$($_.Name)\LC_MESSAGES\*.mo;macast\i18n\$($_.Name)\LC_MESSAGES"})
+          $BUILD_ASSETS_1=(ls macast\assets | ?{$_.PsIsContainer -eq $true} | ForEach-Object {echo --add-data="macast\assets\$($_.Name)\*;macast\assets\$($_.Name)"})
+          $BUILD_ASSETS_2=("--add-data=macast\assets\*;macast\assets","--add-data=macast\xml\*;macast\xml","--add-binary=bin\mpv.exe;bin")
           $BUILD_HIDDEN_IMPORT=("--hidden-import=win32process","--hidden-import=win32gui")
-          $BUILD_OTHERS=("--additional-hooks-dir=.","--icon=macast/assets/icon.ico")
+          $BUILD_OTHERS=("--additional-hooks-dir=.","--icon=macast\assets\icon.ico")
           $BUILD_COMMON=($BUILD_LANG+$BUILD_ASSETS_1+$BUILD_ASSETS_2+$BUILD_HIDDEN_IMPORT+$BUILD_OTHERS)
-          pyinstaller --noconfirm -F -w  $BUILD_COMMON --splash=macast/assets/macast_splash.jpg Macast.py
-          cp dist/Macast.exe Macast-Windows-v${VERSION}.exe
+          pyinstaller --noconfirm -F -w  $BUILD_COMMON --splash=macast\assets\macast_splash.jpg Macast.py
+          cp dist\Macast.exe Macast-Windows-v${VERSION}.exe
           pyinstaller --noconfirm -F $BUILD_COMMON Macast.py
-          cp dist/Macast.exe Macast-Windows-v${VERSION}-debug.exe
+          cp dist\Macast.exe Macast-Windows-v${VERSION}-debug.exe
           echo "::set-output name=status::success"
 
       - name: Upload dist
@@ -243,19 +250,25 @@ jobs:
         id: compile
         run: |
           export VERSION=`python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version__)"`
+          export VERSION_NUM=`python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version_num__)"`
           export BUILD_PLATFORM=armv7
           export DIST_DEB=Macast-Linux-v${VERSION}-${BUILD_PLATFORM}.deb
           export DIST=Macast-Linux-v${VERSION}-${BUILD_PLATFORM}
           echo "DIST_DEB=${DIST_DEB}" >> $GITHUB_ENV
           echo "DIST=${DIST}" >> $GITHUB_ENV
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
-          docker run --platform=linux/arm/v7 --rm -v "$(pwd):/src/" xfangfang/build-macast:armv7-220105 \
+          docker run --platform=linux/arm/v7 --rm -v "$(pwd):/src/" xfangfang/build-macast:armv7-220223 \
               'python setup.py compile_catalog -f -D macast -d macast/i18n && \
+              export BUILD_LANG=$(for i in $(ls macast/i18n);do echo --add-data=macast/i18n/$i/LC_MESSAGES/*.mo:macast/i18n/$i/LC_MESSAGES; done) &&\
+              echo $BUILD_LANG
+              export BUILD_ASSETS=$(for i in $(ls macast/assets);do [ -d macast/assets/$i ] && echo --add-data=macast/assets/$i/*:macast/assets/$i; done) &&\
+              echo $BUILD_ASSETS && \
               pyinstaller --noconfirm -F -w \
                 --additional-hooks-dir=. \
+                $BUILD_LANG \
+                $BUILD_ASSETS \
                 --add-data="macast/xml/*:macast/xml" \
-                --add-data="macast/i18n/zh_CN/LC_MESSAGES/*.mo:i18n/zh_CN/LC_MESSAGES" \
-                --add-data="macast/assets/*.png:assets" \
+                --add-data="macast/assets/*.png:macast/assets" \
                 --exclude-module=tkinter \
                 --distpath="app" \
               Macast.py'
@@ -265,11 +278,11 @@ jobs:
           mkdir -p dist/DEBIAN
           mkdir -p dist/usr/bin
           mkdir -p dist/usr/share/applications
-          mkdir -p dist/usr/share/icons
-          echo -e "Package: Macast\nVersion: ${VERSION}\nArchitecture: armhf\nMaintainer: xfangfang\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
-          echo -e "[Desktop Entry]\nName=Macast\nComment=DLNA Media Renderer\nExec=/usr/bin/macast\nIcon=/usr/share/icons/Macast.png\nTerminal=false\nType=Application\nCategories=Video" > dist/usr/share/applications/macast.desktop
+          mkdir -p dist/usr/share/icons/hicolor/128x128/apps
+          echo -e "Package: Macast\nVersion: ${VERSION_NUM}\nStandards-Version: ${VERSION}\nArchitecture: armhf\nMaintainer: xfangfang <xfangfang@126.com>\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
+          echo -e "[Desktop Entry]\nName=Macast\nComment=DLNA Media Renderer\nTryExec=mpv\nExec=/usr/bin/macast\nIcon=/usr/share/icons/hicolor/128x128/apps/macast.png\nTerminal=false\nType=Application\nCategories=AudioVideo;Audio;Video;Player;TV;" > dist/usr/share/applications/macast.desktop
           cp app/Macast dist/usr/bin/macast
-          cp macast/assets/icon.png dist/usr/share/icons/Macast.png
+          cp macast/assets/icon.png dist/usr/share/icons/hicolor/128x128/apps/macast.png
           dpkg -b dist $DIST_DEB
           echo "::set-output name=status::success"
 
