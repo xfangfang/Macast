@@ -26,7 +26,7 @@ on:
 
 jobs:
   release:
-    needs: [ build-nt, build-darwin, build-amd64, build-armv7 ]
+    needs: [ build-nt, build-darwin, build-amd64, build-armv7, build-nt32 ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -44,6 +44,8 @@ jobs:
           echo "DIST_DMG=Macast-MacOS-v${VERSION}.dmg" >> $GITHUB_ENV
           echo "DIST_EXE=Macast-Windows-v${VERSION}.exe" >> $GITHUB_ENV
           echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" >> $GITHUB_ENV
+          echo "DIST_EXE32=Macast-Windows-v${VERSION}-x86.exe" >> $GITHUB_ENV
+          echo "DIST_EXE32_DEBUG=Macast-Windows-v${VERSION}-x86-debug.exe" >> $GITHUB_ENV
           echo "DIST_AMD64=Macast-Linux-v${VERSION}-amd64" >> $GITHUB_ENV
           echo "DIST_AMD64_DEB=Macast-Linux-v${VERSION}-amd64.deb" >> $GITHUB_ENV
           echo "DIST_ARMV7=Macast-Linux-v${VERSION}-armv7" >> $GITHUB_ENV
@@ -60,17 +62,22 @@ jobs:
           body: This release is built by github-action.
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
-          artifacts: ${{ env.DIST_DMG }}/${{ env.DIST_DMG }},${{ env.DIST_EXE }}/${{ env.DIST_EXE }},${{ env.DIST_EXE_DEBUG }}/${{ env.DIST_EXE_DEBUG }},${{ env.DIST_AMD64 }}/${{ env.DIST_AMD64 }},${{ env.DIST_AMD64_DEB }}/${{ env.DIST_AMD64_DEB }},${{ env.DIST_ARMV7_DEB }}/${{ env.DIST_ARMV7_DEB }}
+          artifacts: >
+            ${{ env.DIST_DMG }}/${{ env.DIST_DMG }},
+            ${{ env.DIST_EXE }}/${{ env.DIST_EXE }},
+            ${{ env.DIST_EXE_DEBUG }}/${{ env.DIST_EXE_DEBUG }},
+            ${{ env.DIST_EXE32 }}/${{ env.DIST_EXE32 }},
+            ${{ env.DIST_EXE32_DEBUG }}/${{ env.DIST_EXE32_DEBUG }},
+            ${{ env.DIST_AMD64 }}/${{ env.DIST_AMD64 }},
+            ${{ env.DIST_AMD64_DEB }}/${{ env.DIST_AMD64_DEB }},
+            ${{ env.DIST_ARMV7 }}/${{ env.DIST_ARMV7 }},
+            ${{ env.DIST_ARMV7_DEB }}/${{ env.DIST_ARMV7_DEB }}
 
   build-amd64:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-
-      - name: Install Requirement
-        run: |
-          docker pull xfangfang/build-macast
 
       - name: SSH connection to Actions
         uses: P3TERX/ssh2actions@v1.0.0
@@ -142,6 +149,7 @@ jobs:
 
       - name: Install Requirement
         run: |
+          choco install upx
           pip3 install -r requirements.txt
           pip3 install pyinstaller
           $client = new-object System.Net.WebClient
@@ -235,10 +243,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Install Requirement
-        run: |
-          docker pull xfangfang/build-macast
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
 
@@ -299,3 +303,57 @@ jobs:
         with:
           name: ${{ env.DIST_DEB }}
           path: ${{ env.DIST_DEB }}
+
+  build-nt32:
+    runs-on: windows-2019
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.7.9'
+          architecture: 'x86'
+
+      - name: Install Requirement
+        run: |
+          choco install upx
+          pip3 install -r requirements.txt
+          pip3 install pyinstaller
+          $client = new-object System.Net.WebClient
+          $client.DownloadFile('https://github.com/xfangfang/Macast/releases/download/v0.1/mpv-0.34.0-i686.7z','mpv.7z')
+          7z x -obin mpv.7z *.exe
+
+      - name: Build
+        id: compile
+        run: |
+          python3 setup.py compile_catalog -f -D macast -d macast\i18n
+          $VERSION=python3 -c "exec(open('macast\__pkginfo__.py').read()); print(__version__)"
+          echo "DIST_EXE=Macast-Windows-v${VERSION}-x86.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-x86-debug.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "VERSION=v${VERSION}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $BUILD_LANG=(ls macast\i18n | ForEach-Object {echo --add-data="macast\i18n\$($_.Name)\LC_MESSAGES\*.mo;macast\i18n\$($_.Name)\LC_MESSAGES"})
+          $BUILD_ASSETS_1=(ls macast\assets | ?{$_.PsIsContainer -eq $true} | ForEach-Object {echo --add-data="macast\assets\$($_.Name)\*;macast\assets\$($_.Name)"})
+          $BUILD_ASSETS_2=("--add-data=macast\assets\*;macast\assets","--add-data=macast\xml\*;macast\xml","--add-binary=bin\mpv.exe;bin")
+          $BUILD_HIDDEN_IMPORT=("--hidden-import=win32process","--hidden-import=win32gui")
+          $BUILD_OTHERS=("--additional-hooks-dir=.","--icon=macast\assets\icon.ico")
+          $BUILD_COMMON=($BUILD_LANG+$BUILD_ASSETS_1+$BUILD_ASSETS_2+$BUILD_HIDDEN_IMPORT+$BUILD_OTHERS)
+          pyinstaller --noconfirm -F -w  $BUILD_COMMON --splash=macast\assets\macast_splash.jpg Macast.py
+          cp dist\Macast.exe Macast-Windows-v${VERSION}-x86.exe
+          pyinstaller --noconfirm -F $BUILD_COMMON Macast.py
+          cp dist\Macast.exe Macast-Windows-v${VERSION}-x86-debug.exe
+          echo "::set-output name=status::success"
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v2
+        if: steps.compile.outputs.status == 'success'
+        with:
+          name: ${{ env.DIST_EXE }}
+          path: ${{ env.DIST_EXE }}
+
+      - name: Upload dist debug
+        uses: actions/upload-artifact@v2
+        if: steps.compile.outputs.status == 'success'
+        with:
+          name: ${{ env.DIST_EXE_DEBUG }}
+          path: ${{ env.DIST_EXE_DEBUG }}
