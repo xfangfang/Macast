@@ -423,6 +423,9 @@ class Setting:
             return LOG_LEVEL.get(Setting.log_level, 20)
         Setting.log_level = Setting.get(SettingProperty.Macast_Log, 'INFO').upper()
 
+        if not os.path.exists(SETTING_DIR):
+            os.makedirs(SETTING_DIR)
+
         log_level = LOG_LEVEL.get(Setting.log_level, 20)
         log_file = os.path.join(SETTING_DIR, 'macast.log')
         log_format = '%(levelname)s: [%(asctime)s] - %(name)s/%(funcName)s/%(threadName)s|%(thread)d[line:%(lineno)d] - %(message)s'
