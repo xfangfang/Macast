@@ -171,7 +171,7 @@ class App:
             with win32_reg_open(
                 r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize',
                 win32con.KEY_QUERY_VALUE) as handle:
-                is_light = win32api.RegQueryValueEx(handle, 'AppsUseLightTheme')[0]
+                is_light = win32api.RegQueryValueEx(handle, 'SystemUsesLightTheme')[0]
                 logger.info(f'Got Windows theme: {is_light}')
                 if is_light:
                     logger.info('Set dark icon')
@@ -329,7 +329,8 @@ class App:
             rumps.notification(title, "", content, sound=sound)
         else:
             try:
-                self.app.notify(message=content, title=title)
+                if self.app is not None:
+                    self.app.notify(message=content, title=title)
             except NotImplementedError as e:
                 pass
 
