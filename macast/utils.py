@@ -48,7 +48,11 @@ LOG_LEVEL = {
 
 
 @contextmanager
-def win32_reg_open(key, access=win32con.KEY_SET_VALUE, hive=win32con.HKEY_CURRENT_USER):
+def win32_reg_open(key, access=None, hive=None):
+    if access is None:
+        access = win32con.KEY_SET_VALUE
+    if hive is None:
+        hive = win32con.HKEY_CURRENT_USER
     handle = win32api.RegOpenKey(
         hive,
         key,
@@ -428,11 +432,11 @@ class Setting:
             return LOG_LEVEL.get(Setting.log_level, 20)
         Setting.log_level = Setting.get(SettingProperty.Macast_Log, 'INFO').upper()
 
-        if not os.path.exists(SETTING_DIR):
-            os.makedirs(SETTING_DIR)
+        if not os.path.exists(LOG_DIR):
+            os.makedirs(LOG_DIR)
 
         log_level = LOG_LEVEL.get(Setting.log_level, 20)
-        log_file = os.path.join(SETTING_DIR, 'macast.log')
+        log_file = os.path.join(LOG_DIR, 'macast.log')
         log_format = '%(levelname)s: [%(asctime)s] - %(name)s/%(funcName)s/%(threadName)s|%(thread)d[line:%(lineno)d] - %(message)s'
         logging.basicConfig(
             level=log_level,
@@ -528,7 +532,7 @@ class AssetsPath:
     XML = os.path.join(BASE_PATH, 'xml')
     ASSETS = os.path.join(BASE_PATH, 'assets')
     SCRIPTS = os.path.join(BASE_PATH, 'scripts')
-    LOG = os.path.join(SETTING_DIR, 'macast.log')
+    LOG = os.path.join(LOG_DIR, 'macast.log')
 
     @staticmethod
     def join(*args):
