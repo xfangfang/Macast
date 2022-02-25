@@ -17,7 +17,7 @@ from .utils import SettingProperty, SETTING_DIR, notify_error, format_class_name
 from .gui import App, MenuItem, Platform
 from .protocol import DLNAProtocol
 from .server import Service, SettingService
-from .utils import RENDERER_DIR, PROTOCOL_DIR, TOOL_DIR, Setting, AssetsPath
+from .utils import RENDERER_DIR, PROTOCOL_DIR, TOOL_DIR, Setting, AssetsPath, win32_reg_open
 from macast_renderer.mpv import MPVRenderer
 
 logger = logging.getLogger("main")
@@ -357,7 +357,7 @@ class Macast(App):
         elif sys.platform == 'win32' and "python" not in os.path.basename(sys.executable).lower():
             platform_options = [self.start_at_login_menuitem]
             Setting.set_start_at_login(self.setting_start_at_login)
-        if sys.platform == 'darwin':
+        if sys.platform == 'darwin' or sys.platform == 'win32':
             self.menubar_icon_menuitem = MenuItem(_("Menubar Icon"),
                                                   children=App.build_menu_item_group([
                                                       _("AppIcon"),

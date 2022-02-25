@@ -4,8 +4,9 @@ import sys
 import logging
 import subprocess
 import cherrypy
+import threading
 from enum import Enum
-from .utils import Setting, format_class_name
+from .utils import Setting, format_class_name, win32_reg_open
 from typing import Callable, List
 
 if sys.platform == 'darwin':
@@ -14,6 +15,10 @@ else:
     import pystray
     import webbrowser
     from PIL import Image
+    
+if sys.platform == 'win32':
+    import win32con, win32api
+    import PIL.ImageOps
 
 logger = logging.getLogger("GUI")
 
@@ -122,7 +127,8 @@ class App:
         :param name: App name
         :param icon: Menubar icon
         :param menu: a list of MenuItem, see the DemoApp at the end of this file for example
-        :param template: If true, the icon color will be switched according to the system theme color, Macos only.
+        :param template: If true, the icon color will be switched according to the system theme color
+            macOS and Windows only, if this is True, the `:param icon` must be light colored.
         """
         self.name = name
         self.icon = icon
@@ -135,6 +141,7 @@ class App:
             self.init_platform_darwin()
         elif sys.platform == 'win32':
             self.platform = Platform.Win32
+            threading.Thread(target=self._win32_reg_notify, name="WIN32_REG_CHANGE_NOTIFY", daemon=True).start()
             self.init_platform_win32()
         else:
             self.platform = Platform.Others
@@ -149,12 +156,38 @@ class App:
             rumps.debug_mode(True)
         else:
             self.app = pystray.Icon(self.name,
-                                    Image.open(self.icon),
+                                    self._pystray_get_icon(),
                                     menu=pystray.Menu(
                                         lambda:
                                         self._build_menu_pystray(self.menu)))
 
         cherrypy.engine.subscribe('get_macast_app', lambda: self)
+
+    def _pystray_get_icon(self):
+        if not self.template or self.platform == Platform.Others:
+            return Image.open(self.icon)
+        # only for windows
+        try:
+            with win32_reg_open(
+                r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize',
+                win32con.KEY_QUERY_VALUE) as handle:
+                is_light = win32api.RegQueryValueEx(handle, 'AppsUseLightTheme')[0]
+                logger.info(f'Got Windows theme: {is_light}')
+                if is_light:
+                    logger.info('Set dark icon')
+                    return self._icon_invert()
+        except Exception as e:
+            logger.exception(f'Cannot read windows themes', exc_info=e)
+        logger.info('Set light icon')
+        return Image.open(self.icon)
+
+    def _icon_invert(self):
+        icon = Image.open(self.icon)
+        r,g,b,a = icon.split()
+        rgb_icon = Image.merge('RGB', (r,g,b))
+        inverted_icon = PIL.ImageOps.invert(rgb_icon)
+        r,g,b = inverted_icon.split()
+        return Image.merge('RGBA', (r,g,b,a))
 
     def init_platform_darwin(self):
         pass
@@ -209,11 +242,12 @@ class App:
 
     def update_icon(self, icon: str, template=True):
         self.icon = icon
+        self.template = template
         if self.platform == Platform.Darwin:
             self.app.template = template
             self.app.icon = self.icon
         else:
-            self.app.icon = Image.open(self.icon)
+            self.app.icon = self._pystray_get_icon()
 
     def update_menu(self):
         """ refresh current menu
@@ -363,6 +397,21 @@ class App:
             subprocess.Popen(['explorer.exe', path])
         else:
             subprocess.Popen(["xdg-open", path], env=App.get_env())
+
+    def _win32_reg_notify(self):
+        logger.info("register win32 reg notify")
+        while True:
+            with win32_reg_open(
+                r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize',
+                win32con.KEY_NOTIFY) as handle:
+                win32api.RegNotifyChangeKeyValue(
+                    handle,
+                    False,
+                    win32api.REG_NOTIFY_CHANGE_LAST_SET,
+                    None,
+                    False)
+                logger.info("Windows themes has been changed")
+                self.app.icon = self._pystray_get_icon()
 
     @staticmethod
     def build_menu_item_group(titles: [str], callback: Callable[[MenuItem], None]):

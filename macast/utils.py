@@ -16,6 +16,7 @@ import gettext
 import cherrypy
 import subprocess
 from enum import Enum
+from contextlib import contextmanager
 import netifaces as ni
 import tempfile
 
@@ -44,6 +45,17 @@ LOG_LEVEL = {
     'DEBUG': 10,
     'ALL': 0
 }
+
+
+@contextmanager
+def win32_reg_open(key, access=win32con.KEY_SET_VALUE, hive=win32con.HKEY_CURRENT_USER):
+    handle = win32api.RegOpenKey(
+        hive,
+        key,
+        0,
+        access)
+    yield handle
+    win32api.RegCloseKey(handle)
 
 
 class SettingProperty(Enum):
@@ -314,26 +326,19 @@ class Setting:
             if "python" in os.path.basename(sys.executable).lower():
                 return 1, _("Not support to set start at login")
 
-            key = win32api.RegOpenKey(win32con.HKEY_CURRENT_USER,
-                                      r'Software\Microsoft\Windows\CurrentVersion\Run',
-                                      0,
-                                      win32con.KEY_SET_VALUE)
-            logger.info(sys.executable)
-            if launch:
-                try:
-                    win32api.RegSetValueEx(key, 'Macast', 0, win32con.REG_SZ, sys.executable)
-                    win32api.RegCloseKey(key)
-                except Exception as e:
-                    logger.error(e)
-                    # cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
-                return 0, 1
-            else:
-                try:
-                    win32api.RegDeleteValue(key, 'Macast')
-                    win32api.RegCloseKey(key)
-                except Exception as e:
-                    logger.error(e)
-                    # cherrypy.engine.publish("app_notify", "ERROR", f"{e}")
+            with win32_reg_open(r'Software\Microsoft\Windows\CurrentVersion\Run') as key:
+                if launch:
+                    logger.info(f'Set start at login for Macast: {sys.executable}')
+                    try:
+                        win32api.RegSetValueEx(key, 'Macast', 0, win32con.REG_SZ, sys.executable)
+                    except Exception as e:
+                        logger.warning(e)
+                else:
+                    logger.info(f'Remove start at login for Macast: {sys.executable}')
+                    try:
+                        win32api.RegDeleteValue(key, 'Macast')
+                    except Exception as e:
+                        logger.warning(e)
                 return 0, 1
         else:
             return 1, _('Not support current platform')
