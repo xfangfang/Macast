@@ -105,7 +105,9 @@ class SSDPServer:
 
         self.running = False
         # Wake up the socket, this will speed up exiting ssdp thread.
+        # todo: a better way to terminate ssdp main thread 
         try:
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
             socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b'', (SSDP_ADDR, SSDP_PORT))
         except Exception as e:
             pass
@@ -168,8 +170,9 @@ class SSDPServer:
             try:
                 data, addr = self.sock.recvfrom(1024)
                 self.datagram_received(data, addr)
-            except socket.timeout:
+            except:
                 continue
+        logger.info("SSDP sending byebye to local network")
         self.ssdp_byebye()
         for ip, mask in self.ip_list:
             logger.debug(f"drop membership {ip}")
