@@ -17,7 +17,8 @@ from enum import Enum
 from cherrypy import _cpnative_server
 
 from .gui import Tool
-from .utils import load_xml, XMLPath, Setting, cherrypy_publish, SETTING_DIR, AssetsPath
+from .utils import XMLPath, Setting, SETTING_DIR, AssetsPath
+from .utils import win32_get_proxy, load_xml, cherrypy_publish
 from .ssdp import SSDPServer
 
 logger = logging.getLogger("Protocol")
@@ -595,12 +596,7 @@ class DLNAProtocol(Protocol):
         action = root.tag.split('}')[1]
         service = root.tag.split(":")[3]
         method = f"{service}_{action}"
-        if method not in [
-            'AVTransport_GetPositionInfo',
-            'AVTransport_GetTransportInfo',
-            'RenderingControl_GetVolume'
-        ]:
-            logger.info(f"{method} {param}")
+        logger.debug(f"access: {method} {param}")
         res = {}
         service_type = Service.get(service)
         if hasattr(self, method):
@@ -617,10 +613,7 @@ class DLNAProtocol(Protocol):
             output = service_type.actions[action].output
             for arg in output:
                 res[arg.name] = self.state_list[arg.state].value
-        if method not in ['ConnectionManager_GetProtocolInfo', 'AVTransport_GetPositionInfo']:
-            logger.info(f"res: {res}")
-        else:
-            logger.info(f"res: {method}")
+        logger.debug(f"res: {method} {res}")
 
         # build response xml
         ns = 'http://schemas.xmlsoap.org/soap/envelope/'
@@ -911,7 +904,7 @@ class Handler:
     def __download_plugin(self, path, url):
         try:
             with open(path, 'wb') as f:
-                f.write(requests.get(url).content)
+                f.write(requests.get(url, proxies=win32_get_proxy()).content)
         except Exception as e:
             logger.error(f"download plugin error: {e}")
         finally:

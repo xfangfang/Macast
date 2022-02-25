@@ -17,7 +17,7 @@ from .utils import SettingProperty, SETTING_DIR, notify_error, format_class_name
 from .gui import App, MenuItem, Platform
 from .protocol import DLNAProtocol
 from .server import Service, SettingService
-from .utils import RENDERER_DIR, PROTOCOL_DIR, TOOL_DIR, Setting, AssetsPath, win32_reg_open
+from .utils import RENDERER_DIR, PROTOCOL_DIR, TOOL_DIR, Setting, AssetsPath, win32_get_proxy
 from macast_renderer.mpv import MPVRenderer
 
 logger = logging.getLogger("main")
@@ -202,6 +202,7 @@ class Macast(App):
     def __init__(self, renderer, protocol, lang=gettext.gettext):
         global _
         _ = lang
+        self.macast_update_thread = None
         # menu items
         self.toggle_menuitem = None
         self.setting_menuitem = None
@@ -395,13 +396,6 @@ class Macast(App):
         self.setting_tool = Setting.get(SettingProperty.Macast_Tool, [])
         if not isinstance(self.setting_tool, list):
             self.setting_tool = []
-        if self.setting_check:
-            threading.Thread(target=self.check_update,
-                             kwargs={
-                                 'verbose': False
-                             },
-                             daemon=True,
-                             name="CHECKUPDATE_THREAD").start()
 
     def stop_cast(self):
         self.service.stop()
@@ -413,7 +407,7 @@ class Macast(App):
         release_url = 'https://github.com/xfangfang/Macast/releases/latest'
         api_url = 'https://api.github.com/repos/xfangfang/Macast/releases/latest'
         try:
-            res = json.loads(requests.get(api_url).text)
+            res = json.loads(requests.get(api_url, proxies=win32_get_proxy(), timeout=5).text)
             online_version = re.findall(r'(\d+\.*\d+)', res['tag_name'])[0]
 
             logger.info("tag_name: {}".format(res['tag_name']))
@@ -425,9 +419,17 @@ class Macast(App):
             else:
                 if verbose:
                     self.notification("Macast", _("You're up to date."))
+        except requests.exceptions.ProxyError as e:
+            self.notification('ERROR', 'Could not access update info: ProxyError')
+            logger.error(f'Could not access update info: {e}')
+        except requests.exceptions.Timeout as e:
+            self.notification('ERROR', f'Could not access update info: Timeout')
+            logger.error(f'Could not access update info: {e}')
         except Exception as e:
-            logger.error("get update info error: {}".format(e))
+            logger.exception("get update info error", exc_info=e)
             self.notification('ERROR', str(e))
+        finally:
+            self.macast_update_thread = None
 
     # The followings are the callback function of program event
 
@@ -458,6 +460,16 @@ class Macast(App):
                 time.sleep(2),
                 self.notification(_("Macast is hidden"), msg, sound=False),
             )).start()
+        if self.setting_check:
+            if self.macast_update_thread is None:
+                self.macast_update_thread = threading.Thread(
+                    target=self.check_update,
+                    kwargs={
+                        'verbose': False
+                    },
+                    daemon=True,
+                    name="CHECKUPDATE_THREAD")
+                self.macast_update_thread.start()
         self.update_service_status()
 
     def service_stop(self):
@@ -542,9 +554,12 @@ class Macast(App):
         self.open_directory(SETTING_DIR)
 
     def on_check_click(self, item):
-        threading.Thread(target=self.check_update,
-                         daemon=True,
-                         name="CHECKUPDATE_M_THREAD").start()
+        if self.macast_update_thread is None:
+            self.macast_update_thread = threading.Thread(
+                target=self.check_update,
+                daemon=True,
+                name="CHECKUPDATE_THREAD")
+            self.macast_update_thread.start()
 
     def on_auto_check_update_click(self, item):
         item.checked = not item.checked
