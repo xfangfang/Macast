@@ -168,11 +168,11 @@ jobs:
           $BUILD_ASSETS_1=(ls macast\assets | ?{$_.PsIsContainer -eq $true} | ForEach-Object {echo --add-data="macast\assets\$($_.Name)\*;macast\assets\$($_.Name)"})
           $BUILD_ASSETS_2=("--add-data=macast\assets\*;macast\assets","--add-data=macast\xml\*;macast\xml","--add-binary=bin\mpv.exe;bin")
           $BUILD_HIDDEN_IMPORT=("--hidden-import=win32process","--hidden-import=win32gui")
-          $BUILD_OTHERS=("--additional-hooks-dir=.","--icon=macast\assets\icon.ico")
+          $BUILD_OTHERS=("--additional-hooks-dir=.","--icon=macast\assets\icon.ico","--runtime-tmpdir=%Temp%\Macast", "--upx-exclude=.\bin\mpv.exe")
           $BUILD_COMMON=($BUILD_LANG+$BUILD_ASSETS_1+$BUILD_ASSETS_2+$BUILD_HIDDEN_IMPORT+$BUILD_OTHERS)
           pyinstaller --noconfirm -F -w  $BUILD_COMMON --splash=macast\assets\macast_splash.jpg Macast.py
           cp dist\Macast.exe Macast-Windows-v${VERSION}.exe
-          pyinstaller --noconfirm -F $BUILD_COMMON Macast.py
+          pyinstaller --noconfirm -F -d=all $BUILD_COMMON Macast.py
           cp dist\Macast.exe Macast-Windows-v${VERSION}-debug.exe
           echo "::set-output name=status::success"
 
@@ -336,11 +336,11 @@ jobs:
           $BUILD_ASSETS_1=(ls macast\assets | ?{$_.PsIsContainer -eq $true} | ForEach-Object {echo --add-data="macast\assets\$($_.Name)\*;macast\assets\$($_.Name)"})
           $BUILD_ASSETS_2=("--add-data=macast\assets\*;macast\assets","--add-data=macast\xml\*;macast\xml","--add-binary=bin\mpv.exe;bin")
           $BUILD_HIDDEN_IMPORT=("--hidden-import=win32process","--hidden-import=win32gui")
-          $BUILD_OTHERS=("--additional-hooks-dir=.","--icon=macast\assets\icon.ico")
+          $BUILD_OTHERS=("--additional-hooks-dir=.","--icon=macast\assets\icon.ico","--runtime-tmpdir=%Temp%\Macast", "--upx-exclude=bin\mpv.exe")
           $BUILD_COMMON=($BUILD_LANG+$BUILD_ASSETS_1+$BUILD_ASSETS_2+$BUILD_HIDDEN_IMPORT+$BUILD_OTHERS)
           pyinstaller --noconfirm -F -w  $BUILD_COMMON --splash=macast\assets\macast_splash.jpg Macast.py
           cp dist\Macast.exe Macast-Windows-v${VERSION}-x86.exe
-          pyinstaller --noconfirm -F $BUILD_COMMON Macast.py
+          pyinstaller --noconfirm -F -d=all $BUILD_COMMON Macast.py
           cp dist\Macast.exe Macast-Windows-v${VERSION}-x86-debug.exe
           echo "::set-output name=status::success"
 
