@@ -24,6 +24,9 @@ class PriorityPlugin(plugins.SimplePlugin):
         super(PriorityPlugin, self).__init__(cherrypy.engine)
         self.priority = priority
 
+    def __del__(self):
+        logger.debug(f"{self.__class__.__name__} del")
+
     def subscribe(self):
         """Register this object as a (multi-channel) listener on the bus."""
         for channel in self.bus.listeners:
@@ -178,8 +181,6 @@ class ToolPlugin(PriorityPlugin):
         self.tool_list = tools
         self.tool_list_lock = threading.Lock()
         self.running = False
-        self.bus.subscribe('append_tool', self.append_tool)
-        self.bus.subscribe('remove_tool', self.remove_tool)
 
     def start(self):
         logger.info("Starting ToolPlugin")

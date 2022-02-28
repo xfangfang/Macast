@@ -257,6 +257,7 @@ class Macast(App):
                                      )
         cherrypy.engine.subscribe('start', self.service_start)
         cherrypy.engine.subscribe('stop', self.service_stop)
+        cherrypy.engine.subscribe('macast_restart', self.service_restart)
         cherrypy.engine.subscribe('renderer_start', self.renderer_start)
         cherrypy.engine.subscribe('renderer_av_stop', self.renderer_av_stop)
         cherrypy.engine.subscribe('renderer_av_uri', self.renderer_av_uri)
@@ -476,13 +477,21 @@ class Macast(App):
                     daemon=True,
                     name="CHECKUPDATE_THREAD")
                 self.macast_update_thread.start()
-        self.update_service_status()
+        if Setting.restart_flag:
+            self.menu = self.build_app_menu()
+            self.set_menu(self.menu)
+        else:
+            self.update_service_status()
 
     def service_stop(self):
         """This function is called every time the DLNA service is stopped.
         """
         logger.info("service_stop")
         self.update_service_status()
+
+    def service_restart(self):
+        self.init_setting()
+        self.plugin_manager.load_plugins(self.default_renderer, self.default_protocol)
 
     def update_service_ip(self):
         """When the IP or port of the device changes,
@@ -548,10 +557,10 @@ class Macast(App):
         tool_config = self.plugin_manager.tool_list[item.data]
         if item.checked:
             self.setting_tool.append(tool_config.title)
-            cherrypy.engine.publish('append_tool', tool_config.get_instance())
+            self.service.tool_plugin.append_tool(tool_config.get_instance())
         else:
             self.setting_tool.remove(tool_config.title)
-            cherrypy.engine.publish('remove_tool', tool_config.get_instance())
+            self.service.tool_plugin.remove_tool(tool_config.get_instance())
         Setting.set(SettingProperty.Macast_Tool, self.setting_tool)
         self.setting_menuitem.children = self.build_setting_menu()
         self.set_menu(self.menu)

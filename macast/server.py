@@ -133,6 +133,10 @@ class Service:
 
         self.cherrypy_application = cherrypy.tree.mount(self.protocol.handler, '/', config=cherrypy_config)
         cherrypy.engine.signals.subscribe()
+        cherrypy.engine.subscribe('get_service', lambda: self)
+
+    def __del__(self):
+        logger.info("Service del")
 
     @staticmethod
     def update_ip():
@@ -181,6 +185,7 @@ class Service:
         """Start macast thread
         """
         cherrypy.engine.start()
+        Setting.restart_flag = False
         # update current port
         _, port = cherrypy.server.bound_addr
         logger.info("Server current run on port: {}".format(port))
@@ -209,6 +214,8 @@ class Service:
     def run_async(self):
         if Setting.is_service_running():
             return
+        if self.thread and self.thread.is_alive():
+            logger.warning("service is already started")
         self.thread = threading.Thread(target=self.run, name="SERVICE_THREAD")
         self.thread.start()
 

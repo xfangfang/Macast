@@ -973,13 +973,15 @@ class Handler:
                 setting = json.loads(data)
             except Exception as e:
                 res['code'] = 1
-                res['message'] = 'json format error'
+                res['message'] = f'json format error: {str(e)}'
             else:
                 Setting.setting = setting
                 Setting.save()
-                Setting.restart_async()
+                Setting.restart_service()
         elif method == 'restart_server':
-            Setting.restart_async()
+            Setting.restart_service()
+        elif method == 'stop_server':
+            Setting.stop_service()
         elif method == 'open_folder':
             app = cherrypy_publish('get_macast_app', None)
             if app is not None:
@@ -1002,6 +1004,9 @@ class Handler:
                 except Exception as e:
                     res['code'] = 1
                     res['message'] = 'json format error'
+        else:
+            res['code'] = 1
+            res['message'] = f'method: {method} is not allowed'
 
         return json.dumps(res, indent=4).encode()
 

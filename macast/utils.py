@@ -89,6 +89,7 @@ class Setting:
     temp_friendly_name = None
     mpv_default_path = 'mpv'
     log_level = None
+    restart_flag = False
 
     @staticmethod
     def save():
@@ -395,7 +396,7 @@ class Setting:
                                      ]:
             return
         while cherrypy.engine.state != cherrypy.engine.states.STARTED:
-            time.sleep(0.5)
+            time.sleep(0.1)
         cherrypy.engine.exit()
 
     @staticmethod
@@ -405,24 +406,19 @@ class Setting:
                                          ]
 
     @staticmethod
-    def restart():
-        if sys.platform == 'darwin' and sys.executable.endswith("Contents/MacOS/python"):
-            # run from py2app build
-            Setting.stop_service()
-            executable = sys.executable[:-6] + 'Macast'
-            os.execv(executable, [executable, executable])
-        elif sys.platform == 'linux' and getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            # run from pyinstaller build on linux
-            Setting.stop_service()
-            env = Setting.get_system_env()
-            executable = sys.executable
-            os.execve(executable, [executable, executable], env)
-        else:
-            cherrypy.engine.restart()
+    def restart_service():
+        Setting.restart_flag = True
+        Setting.stop_service()
 
-    @staticmethod
-    def restart_async():
-        threading.Thread(target=Setting.restart, name="RESTART_THREAD", daemon=True).start()
+        while cherrypy.engine.state != cherrypy.engine.states.EXITING:
+            time.sleep(0.1)
+
+        if Setting.restart_flag:
+            logger.info('Service restart')
+            cherrypy.engine.publish('macast_restart')
+            services = cherrypy.engine.publish('get_service')
+            for svc in services:
+                svc.run_async()
 
     @staticmethod
     def setup_logger():
