@@ -131,15 +131,18 @@ class SSDPPlugin(PriorityPlugin):
         super(SSDPPlugin, self).__init__(bus)
         self.ssdp = SSDPServer()
 
-    def register(self, devices, desc, server, cache):
+    def register(self, devices, desc, server, cache, ext=None):
         """register device
         """
+        if ext is None:
+            ext = {}
         for device in devices:
             self.ssdp.register(device.get('usn', ''),
                                device.get('nt', ''),
                                desc,
                                server,
-                               cache)
+                               cache,
+                               ext)
 
     def update_ip(self):
         """ restart ssdp thread to update ip

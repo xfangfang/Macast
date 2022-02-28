@@ -154,7 +154,7 @@ class SSDPServer:
                 self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
                 self.sock_list.append(Sock(ip))
             except Exception as e:
-                if 'WinError 10013' not in str(e) and 'WinError 10049' not in str(e) :
+                if 'WinError 10013' not in str(e) and 'WinError 10049' not in str(e):
                     logger.error(e)
 
         try:
@@ -254,7 +254,7 @@ class SSDPServer:
         else:
             logger.error(f'Unknown SSDP command {cmd[0]} {cmd[1]}')
 
-    def register(self, usn, nt, location, server=SERVER_ID, cache_control=1800):
+    def register(self, usn, nt, location, server=SERVER_ID, cache_control=1800, ext_data=None):
         """
         Register a service or device that this SSDP server will respond to.
         :param usn: Unique Service Name
@@ -262,9 +262,11 @@ class SSDPServer:
         :param location: Contains a URL to the UPnP description of the root device.
         :param server: Concatenation of OS name, OS version, UPnP/1.0, product name, and product version.
         :param cache_control: Must have max-age directive that specifies number of seconds the advertisement is valid.
+        :param ext_data: ext_data for custom SSDP
         :return:
         """
-        """"""
+        if ext_data is None:
+            ext_data = {}
 
         logging.info(f'Registering {nt} ({location})')
 
@@ -288,9 +290,12 @@ class SSDPServer:
             'EXT: ',
             f'SERVER: {server}',
             f'CACHE-CONTROL: max-age={cache_control}',
-            '',
-            ''
         ]
+
+        for key in ext_data:
+            resp_ext.append(f'{key}: {ext_data[key]}')
+        
+        resp_ext += ['', '']
 
         resp_notify.extend(resp_ext)
         resp_byebye.extend(resp_ext)
@@ -306,6 +311,7 @@ class SSDPServer:
                 'SERVER': server,
                 'CACHE-CONTROL': f'max-age={cache_control}'
             }
+            self.known[usn].update(ext_data)
 
     def unregister(self, usn):
         """
@@ -358,16 +364,15 @@ class SSDPServer:
             if i['NT'] == service_type or service_type == 'ssdp:all':
                 resp = [
                     'HTTP/1.1 200 OK',
-                    f'USN: {i["USN"]}',
-                    f'LOCATION: {i["LOCATION"]}',
                     f'ST: {i["NT"]}',
-                    'EXT: ',
-                    f'SERVER: {i["SERVER"]}',
-                    f'CACHE-CONTROL: {i["CACHE-CONTROL"]}',
-                    f'DATE: {formatdate(timeval=None, localtime=False, usegmt=True)}',
-                    '',
-                    ''
                 ]
+                for key in i:
+                    if key in ['NOTIFY', 'BYE', 'NT']:
+                        continue
+                    resp.append(f'{key}: {i[key]}')
+                resp += [f'DATE: {formatdate(timeval=None, localtime=False, usegmt=True)}',
+                         '',
+                         '']
                 destination = (host, port)
                 logger.debug(f'send discovery {i["USN"]} response  to {destination}')
                 logger.debug(resp)
