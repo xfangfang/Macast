@@ -248,7 +248,7 @@ class ObserveClient:
         namespace = 'urn:schemas-upnp-org:event-1-0'
         root = etree.Element(etree.QName(namespace, 'propertyset'),
                              nsmap={'e': namespace})
-        if self.service == 'ConnectionManager':
+        if self.service not in ['AVTransport', 'RenderingControl']:
             for i in data:
                 prop = etree.SubElement(
                     root, '{urn:schemas-upnp-org:event-1-0}property')
@@ -499,6 +499,7 @@ class DLNAProtocol(Protocol):
         """When there is a client subscription,
         the first event callback will send all the state values of the service.
         """
+        logger.debug(f'SERVICE_STATE_OBSERVED: {SERVICE_STATE_OBSERVED}')
         data = {}
         for state in SERVICE_STATE_OBSERVED[service]:
             data[state] = self.state_list[state].value
@@ -637,12 +638,15 @@ class DLNAProtocol(Protocol):
         :return:
         """
         # update states which will send to DLNA Client
-        if name in SERVICE_STATE_OBSERVED['AVTransport'] or \
-                name in SERVICE_STATE_OBSERVED['RenderingControl']:
-            logger.debug(f"setState: {name} {value}")
-            # When some states change, the DLNA client needs to be notified immediately
-            # We put this kind of state into state_queue, waiting to be sent to client.
-            self.state_queue.put((name, value))
+        for key in SERVICE_STATE_OBSERVED:
+            if key == 'ConnectionManager':
+                continue
+            if name in SERVICE_STATE_OBSERVED[key]:
+                logger.debug(f"setState: {name} {value}")
+                # When some states change, the DLNA client needs to be notified immediately
+                # We put this kind of state into state_queue, waiting to be sent to client.
+                self.state_queue.put((name, value))
+                break
         # update other states
         if self.state_list[name].value != value:
             self.state_list[name].value = value
@@ -1078,18 +1082,18 @@ class DLNAHandler(Handler):
                 logger.debug(f"RENEW SUBSCRIBE: {service}")
                 res = self.protocol.renew_subscribe(SID, TIMEOUT)
                 if res != 200:
-                    logger.debug("RENEW SUBSCRIBE: cannot find such sid.")
+                    logger.debug(f"RENEW SUBSCRIBE: cannot find such sid: {SID}")
                     raise cherrypy.HTTPError(status=res)
                 cherrypy.response.headers['SID'] = SID
                 cherrypy.response.headers['TIMEOUT'] = TIMEOUT
             elif CALLBACK:
-                logger.debug(f"ADD SUBSCRIBE: {service}")
                 suburl = re.findall("<(.*?)>", CALLBACK)[0]
                 res = self.protocol.add_subscribe(service, suburl, TIMEOUT)
                 cherrypy.response.headers['SID'] = res['SID']
                 cherrypy.response.headers['TIMEOUT'] = res['TIMEOUT']
+                logger.debug(f"ADD SUBSCRIBE: {service} SID: {res['SID']}")
             else:
-                logger.debug("SUBSCRIBE: cannot find sid and callback.")
+                logger.error("SUBSCRIBE: cannot find sid and callback.")
                 raise cherrypy.HTTPError(status=412)
         return b''
 
