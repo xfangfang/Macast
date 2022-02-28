@@ -13,11 +13,11 @@ import pyperclip
 import gettext
 import importlib
 
-from .utils import SettingProperty, SETTING_DIR, notify_error, format_class_name
+from .utils import SettingProperty, SETTING_DIR, notify_error, format_class_name, PLUGIN_DIR
+from .utils import Setting, AssetsPath, win32_get_proxy
 from .gui import App, MenuItem, Platform
 from .protocol import DLNAProtocol
 from .server import Service, SettingService
-from .utils import RENDERER_DIR, PROTOCOL_DIR, TOOL_DIR, Setting, AssetsPath, win32_get_proxy
 from macast_renderer.mpv import MPVRenderer
 
 logger = logging.getLogger("main")
@@ -39,6 +39,9 @@ class MacastPlugin:
             except Exception as e:
                 cherrypy.engine.publish('app_notify', 'ERROR', 'Custom plugin load error.')
                 logger.error(str(e))
+
+    def __del__(self):
+        logger.debug(f'MacastPlugin del: {self.title}')
 
     def get_info(self):
         props = ['menu', 'protocol', 'title', 'renderer', 'platform', 'version', 'author', 'desc']
@@ -83,20 +86,18 @@ class MacastPlugin:
             logger.info("=" * 10 + f"< Load Plugin from {base_name}")
             for key, value in metadata:
                 setattr(self, key, str(value))
+        module = importlib.import_module(f'{PLUGIN_DIR}.{base_name}')
         if hasattr(self, 'renderer'):
-            module = importlib.import_module(f'{RENDERER_DIR}.{base_name}')
             logger.info('\n'.join([f'{k}: {v}' for k, v in metadata]) +
                         f'\nLoad plugin {self.renderer} done />\n'
                         )
             self.plugin_class = getattr(module, self.renderer, None)
         elif hasattr(self, 'protocol'):
-            module = importlib.import_module(f'{PROTOCOL_DIR}.{base_name}')
             logger.info('\n'.join([f'{k}: {v}' for k, v in metadata]) +
                         f'\nLoad plugin {self.protocol} done />\n'
                         )
             self.plugin_class = getattr(module, self.protocol, None)
         elif hasattr(self, 'tool'):
-            module = importlib.import_module(f'{TOOL_DIR}.{base_name}')
             logger.info('\n'.join([f'{k}: {v}' for k, v in metadata]) +
                         f'\nLoad plugin {self.tool} done />\n'
                         )
@@ -110,14 +111,11 @@ class MacastPluginManager:
 
     def __init__(self, renderer_default, protocol_default):
         sys.path.append(SETTING_DIR)
-        self.create_plugin_dir(RENDERER_DIR)
-        self.create_plugin_dir(PROTOCOL_DIR)
-        self.create_plugin_dir(TOOL_DIR)
-        self.renderer_list = [renderer_default]
-        self.renderer_list += self.load_macast_plugin(RENDERER_DIR)
-        self.protocol_list = [protocol_default]
-        self.protocol_list += self.load_macast_plugin(PROTOCOL_DIR)
-        self.tool_list = self.load_macast_plugin(TOOL_DIR)
+        self.create_plugin_dir(PLUGIN_DIR)
+        self.renderer_list = []
+        self.protocol_list = []
+        self.tool_list = []
+        self.load_plugins(renderer_default, protocol_default)
 
     def get_renderer(self, name):
         plugin = self.get_plugin_from_list(self.renderer_list, name)
@@ -163,20 +161,25 @@ class MacastPluginManager:
                 return plugin_list[0]
         return None
 
-    @staticmethod
-    def load_macast_plugin(path: str):
-        plugin_path = os.path.join(SETTING_DIR, path)
+    def load_plugins(self, renderer_default: MacastPlugin, protocol_default: MacastPlugin):
+        self.renderer_list = [renderer_default]
+        self.protocol_list = [protocol_default]
+        self.tool_list = []
+        plugin_path = os.path.join(SETTING_DIR, PLUGIN_DIR)
         if not os.path.exists(plugin_path):
             return
-        plugin_list = []
         plugins = os.listdir(plugin_path)
         plugins = filter(lambda s: s.endswith('.py') and s != '__init__.py', plugins)
         for plugin in plugins:
             path = os.path.join(plugin_path, plugin)
-            plugin_config = MacastPlugin(path)
-            if plugin_config.check():
-                plugin_list.append(plugin_config)
-        return plugin_list
+            plugin = MacastPlugin(path)
+            if plugin.check():
+                if hasattr(plugin, 'renderer'):
+                    self.renderer_list.append(plugin)
+                elif hasattr(plugin, 'protocol'):
+                    self.protocol_list.append(plugin)
+                elif hasattr(plugin, 'tool'):
+                    self.tool_list.append(plugin)
 
     @staticmethod
     @notify_error('Cannot create custom plugin dir.')
@@ -230,10 +233,13 @@ class Macast(App):
         self.setting_tool = []
         self.init_setting()
 
+        self.default_renderer = MacastPlugin(None, format_class_name(renderer), renderer, 'darwin,win32,linux')
+        self.default_protocol = MacastPlugin(None, format_class_name(protocol), protocol, 'darwin,win32,linux')
+
         # load plugins from file
         self.plugin_manager = MacastPluginManager(
-            MacastPlugin(None, format_class_name(renderer), renderer, 'darwin,win32,linux'),
-            MacastPlugin(None, format_class_name(protocol), protocol, 'darwin,win32,linux'))
+            self.default_renderer,
+            self.default_protocol)
         cherrypy.engine.subscribe('get_plugin_info', self.plugin_manager.get_info)
 
         # init service

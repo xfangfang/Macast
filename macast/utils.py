@@ -36,9 +36,7 @@ _ = gettext.gettext
 DEFAULT_PORT = 0
 SETTING_DIR = appdirs.user_config_dir('Macast', 'xfangfang')
 LOG_DIR = appdirs.user_log_dir('Macast', 'xfangfang')
-PROTOCOL_DIR = 'protocol'
-RENDERER_DIR = 'renderer'
-TOOL_DIR = 'tool'
+PLUGIN_DIR = 'plugin'
 LOG_LEVEL = {
     'ERROR': 40,
     'INFO': 20,
@@ -616,6 +614,7 @@ def get_subnet_ip(ip, mask):
     b = [int(n) for n in ip.split('.')]
     return [a[i] & b[i] for i in range(4)]
 
+
 def win32_get_proxy():
     """This method provide system proxy address, only for windows
     https://github.com/python/cpython/pull/26307
@@ -625,16 +624,16 @@ def win32_get_proxy():
         return None
     try:
         with win32_reg_open(
-            r'Software\Microsoft\Windows\CurrentVersion\Internet Settings',
-            win32con.KEY_QUERY_VALUE) as internet_settings:
-            proxy_enable =  win32api.RegQueryValueEx(internet_settings,
+                r'Software\Microsoft\Windows\CurrentVersion\Internet Settings',
+                win32con.KEY_QUERY_VALUE) as internet_settings:
+            proxy_enable = win32api.RegQueryValueEx(internet_settings,
                                                     'ProxyEnable')[0]
             if proxy_enable:
                 proxy_server = str(win32api.RegQueryValueEx(internet_settings,
                                                             'ProxyServer')[0])
                 logger.debug(f'using system proxy: {proxy_server}')
                 if proxy_server[:5] != 'http:':
-                    proxy_server =  f'http:{proxy_server}'
+                    proxy_server = f'http:{proxy_server}'
                 return {
                     'http': proxy_server,
                     'https': proxy_server
