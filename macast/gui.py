@@ -5,6 +5,7 @@ import logging
 import subprocess
 import cherrypy
 import threading
+import platform
 from enum import Enum
 from .utils import Setting, format_class_name, win32_reg_open
 from typing import Callable, List
@@ -413,6 +414,23 @@ class App:
                     False)
                 logger.info("Windows themes has been changed")
                 self.app.icon = self._pystray_get_icon()
+
+    @staticmethod
+    def is_system_theme_support():
+        """
+        :return: Bool whether current system support dark-light theme
+        Thanks to: https://github.com/albertosottile/darkdetect
+        """
+        if sys.platform == "darwin":
+            # always return true because we only support macOS 10.14 and higher
+            return True  
+        elif sys.platform == "win32" and int(platform.release()) >= 10:
+            # Checks if running Windows 10 version 10.0.14393 (Anniversary Update) OR HIGHER. The getwindowsversion method returns a tuple.
+            # The third item is the build number that we can use to check if the user has a new enough version of Windows.
+            winver = int(platform.version().split('.')[2])
+            if winver >= 14393:
+                return True
+        return False
 
     @staticmethod
     def build_menu_item_group(titles: [str], callback: Callable[[MenuItem], None]):

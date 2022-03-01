@@ -249,7 +249,7 @@ class Macast(App):
 
         # init app
         icon_path = os.path.join(os.path.dirname(__file__), Macast.ICON_MAP[self.setting_menubar_icon])
-        template = None if self.setting_menubar_icon == 0 else True
+        template = None if self.setting_menubar_icon == 0 else self.is_system_theme_support()
         super(Macast, self).__init__("Macast",
                                      icon_path,
                                      self.build_app_menu(),
@@ -282,6 +282,7 @@ class Macast(App):
             self.quit_menuitem
         ]
 
+    @notify_error("Error building menu")
     def build_setting_menu(self):
         # common setting menu
         ip_text = "/".join([ip for ip, mask in Setting.get_ip()])
@@ -365,7 +366,7 @@ class Macast(App):
         elif sys.platform == 'win32' and "python" not in os.path.basename(sys.executable).lower():
             platform_options = [self.start_at_login_menuitem]
             Setting.set_start_at_login(self.setting_start_at_login)
-        if sys.platform == 'darwin' or sys.platform == 'win32':
+        if self.is_system_theme_support():
             self.menubar_icon_menuitem = MenuItem(_("Menubar Icon"),
                                                   children=App.build_menu_item_group([
                                                       _("AppIcon"),
@@ -394,7 +395,15 @@ class Macast(App):
                platform_options + \
                [None, self.check_update_menuitem, self.about_menuitem]
 
+    @notify_error('error in config file')
     def init_setting(self):
+        def _fix_data(data, max, default):
+            try:
+                if int(data) > int(max):
+                    return default
+            except:
+                return default
+            return data
         self.setting_start_at_login = Setting.get(SettingProperty.Start_At_Login, 0)
         self.setting_check = Setting.get(SettingProperty.Check_Update, 1)
         self.setting_menubar_icon = Setting.get(SettingProperty.Menubar_Icon, 1 if sys.platform == 'darwin' else 0)
@@ -403,6 +412,14 @@ class Macast(App):
         self.setting_tool = Setting.get(SettingProperty.Macast_Tool, [])
         if not isinstance(self.setting_tool, list):
             self.setting_tool = []
+
+        # try to fix wrong data
+        if self.is_system_theme_support():
+            self.setting_menubar_icon = _fix_data(self.setting_menubar_icon, 1, 1 if sys.platform == 'darwin' else 0)
+        else:
+            self.setting_menubar_icon = _fix_data(self.setting_menubar_icon, 2, 1 if sys.platform == 'darwin' else 0)
+        self.setting_check = _fix_data(self.setting_check, 1, 1)
+        self.setting_start_at_login = _fix_data(self.setting_start_at_login, 1, 0)
 
     def stop_cast(self):
         self.service.stop()
@@ -602,7 +619,7 @@ class Macast(App):
         item.checked = True
         Setting.set(SettingProperty.Menubar_Icon, item.data)
         icon_path = os.path.join(os.path.dirname(__file__), Macast.ICON_MAP[item.data])
-        template = None if item.data == 0 else True
+        template = None if item.data == 0 else self.is_system_theme_support()
         self.update_icon(icon_path, template)
 
     def quit(self, item):
