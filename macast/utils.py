@@ -77,6 +77,7 @@ class SettingProperty(Enum):
     Single_Mode = 13
     SSDP_Notify_Frequency = 14
     Check_IP_Frequency = 15
+    Thread_Pool_Max = 64
 
 
 class Setting:
