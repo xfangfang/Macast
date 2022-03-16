@@ -15,6 +15,7 @@ from lxml import etree
 from queue import Queue
 from enum import Enum
 from cherrypy import _cpnative_server
+from urllib.parse import unquote
 
 from .gui import Tool
 from .utils import XMLPath, Setting, SETTING_DIR, AssetsPath
@@ -715,6 +716,27 @@ class DLNAProtocol(Protocol):
             title_xml = meta.find('.//{{{}}}title'.format(meta.nsmap['dc']))
             if title_xml is not None and title_xml.text is not None:
                 title = title_xml.text
+            
+            srt_xmls_raw = set()
+            srt_types = ['srt', 'ass', 'ssa', 'sub', 'sup']
+            for node in meta.findall('.//{{{}}}res'.format(meta.nsmap[None])):
+                attribsrttype = '{{{}}}subtitleFileType'.format(meta.nsmap['pv'])
+                attribsrturi = '{{{}}}subtitleFileUri'.format(meta.nsmap['pv'])
+                if node.attrib.has_key(attribsrturi):
+                    srt_xmls_raw.add(node.attrib[attribsrturi])
+                elif node.attrib.has_key(attribsrttype):
+                    srt_xmls_raw.add(node.text)
+            for node in meta.findall('.//{{{}}}CaptionInfo'.format(meta.nsmap['sec'])) + meta.findall('.//{{{}}}CaptionInfoEx'.format(meta.nsmap['sec'])):
+                attribtype = node.attrib['{{{}}}type'.format(meta.nsmap['sec'])]
+                if attribtype.lower in srt_types:
+                    srt_xmls_raw.add(node.text)
+
+            logger.info("="*100)
+            logger.info('srt set: {}'.format(srt_xmls_raw))
+            # sort srt_xmls_raw by language code in file name in future
+            for sb in srt_xmls_raw:
+                if sb: self.renderer.set_media_sub_file({'url': sb, 'title': os.path.basename(unquote(sb))})
+			
             metadata = etree.tostring(meta, encoding="UTF-8", xml_declaration=False)
         except Exception as e:
             logger.error(str(e))
