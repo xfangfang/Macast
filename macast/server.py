@@ -210,7 +210,7 @@ class Service:
             self.protocol.handler.reload()
             cherrypy.engine.publish('ssdp_update_ip')
         # service started
-        cherrypy.engine.block(interval=75) # Not really blocking but default 0.1 second timeout
+        cherrypy.engine.block()
         # service stopped
         logger.info("Service stopped")
 

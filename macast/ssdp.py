@@ -164,10 +164,7 @@ class SSDPServer:
             cherrypy.engine.publish("app_notify", "Macast", "SSDP Can't start")
             threading.Thread(target=lambda: Setting.stop_service(), name="SSDP_STOP_THREAD").start()
             return
-        if Setting.get(SettingProperty.Check_IP_Frequency, 5):
-            self.sock.settimeout(1)
-            # see @server/..if check_ip_freq:
-            # for same reason
+        self.sock.settimeout(1)
 
         while self.running:
             try:
