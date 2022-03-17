@@ -101,15 +101,25 @@ class Service:
         self.tool_plugin = ToolPlugin(29, tool)
         self.tool_plugin.subscribe()
         check_ip_freq = Setting.get(SettingProperty.Check_IP_Frequency, 5)
-        self.ip_monitor = Monitor(cherrypy.engine, self.update_ip, check_ip_freq, name="IP_MONITOR_THREAD")
-        self.ip_monitor.subscribe()
+
+        if check_ip_freq:
+            self.ip_monitor = Monitor(cherrypy.engine, self.update_ip, check_ip_freq, name="IP_MONITOR_THREAD")
+            self.ip_monitor.subscribe()
+			
+            # If the LAN IP changes, the listening socket must have been disconnected
+            # It is too wasteful to reinitialize the listener frequently just because the windows wlan ap may be opened halfway.
+			# So, leave a chance for people who don't want to monitor ip changes
 
         # todo remove cherrypy.autoreload
         # cherrypy.autoreload
 
+        thread_pool_max = Setting.get(SettingProperty.Thread_Pool_Max, 64)
         cherrypy.config.update({
-            'server.thread_pool': 1
+            'server.thread_pool': 1,
+            'global': { 'environment' : 'production',
+			            'server.thread_pool_max': thread_pool_max }
         })
+		# 'environment' : 'production' saves huge performance by preventing autoreload
         # cherrypy.engine.autoreload.files.add(Setting.setting_path)
         cherrypy_config = {
             '/dlna': {
@@ -200,7 +210,7 @@ class Service:
             self.protocol.handler.reload()
             cherrypy.engine.publish('ssdp_update_ip')
         # service started
-        cherrypy.engine.block()
+        cherrypy.engine.block(interval=75) # Not really blocking but default 0.1 second timeout
         # service stopped
         logger.info("Service stopped")
 
