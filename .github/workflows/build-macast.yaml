@@ -240,7 +240,7 @@ jobs:
           echo "::set-output name=status::success"
 
       - name: Build arm
-        id: compile
+        id: compile_arm
         run: |
           rm -rf dist/Macast.app
           python3 setup_py2app.py py2app --arch=universal2
@@ -267,7 +267,7 @@ jobs:
 
       - name: Upload dist arm
         uses: actions/upload-artifact@v2
-        if: steps.compile.outputs.status == 'success'
+        if: steps.compile_arm.outputs.status == 'success'
         with:
           name: ${{ env.DIST_DMG_ARM }}
           path: ${{ env.DIST_DMG_ARM }}
