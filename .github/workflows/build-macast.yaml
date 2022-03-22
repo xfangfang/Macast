@@ -41,7 +41,8 @@ jobs:
           export VERSION_NUM=`python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version_num__)"`
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
           echo "VERSION_NUM=v$VERSION_NUM" >> $GITHUB_ENV
-          echo "DIST_DMG=Macast-MacOS-v${VERSION}.dmg" >> $GITHUB_ENV
+          echo "DIST_DMG=Macast-MacOS-v${VERSION}-x86.dmg" >> $GITHUB_ENV
+          echo "DIST_DMG_ARM=Macast-MacOS-v${VERSION}-arm.dmg" >> $GITHUB_ENV
           echo "DIST_EXE=Macast-Windows-v${VERSION}.exe" >> $GITHUB_ENV
           echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" >> $GITHUB_ENV
           echo "DIST_EXE32=Macast-Windows-v${VERSION}-x86.exe" >> $GITHUB_ENV
@@ -64,6 +65,7 @@ jobs:
           allowUpdates: true
           artifacts: >
             ${{ env.DIST_DMG }}/${{ env.DIST_DMG }},
+            ${{ env.DIST_DMG_ARM }}/${{ env.DIST_DMG_ARM }},
             ${{ env.DIST_EXE }}/${{ env.DIST_EXE }},
             ${{ env.DIST_EXE_DEBUG }}/${{ env.DIST_EXE_DEBUG }},
             ${{ env.DIST_EXE32 }}/${{ env.DIST_EXE32 }},
@@ -210,6 +212,20 @@ jobs:
           pip3 install py2app
           wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
           mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
+          wget https://github.com/xfangfang/Macast/releases/download/v0.1/mpv-0.34.1-darwin-arm.tar.gz
+          mkdir -p bin_arm && tar --strip-components 2 -C bin_arm -xzvf mpv-0.34.1-darwin-arm.tar.gz mpv.app/Contents/MacOS
+
+      - name: Readme
+        run: |
+          mkdir -p dist
+          echo "Macast" > dist/readme.txt
+          echo "" >> dist/readme.txt
+          echo "if you see any of these after open this application:" >> dist/readme.txt
+          echo "1: Macast.app is damaged and can't be opened. You should move it to he Trash." >> dist/readme.txt
+          echo "2: Macast.app can't be opened because it is from an unidentified developer." >> dist/readme.txt
+          echo "" >> dist/readme.txt
+          echo "Please run this command in your terminal:" >> dist/readme.txt
+          echo "sudo xattr -rd com.apple.quarantine /Applications/Macast.app" >> dist/readme.txt
 
       - name: Build
         id: compile
@@ -218,9 +234,21 @@ jobs:
           python3 setup_py2app.py py2app --arch=x86_64
           cp -R bin dist/Macast.app/Contents/Resources/
           export VERSION=`python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version__)"`
-          echo "DIST_DMG=Macast-MacOS-v${VERSION}.dmg" >> $GITHUB_ENV
+          echo "DIST_DMG=Macast-MacOS-v${VERSION}-x86.dmg" >> $GITHUB_ENV
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
-          create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --hide-extension "Macast.app" --app-drop-link 600 185  --volname "Macast-v${VERSION} Installer" Macast-MacOS-v${VERSION}.dmg "dist/"
+          create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --icon "readme.txt" 400 100 --hide-extension "Macast.app" --app-drop-link 600 190  --volname "Macast-v${VERSION} Installer" Macast-MacOS-v${VERSION}-x86.dmg "dist/"
+          echo "::set-output name=status::success"
+
+      - name: Build arm
+        id: compile
+        run: |
+          rm -rf dist/Macast.app
+          python3 setup_py2app.py py2app --arch=universal2
+          cp -R bin_arm dist/Macast.app/Contents/Resources/
+          export VERSION=`python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version__)"`
+          echo "DIST_DMG_ARM=Macast-MacOS-v${VERSION}-arm.dmg" >> $GITHUB_ENV
+          echo "VERSION=v$VERSION" >> $GITHUB_ENV
+          create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --icon "readme.txt" 400 100 --hide-extension "Macast.app" --app-drop-link 600 190  --volname "Macast-v${VERSION} Installer" Macast-MacOS-v${VERSION}-arm.dmg "dist/"
           echo "::set-output name=status::success"
 
       - name: SSH connection to Actions
@@ -236,6 +264,13 @@ jobs:
         with:
           name: ${{ env.DIST_DMG }}
           path: ${{ env.DIST_DMG }}
+
+      - name: Upload dist arm
+        uses: actions/upload-artifact@v2
+        if: steps.compile.outputs.status == 'success'
+        with:
+          name: ${{ env.DIST_DMG_ARM }}
+          path: ${{ env.DIST_DMG_ARM }}
 
   build-armv7:
     runs-on: ubuntu-latest
