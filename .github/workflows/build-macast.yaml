@@ -214,6 +214,7 @@ jobs:
           mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
           wget https://github.com/xfangfang/Macast/releases/download/v0.1/mpv-0.34.1-darwin-arm.tar.gz
           mkdir -p bin_arm && tar --strip-components 2 -C bin_arm -xzvf mpv-0.34.1-darwin-arm.tar.gz mpv.app/Contents/MacOS
+          wget https://github.com/xfangfang/Macast/releases/download/v0.1/macos_arm_lxml_netifaces.tar.gz
 
       - name: Readme
         run: |
@@ -243,8 +244,9 @@ jobs:
         id: compile_arm
         run: |
           rm -rf dist/Macast.app
-          python3 setup_py2app.py py2app --arch=universal2
-          cp -R bin_arm dist/Macast.app/Contents/Resources/
+          python3 setup_py2app.py py2app --arch=arm64
+          cp -R bin_arm dist/Macast.app/Contents/Resources/bin
+          tar --strip-components 1 -C dist/Macast.app/Contents/Resources/lib/python3.9/lib-dynload -xzvf macos_arm_lxml_netifaces.tar.gz
           export VERSION=`python3 -c "exec(open('macast/__pkginfo__.py').read()); print(__version__)"`
           echo "DIST_DMG_ARM=Macast-MacOS-v${VERSION}-arm.dmg" >> $GITHUB_ENV
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
