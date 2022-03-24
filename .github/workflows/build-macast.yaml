@@ -76,7 +76,7 @@ jobs:
           echo $STANDARD_VERSION
 
   release:
-    needs: [ build-win-x64, build-macos, build-linux-amd64, build-linux-armv7, build-win-x86, version ]
+    needs: [ build-win-x64, build-macos-apple, build-macos-intel, build-linux-amd64, build-linux-armv7, build-win-x86, version ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v2
@@ -277,8 +277,8 @@ jobs:
         id: compile
         run: |
           $VERSION="${{ needs.version.outputs.version }}"
-          $DIST_EXE_DEBUG="${{ needs.version.outputs.DIST_EXE32_DEBUG }}"
-          $DIST_EXE="${{ needs.version.outputs.DIST_EXE32 }}"
+          $DIST_EXE32_DEBUG="${{ needs.version.outputs.DIST_EXE32_DEBUG }}"
+          $DIST_EXE32="${{ needs.version.outputs.DIST_EXE32 }}"
           echo $VERSION $DIST_EXE32
           python3 setup.py compile_catalog -f -D macast -d macast\i18n
           $BUILD_LANG=(ls macast\i18n | ForEach-Object {echo --add-data="macast\i18n\$($_.Name)\LC_MESSAGES\*.mo;macast\i18n\$($_.Name)\LC_MESSAGES"})
@@ -357,7 +357,7 @@ jobs:
           name: ${{ needs.version.outputs.DIST_EXE_DEBUG }}
           path: ${{ needs.version.outputs.DIST_EXE_DEBUG }}
 
-  build-macos:
+  build-macos-intel:
     needs: [ version ]
     runs-on: macos-11
     steps:
@@ -378,9 +378,6 @@ jobs:
           pip3 install py2app
           wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
           mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
-          wget https://github.com/xfangfang/Macast/releases/download/v0.1/mpv-0.34.1-darwin-arm.tar.gz
-          mkdir -p bin_arm && tar --strip-components 2 -C bin_arm -xzvf mpv-0.34.1-darwin-arm.tar.gz mpv.app/Contents/MacOS
-          wget https://github.com/xfangfang/Macast/releases/download/v0.1/macos_arm_lxml_netifaces.tar.gz
 
       - name: Readme
         run: |
@@ -414,25 +411,68 @@ jobs:
           create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --icon "readme.txt" 400 100 --hide-extension "Macast.app" --app-drop-link 600 185  --volname "Macast-v${VERSION} Installer" ${DIST_DMG} "dist/"
           echo "::set-output name=status::success"
 
-      - name: Build arm
-        id: compile_arm
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-          DIST_DMG_ARM: ${{ needs.version.outputs.DIST_DMG_ARM }}
-        run: |
-          rm -rf dist/Macast.app
-          python3 setup_py2app.py py2app --arch=arm64
-          cp -R bin_arm dist/Macast.app/Contents/Resources/bin
-          tar --strip-components 1 -C dist/Macast.app/Contents/Resources/lib/python3.9/lib-dynload -xzvf macos_arm_lxml_netifaces.tar.gz
-          create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --icon "readme.txt" 400 100 --hide-extension "Macast.app" --app-drop-link 600 185  --volname "Macast-v${VERSION} Installer" ${DIST_DMG_ARM} "dist/"
-          echo "::set-output name=status::success"
-
       - name: Upload dist
         uses: actions/upload-artifact@v2
         if: steps.compile.outputs.status == 'success'
         with:
           name: ${{ needs.version.outputs.DIST_DMG }}
           path: ${{ needs.version.outputs.DIST_DMG }}
+
+  build-macos-apple:
+    needs: [ version ]
+    runs-on: macos-11
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: install create-dmg
+        run: brew install create-dmg
+
+      - name: install universal python
+        run: |
+          wget https://www.python.org/ftp/python/3.9.8/python-3.9.8-macos11.pkg
+          sudo installer -pkg python-3.9.8-macos11.pkg -target /
+
+      - name: Install Requirement
+        run: |
+          pip3 install -r requirements.txt
+          pip3 install py2app
+          wget https://github.com/xfangfang/Macast/releases/download/v0.1/mpv-0.34.1-darwin-arm.tar.gz
+          mkdir -p bin_arm && tar --strip-components 2 -C bin_arm -xzvf mpv-0.34.1-darwin-arm.tar.gz mpv.app/Contents/MacOS
+          wget https://github.com/xfangfang/Macast/releases/download/v0.1/macos_arm_lxml_netifaces.tar.gz
+
+      - name: Readme
+        run: |
+          mkdir -p dist
+          echo "Macast" > dist/readme.txt
+          echo "" >> dist/readme.txt
+          echo "if you see any of these after open this application:" >> dist/readme.txt
+          echo "1: Macast.app is damaged and can't be opened. You should move it to he Trash." >> dist/readme.txt
+          echo "2: Macast.app can't be opened because it is from an unidentified developer." >> dist/readme.txt
+          echo "" >> dist/readme.txt
+          echo "Please run this command in your terminal:" >> dist/readme.txt
+          echo "sudo xattr -rd com.apple.quarantine /Applications/Macast.app" >> dist/readme.txt
+
+      - name: SSH connection to Actions
+        uses: P3TERX/ssh2actions@v1.0.0
+        if: (github.event.inputs.ssh_darwin == 'true' && github.event.inputs.ssh_darwin  != 'false') || contains(github.event.action, 'ssh_darwin')
+        env:
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+      - name: Build arm
+        id: compile_arm
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          DIST_DMG_ARM: ${{ needs.version.outputs.DIST_DMG_ARM }}
+        run: |
+          echo $VERSION $DIST_DMG_ARM
+          python3 setup.py compile_catalog -f -D macast -d macast/i18n
+          python3 setup_py2app.py py2app --arch=arm64
+          cp -R bin_arm dist/Macast.app/Contents/Resources/bin
+          tar --strip-components 1 -C dist/Macast.app/Contents/Resources/lib/python3.9/lib-dynload -xzvf macos_arm_lxml_netifaces.tar.gz
+          create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --icon "readme.txt" 400 100 --hide-extension "Macast.app" --app-drop-link 600 185  --volname "Macast-v${VERSION} Installer" ${DIST_DMG_ARM} "dist/"
+          echo "::set-output name=status::success"
 
       - name: Upload dist arm
         uses: actions/upload-artifact@v2
