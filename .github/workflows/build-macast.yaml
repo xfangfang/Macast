@@ -80,8 +80,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v2
+        if: github.event.inputs.release == 'true' && github.event.inputs.release != 'false' && !cancelled()
 
       - name: Version
+        if: github.event.inputs.release == 'true' && github.event.inputs.release != 'false' && !cancelled()
         run: |
           echo "VERSION=${{ needs.version.outputs.version }}" >> $GITHUB_ENV
           echo "DIST_DMG=${{ needs.version.outputs.DIST_DMG }}" >> $GITHUB_ENV
