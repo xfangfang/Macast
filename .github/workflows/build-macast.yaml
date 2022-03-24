@@ -165,7 +165,7 @@ jobs:
           mkdir -p dist/usr/bin
           mkdir -p dist/usr/share/applications
           mkdir -p dist/usr/share/icons/hicolor/128x128/apps
-          echo -e "Package: cn.xfangfang.macast\nVersion: ${VERSION}\nStandards-Version: ${STANDARD_VERSION}\nArchitecture: amd64\nMaintainer: xfangfang <xfangfang@126.com>\nSection:video\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
+          echo -e "Package: cn.xfangfang.macast\nVersion: ${STANDARD_VERSION}\nStandards-Version: ${STANDARD_VERSION}\nArchitecture: amd64\nMaintainer: xfangfang <xfangfang@126.com>\nSection:video\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
           echo -e "[Desktop Entry]\nName=Macast\nComment=DLNA Media Renderer\nTryExec=mpv\nExec=/usr/bin/macast\nIcon=/usr/share/icons/hicolor/128x128/apps/macast.png\nTerminal=false\nType=Application\nCategories=AudioVideo;Audio;Video;Player;TV;" > dist/usr/share/applications/macast.desktop
           cp app/Macast dist/usr/bin/macast
           cp macast/assets/icon.png dist/usr/share/icons/hicolor/128x128/apps/macast.png
@@ -231,7 +231,7 @@ jobs:
           mkdir -p dist/usr/bin
           mkdir -p dist/usr/share/applications
           mkdir -p dist/usr/share/icons/hicolor/128x128/apps
-          echo -e "Package: Macast\nVersion: ${VERSION}\nStandards-Version: ${STANDARD_VERSION}\nArchitecture: armhf\nMaintainer: xfangfang <xfangfang@126.com>\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
+          echo -e "Package: Macast\nVersion: ${STANDARD_VERSION}\nStandards-Version: ${STANDARD_VERSION}\nArchitecture: armhf\nMaintainer: xfangfang <xfangfang@126.com>\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
           echo -e "[Desktop Entry]\nName=Macast\nComment=DLNA Media Renderer\nTryExec=mpv\nExec=/usr/bin/macast\nIcon=/usr/share/icons/hicolor/128x128/apps/macast.png\nTerminal=false\nType=Application\nCategories=AudioVideo;Audio;Video;Player;TV;" > dist/usr/share/applications/macast.desktop
           cp app/Macast dist/usr/bin/macast
           cp macast/assets/icon.png dist/usr/share/icons/hicolor/128x128/apps/macast.png
@@ -275,11 +275,10 @@ jobs:
 
       - name: Build
         id: compile
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-          DIST_EXE32_DEBUG: ${{ needs.version.outputs.DIST_EXE32_DEBUG }}
-          DIST_EXE32: ${{ needs.version.outputs.DIST_EXE32 }}
         run: |
+          $VERSION="${{ needs.version.outputs.version }}"
+          $DIST_EXE_DEBUG="${{ needs.version.outputs.DIST_EXE32_DEBUG }}"
+          $DIST_EXE="${{ needs.version.outputs.DIST_EXE32 }}"
           echo $VERSION $DIST_EXE32
           python3 setup.py compile_catalog -f -D macast -d macast\i18n
           $BUILD_LANG=(ls macast\i18n | ForEach-Object {echo --add-data="macast\i18n\$($_.Name)\LC_MESSAGES\*.mo;macast\i18n\$($_.Name)\LC_MESSAGES"})
@@ -311,8 +310,6 @@ jobs:
   build-win-x64:
     needs: [ version ]
     runs-on: windows-2019
-    env:
-      PROD: "prod"
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -328,15 +325,11 @@ jobs:
 
       - name: Build
         id: compile
-        env:
-          VERSION: "${{ needs.version.outputs.version }}"
-          DIST_EXE_DEBUG: "${{ needs.version.outputs.DIST_EXE_DEBUG }}"
-          DIST_EXE: "${{ needs.version.outputs.DIST_EXE }}"
-          TEST: "test"
         run: |
-          echo $VERSION $DIST_EXE $TEST
-          echo $PROD
-          echo ${VERSION} ${DIST_EXE} ${TEST}
+          $VERSION="${{ needs.version.outputs.version }}"
+          $DIST_EXE_DEBUG="${{ needs.version.outputs.DIST_EXE_DEBUG }}"
+          $DIST_EXE="${{ needs.version.outputs.DIST_EXE }}"
+          echo ${VERSION} ${DIST_EXE}
           python3 setup.py compile_catalog -f -D macast -d macast\i18n
           $BUILD_LANG=(ls macast\i18n | ForEach-Object {echo --add-data="macast\i18n\$($_.Name)\LC_MESSAGES\*.mo;macast\i18n\$($_.Name)\LC_MESSAGES"})
           $BUILD_ASSETS_1=(ls macast\assets | ?{$_.PsIsContainer -eq $true} | ForEach-Object {echo --add-data="macast\assets\$($_.Name)\*;macast\assets\$($_.Name)"})
