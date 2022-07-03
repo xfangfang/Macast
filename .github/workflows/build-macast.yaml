@@ -39,6 +39,8 @@ jobs:
       DIST_AMD64_DEB: ${{ steps.info.outputs.DIST_AMD64_DEB }}
       DIST_ARMV7: ${{ steps.info.outputs.DIST_ARMV7 }}
       DIST_ARMV7_DEB: ${{ steps.info.outputs.DIST_ARMV7_DEB }}
+      DIST_ARMV8: ${{ steps.info.outputs.DIST_ARMV8 }}
+      DIST_ARMV8_DEB: ${{ steps.info.outputs.DIST_ARMV8_DEB }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -72,11 +74,13 @@ jobs:
           echo "::set-output name=DIST_AMD64_DEB::Macast-Linux-${VERSION}-amd64.deb"
           echo "::set-output name=DIST_ARMV7::Macast-Linux-${VERSION}-armv7"
           echo "::set-output name=DIST_ARMV7_DEB::Macast-Linux-${VERSION}-armv7.deb"
+          echo "::set-output name=DIST_ARMV8::Macast-Linux-${VERSION}-armv8"
+          echo "::set-output name=DIST_ARMV8_DEB::Macast-Linux-${VERSION}-armv8.deb"
           echo $VERSION
           echo $STANDARD_VERSION
 
   release:
-    needs: [ build-win-x64, build-macos-apple, build-macos-intel, build-linux-amd64, build-linux-armv7, build-win-x86, version ]
+    needs: [ build-win-x64, build-macos-apple, build-macos-intel, build-linux-amd64, build-linux-armv7, build-linux-armv8, build-win-x86, version ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v2
@@ -96,6 +100,8 @@ jobs:
           echo "DIST_AMD64_DEB=${{ needs.version.outputs.DIST_AMD64_DEB }}" >> $GITHUB_ENV
           echo "DIST_ARMV7=${{ needs.version.outputs.DIST_ARMV7 }}" >> $GITHUB_ENV
           echo "DIST_ARMV7_DEB=${{ needs.version.outputs.DIST_ARMV7_DEB }}" >> $GITHUB_ENV
+          echo "DIST_ARMV8=${{ needs.version.outputs.DIST_ARMV8 }}" >> $GITHUB_ENV
+          echo "DIST_ARMV8_DEB=${{ needs.version.outputs.DIST_ARMV8_DEB }}" >> $GITHUB_ENV
           echo $GITHUB_ENV
 
       - name: Upload
@@ -118,7 +124,9 @@ jobs:
             ${{ env.DIST_AMD64 }}/${{ env.DIST_AMD64 }},
             ${{ env.DIST_AMD64_DEB }}/${{ env.DIST_AMD64_DEB }},
             ${{ env.DIST_ARMV7 }}/${{ env.DIST_ARMV7 }},
-            ${{ env.DIST_ARMV7_DEB }}/${{ env.DIST_ARMV7_DEB }}
+            ${{ env.DIST_ARMV7_DEB }}/${{ env.DIST_ARMV7_DEB }},
+            ${{ env.DIST_ARMV8 }}/${{ env.DIST_ARMV8 }},
+            ${{ env.DIST_ARMV8_DEB }}/${{ env.DIST_ARMV8_DEB }}
 
   build-linux-amd64:
     needs: [ version ]
@@ -218,6 +226,7 @@ jobs:
               export BUILD_ASSETS=$(for i in $(ls macast/assets);do [ -d macast/assets/$i ] && echo --add-data=macast/assets/$i/*:macast/assets/$i; done) &&\
               echo $BUILD_ASSETS && \
               pyinstaller --noconfirm -F -w \
+                --noupx \
                 --additional-hooks-dir=. \
                 $BUILD_LANG \
                 $BUILD_ASSETS \
@@ -253,6 +262,73 @@ jobs:
         with:
           name: ${{ needs.version.outputs.DIST_ARMV7_DEB }}
           path: ${{ needs.version.outputs.DIST_ARMV7_DEB }}
+
+  build-linux-armv8:
+    needs: [ version ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Build
+        id: compile
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          STANDARD_VERSION: ${{ needs.version.outputs.standard_version }}
+          DIST_ARMV8: ${{ needs.version.outputs.DIST_ARMV8 }}
+          DIST_ARMV8_DEB: ${{ needs.version.outputs.DIST_ARMV8_DEB }}
+        run: |
+          echo $VERSION $STANDARD_VERSION $DIST_ARMV8
+          docker run --platform=linux/arm64/v8 --rm -v "$(pwd):/src/" xfangfang/build-macast:armv8-220703 \
+              'python setup.py compile_catalog -f -D macast -d macast/i18n && \
+              export BUILD_LANG=$(for i in $(ls macast/i18n);do echo --add-data=macast/i18n/$i/LC_MESSAGES/*.mo:macast/i18n/$i/LC_MESSAGES; done) &&\
+              echo $BUILD_LANG
+              export BUILD_ASSETS=$(for i in $(ls macast/assets);do [ -d macast/assets/$i ] && echo --add-data=macast/assets/$i/*:macast/assets/$i; done) &&\
+              echo $BUILD_ASSETS && \
+              pyinstaller --noconfirm -F -w \
+                --noupx \
+                --additional-hooks-dir=. \
+                $BUILD_LANG \
+                $BUILD_ASSETS \
+                --add-data="macast/xml/*:macast/xml" \
+                --add-data="macast/assets/*.png:macast/assets" \
+                --exclude-module=tkinter \
+                --distpath="app" \
+              Macast.py'
+          sudo chown 1000 app/Macast
+          cp app/Macast $DIST_ARMV8
+          #build deb
+          mkdir -p dist/DEBIAN
+          mkdir -p dist/usr/bin
+          mkdir -p dist/usr/share/applications
+          mkdir -p dist/usr/share/icons/hicolor/128x128/apps
+          echo -e "Package: Macast\nVersion: ${STANDARD_VERSION}\nStandards-Version: ${STANDARD_VERSION}\nArchitecture: arm64\nMaintainer: xfangfang <xfangfang@126.com>\nDescription: DLNA Media Renderer\nDepends: mpv" > dist/DEBIAN/control
+          echo -e "[Desktop Entry]\nName=Macast\nComment=DLNA Media Renderer\nTryExec=mpv\nExec=/usr/bin/macast\nIcon=/usr/share/icons/hicolor/128x128/apps/macast.png\nTerminal=false\nType=Application\nCategories=AudioVideo;Audio;Video;Player;TV;" > dist/usr/share/applications/macast.desktop
+          cp app/Macast dist/usr/bin/macast
+          cp macast/assets/icon.png dist/usr/share/icons/hicolor/128x128/apps/macast.png
+          dpkg -b dist $DIST_ARMV8_DEB
+          echo "::set-output name=status::success"
+
+      - name: Upload dist linux
+        uses: actions/upload-artifact@v2
+        if: steps.compile.outputs.status == 'success'
+        with:
+          name: ${{ needs.version.outputs.DIST_ARMV8 }}
+          path: ${{ needs.version.outputs.DIST_ARMV8 }}
+
+      - name: Upload dist deb
+        uses: actions/upload-artifact@v2
+        if: steps.compile.outputs.status == 'success'
+        with:
+          name: ${{ needs.version.outputs.DIST_ARMV8_DEB }}
+          path: ${{ needs.version.outputs.DIST_ARMV8_DEB }}
 
   build-win-x86:
     needs: [ version ]
