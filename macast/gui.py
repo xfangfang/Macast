@@ -201,7 +201,7 @@ class App:
         for i, item in enumerate(self.menu):
             if item.id is not None and item.id == id:
                 return i
-        logger.error("Canot find id:{}.".format(id))
+        logger.error("Cannot find id:{}.".format(id))
         return -1
 
     def append_menu_item_after(self, id, menu_item):
