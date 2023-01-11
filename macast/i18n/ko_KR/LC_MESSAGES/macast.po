@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: macast\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2022-01-28 13:46+0800\n"
-"PO-Revision-Date: 2023-01-11 13:49\n"
+"PO-Revision-Date: 2023-01-11 16:36\n"
 "Last-Translator: fang <xfangfang@126.com>\n"
 "Language-Team: Korean\n"
 "Language: ko_KR\n"
@@ -216,5 +216,5 @@ msgstr "플레이어 새로고침"
 
 #: macast_renderer/mpv.py:605
 msgid "please wait"
-msgstr "잠시만 기다려주세요"
+msgstr "잠시만 기다려 주세요"
 
