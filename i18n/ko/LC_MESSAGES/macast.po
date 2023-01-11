@@ -1,0 +1,178 @@
+# Macast Language File.
+# Copyright (C) 2021 Macast
+# xfangfang <github.com/xfangfang>, 2021.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-11-02 12:23+0800\n"
+"PO-Revision-Date: 2022-01-11 19:54+0800\n"
+"Last-Translator: DDinghoya <ddinghoya@hotmail.com>\n"
+"Language-Team: Korean\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: pygettext.py 1.5\n"
+"X-Generator: Poedit 3.0\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Stop Cast"
+msgstr "캐스트 중지"
+
+msgid "Setting"
+msgstr "설정"
+
+msgid "Quit"
+msgstr "종료"
+
+msgid "Auto Check Updates"
+msgstr "자동 업데이트 확인"
+
+msgid "Start At Login"
+msgstr "로그인 시 시작"
+
+msgid "Renderers"
+msgstr "렌더러"
+
+msgid "Protocols"
+msgstr "프로토콜"
+
+msgid "Menubar Icon"
+msgstr "메뉴바 아이콘"
+
+msgid "AppIcon"
+msgstr "앱아이콘"
+
+msgid "Pattern"
+msgstr "패턴"
+
+msgid "PatternLight"
+msgstr "어두운 패턴"
+
+msgid "PatternDark"
+msgstr "밝은 패턴"
+
+msgid "Open Config Directory"
+msgstr "구성 디렉토리 열기"
+
+msgid "Advanced Setting"
+msgstr "고급설 정"
+
+msgid "Check For Updates"
+msgstr "업데이트 확인"
+
+msgid "Help"
+msgstr "도움말"
+
+msgid "Macast New Update {}"
+msgstr "Macast 새로운 업데이트 {}"
+
+msgid "You're up to date."
+msgstr "최신 상태입니다."
+
+msgid "Start Cast"
+msgstr "캐스트 시작"
+
+msgid "running at task bar"
+msgstr "작업 표시줄에서 실행"
+
+msgid "running at menu bar"
+msgstr "메뉴바에서 실행"
+
+msgid "running at desktop panel"
+msgstr "데스크탑 패널에서 실행"
+
+msgid "Macast is hidden"
+msgstr "Macast가 숨겨져 있음"
+
+msgid "Copy Video URI"
+msgstr "동영상 URI 복사"
+
+msgid "Info"
+msgstr "정보"
+
+msgid "Change Renderer to {}."
+msgstr "렌더러를 {}로 변경합니다."
+
+msgid "Error"
+msgstr "오류"
+
+msgid "Player Position"
+msgstr "플레이어 위치"
+
+msgid "LeftTop"
+msgstr "왼쪽 상단"
+
+msgid "LeftBottom"
+msgstr "왼쪽 하단"
+
+msgid "RightTop"
+msgstr "오른쪽 상단"
+
+msgid "RightBottom"
+msgstr "오른쪽 하단"
+
+msgid "Center"
+msgstr "중앙"
+
+msgid "Player Size"
+msgstr "플레이어 크기"
+
+msgid "Small"
+msgstr "작게"
+
+msgid "Normal"
+msgstr "보통"
+
+msgid "Large"
+msgstr "크게"
+
+msgid "Auto"
+msgstr "자동"
+
+msgid "Fullscreen"
+msgstr "전체화면"
+
+msgid "Player Ontop"
+msgstr "播放器窗口置顶"
+
+msgid "Hardware Decode"
+msgstr "하드웨어 디코드"
+
+msgid "Force Dedicated GPU"
+msgstr "강제 전용 GPU"
+
+msgid "Player Settings"
+msgstr "플레이어 설정"
+
+msgid "Reload Player"
+msgstr "플레이어 새로고침"
+
+msgid "please wait"
+msgstr "잠시만 기다려주세요"
+
+msgid "Cannot start player"
+msgstr "플레이어를 시작할 수 없음"
+
+msgid "You need move Macast.app to Applications folder."
+msgstr "Macast.app을 Applications 폴더로 이동해야 합니다."
+
+msgid "Update"
+msgstr "업데이트"
+
+msgid "Cancel"
+msgstr "취소"
+
+msgid "Ok"
+msgstr "확인"
+
+msgid "Cannot access System Events"
+msgstr "시스템 이벤트에 접속할 수 없음"
+
+msgid "Check for updates"
+msgstr "업데이트 확인"
+
+msgid "New Update {}"
+msgstr "새로운 업데이트 {}"
