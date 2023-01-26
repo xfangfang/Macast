@@ -3,6 +3,8 @@
 import os
 import sys
 import logging
+from distutils.spawn import find_executable
+
 from macast import Setting, SETTING_DIR
 from macast.macast import gui
 from macast.utils import SettingProperty, SingleInstance, SingleInstanceException
@@ -19,8 +21,10 @@ def get_base_path(path="."):
 
 
 def set_mpv_default_path():
-    mpv_path = 'mpv'
-    if sys.platform == 'darwin':
+    mpv_path = find_executable('mpv')
+    if mpv_path:
+        pass
+    elif sys.platform == 'darwin':
         mpv_path = get_base_path('bin/MacOS/mpv')
     elif sys.platform == 'win32':
         mpv_path = get_base_path('bin/mpv.exe')

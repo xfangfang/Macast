@@ -36,6 +36,10 @@ class ObserveProperty(Enum):
     track_list = 6
     speed = 7
     sub = 8
+    file_format = 9
+
+
+AudioFormat = ['m4a', 'mp3', 'wav', 'flac', 'ogg', 'mp2', 'amr']
 
 
 class MPVRenderer(Renderer):
@@ -157,6 +161,9 @@ class MPVRenderer(Renderer):
         self.send_command(
             ['observe_property', ObserveProperty.sub.value,
              'sub-visibility'])
+        self.send_command(
+            ['observe_property', ObserveProperty.file_format.value,
+             'file-format'])
 
         self.set_media_volume(Setting.get(SettingProperty.PlayerDefaultVolume, 100))
 
@@ -212,6 +219,13 @@ class MPVRenderer(Renderer):
                 data = res.get('data', None)
                 if data is not None:
                     self.set_state_subtitle(data)
+            elif res['id'] == ObserveProperty.file_format.value:
+                data = res.get('data', None)
+                fmts = data.split(',')
+                for fmt in fmts:
+                    if fmt.lower() in AudioFormat:
+                        self.send_command(['set_property', 'force-window', 'yes'])
+                        break
         elif 'event' in res:
             logger.info(res)
             if res['event'] == 'end-file':
