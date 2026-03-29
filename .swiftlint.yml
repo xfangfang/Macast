@@ -1,0 +1,27 @@
+# 基本配置
+indentation: 4
+line_length: 120
+file_length:
+  warning: 400
+  error: 800
+
+# 规则配置
+enabled_rules:
+  - identifier_name
+  - type_name
+  - variable_name
+  - function_parameter_count
+  - force_cast
+  - force_try
+  - empty_count
+  - trailing_whitespace
+  - vertical_whitespace
+  - cyclomatic_complexity
+  - nesting
+
+# 排除配置
+excluded:
+  - Carthage
+  - Pods
+  - .build
+  - Tests
