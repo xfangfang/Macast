@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Macast}",
+            "name": "Debug Macast",
+            "program": "${workspaceFolder:Macast}/.build/debug/Macast",
+            "preLaunchTask": "swift: Build Debug Macast"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Macast}",
+            "name": "Release Macast",
+            "program": "${workspaceFolder:Macast}/.build/release/Macast",
+            "preLaunchTask": "swift: Build Release Macast"
+        }
+    ]
+}

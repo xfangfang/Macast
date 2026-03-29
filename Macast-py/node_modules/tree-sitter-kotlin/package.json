@@ -1,0 +1,67 @@
+{
+  "name": "tree-sitter-kotlin",
+  "version": "0.3.8",
+  "description": "Tree-sitter grammar for Kotlin",
+  "main": "bindings/node",
+  "types": "bindings/node",
+  "scripts": {
+    "test": "tree-sitter test",
+    "install": "node-gyp-build",
+    "generate": "tree-sitter generate",
+    "parse": "tree-sitter parse",
+    "build-wasm": "tree-sitter build --wasm",
+    "playground": "tree-sitter playground",
+    "prestart": "npm run build-wasm",
+    "start": "npm run playground",
+    "prebuildify": "prebuildify --napi --strip"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fwcd/tree-sitter-kotlin.git"
+  },
+  "keywords": [
+    "tree-sitter",
+    "kotlin",
+    "grammar"
+  ],
+  "files": [
+    "grammar.js",
+    "binding.gyp",
+    "prebuilds/**",
+    "bindings/node/*",
+    "queries/*",
+    "src/**"
+  ],
+  "author": "fwcd",
+  "license": "MIT",
+  "gypfile": true,
+  "bugs": {
+    "url": "https://github.com/fwcd/tree-sitter-kotlin/issues"
+  },
+  "homepage": "https://github.com/fwcd/tree-sitter-kotlin#readme",
+  "dependencies": {
+    "node-addon-api": "^7.1.0",
+    "node-gyp-build": "^4.8.0"
+  },
+  "peerDependencies": {
+    "tree-sitter": "^0.21.0"
+  },
+  "peerDependenciesMeta": {
+    "tree_sitter": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.22.6",
+    "prebuildify": "^6.0.0"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.kotlin",
+      "file-types": [
+        "kt",
+        "kts"
+      ]
+    }
+  ]
+}

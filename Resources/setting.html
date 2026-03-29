@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Macast</title>
+
+    <script src="/assets/vue@2.6.14.js"></script>
+    <script src="/assets/vue-resource@1.5.3.js"></script>
+    <script src="/assets/element-ui@2.15.7.js"></script>
+    <link rel="shortcut icon" type="image/x-icon" href="/assets/icon.png">
+    <link href="https://fonts.font.im/css?family=Noto+Sans" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="/assets/element-ui@2.15.7.css">
+</head>
+<body>
+
+<div id="app">
+    <el-tabs v-model="activeIndex" @tab-click="handleSelect">
+        <el-tab-pane label="Plugin" name="1">
+            <div class="macast-plugins">
+                <macast-plugin v-for="item in plugins" :key="item.renderer"
+                               :item="item" v-on:refresh_plugin="refresh_plugin">
+                </macast-plugin>
+                <p v-if="loading">loading</p>
+            </div>
+            <a :href="this.repo_url" target="_blank">
+                <el-tooltip class="item" effect="dark" content="Find more information at plugins repo."
+                            placement="top-end">
+                    <el-button class="macast-plugin-repo" icon="el-icon-search" circle>
+                    </el-button>
+                </el-tooltip>
+            </a>
+        </el-tab-pane>
+        <el-tab-pane label="Setting" name="2">
+            <div>
+                <el-input
+                        type="textarea"
+                        :autosize="{ minRows: 2, maxRows: 20}"
+                        placeholder="Macast launch parameters"
+                        v-model="textarea">
+                </el-input>
+
+                <el-tooltip class="item" effect="dark" content="Macast will be restarted" placement="right">
+                    <el-button :loading="connecting" :disabled="!is_json" v-on:click="save" round
+                               style="margin-top: 10px">Save
+                    </el-button>
+                </el-tooltip>
+                <p v-if="!is_json">json format error</p>
+            </div>
+        </el-tab-pane>
+        <el-tab-pane label="Log" name="3">
+            <span>This page does not display all logs. If you want to view all logs, please run from the source code or refer to </span>
+            <el-link type="primary"
+                     href="https://github.com/xfangfang/Macast/blob/main/.github/ISSUE_TEMPLATE/bug_report.md"
+                     target="_blank">this instruction.
+            </el-link>
+            <br/>
+            <br/>
+            <span v-html="macast_log"></span>
+        </el-tab-pane>
+        <el-tab-pane label="Help" name="4">
+
+            <h1>FAQ</h1>
+
+            <el-link type="primary"
+                     href="https://github.com/xfangfang/Macast/wiki/FAQ"
+                     target="_blank">This document may not be the latest
+                version. Please visit the Macast Wiki for the latest document.
+            </el-link>
+
+            <p>Macast is still in the early stage of development, so it may not be available on your device. In
+                this case, please try the
+                <el-link type="primary" href='https://github.com/xfangfang/Macast/actions'>beta version</el-link>
+                or
+                submit a
+                <el-link type="primary" href='https://github.com/xfangfang/Macast/issues/new/choose'>issue</el-link>
+                to help us do better.
+            </p>
+            <h2 id='i-dont-know-how-to-use'>I don&#39;t know how to use</h2>
+            <p>Just open this app, and a small icon will appear in the <strong>menubar</strong> /
+                <strong>taskbar</strong> / <strong>desktop panel</strong>, then you can push your media files from a
+                local DLNA client to your computer.<br/>
+            </p>
+            <h2 id='how-to-use-third-party-player-plug-inmacast--v06'>How to use third-party player plugin</h2>
+            <ol start=''>
+                <li>Download the plugin you want from
+                    <el-link type="primary" href='https://github.com/xfangfang/Macast-plugins'>
+                        xfangfang/Macast-plugins
+                    </el-link>
+                </li>
+                <li>Open the Macast, and click <code>Open Config Directory</code> in the setting menu</li>
+                <li>put <strong>[some plugin].py</strong> in renderer directory</li>
+                <li>Restart Macast and choose the plugins you want</li>
+
+            </ol>
+            <p> if you can&#39;t find any plugin you want, check
+                <el-link type="primary"
+                         href='https://github.com/xfangfang/Macast/wiki/Custom-Renderer'>here
+                </el-link>
+                to learn how to write a plugin yourself.
+            </p>
+            <h2 id='how-to-debug'>How to debug</h2>
+            <p>Run Macast from terminal</p>
+            <ol start=''>
+                <li>python3 Macast.py</li>
+            </ol>
+            <p><br/>
+            </p>
+            <h2 id='how-to-build-macast'>How to build Macast</h2>
+            <p>Macast is written in Python3, so you need to install Python3 first.</p>
+            <ol start=''>
+                <li>Clone the repository<br/>
+                    <code>git clone --depth=1 https://github.com/xfangfang/Macast.git</code>
+                </li>
+                <li>Run Macast<br/>
+                    <code>python3 Macast.py</code>
+                </li>
+                <li>Install dependencies<br/>
+                    <code>pip3 install -r requirements/common.txt</code>
+                </li>
+                <li>Build Macast<br/>
+                    <code>python3 setup.py build</code>
+                </li>
+            </ol>
+            <p><br/>
+            </p>
+            <h2 id='how-to-contribute'>How to contribute</h2>
+            <p>We welcome contributions from the community. Please feel free to submit issues, feature requests, or pull requests.</p>
+            <ol start=''>
+                <li>Fork the repository</li>
+                <li>Create a new branch</li>
+                <li>Make your changes</li>
+                <li>Test your changes</li>
+                <li>Submit a pull request</li>
+            </ol>
+            <p><br/>
+            </p>
+            <h2 id='how-to-report-a-bug'>How to report a bug</h2>
+            <p>Please report bugs using the <a href="https://github.com/xfangfang/Macast/issues/new/choose">issue tracker</a>. When reporting a bug, please include:</p>
+            <ol start=''>
+                <li>Your operating system and version</li>
+                <li>Macast version</li>
+                <li>Steps to reproduce the bug</li>
+                <li>Expected behavior</li>
+                <li>Actual behavior</li>
+                <li>Screenshots if applicable</li>
+            </ol>
+            <p><br/>
+            </p>
+            <h2 id='how-to-contact-us'>How to contact us</h2>
+            <p>You can contact us through the <a href="https://github.com/xfangfang/Macast">GitHub repository</a> or by emailing <a href="mailto:xfangfang@pm.me">xfangfang@pm.me</a>.</p>
+        </el-tab-pane>
+    </el-tabs>
+</div>
+
+<script>
+    Vue.component('macast-plugin', {
+        props: ['item'],
+        template: `
+        <div class="macast-plugin-wrapper">
+            <div class="macast-plugin-icon" :style="{backgroundImage: 'url(' + item.icon + ')'}"></div>
+            <div class="macast-plugin-info">
+                <h3>{{ item.name }}</h3>
+                <p>{{ item.description }}</p>
+                <p class="macast-plugin-author">Author: {{ item.author }}</p>
+                <p class="macast-plugin-version">Version: {{ item.version }}</p>
+                <p class="macast-plugin-platform">Platform: {{ item.platform }}</p>
+            </div>
+            <div class="macast-plugin-actions">
+                <el-tooltip class="item" effect="dark" content="Use this renderer" placement="top">
+                    <el-button :disabled="loading" @click="use" type="primary" round
+                               :icon="item.is_default ? 'el-icon-check' : 'el-icon-download'">
+                        {{ item.is_default ? 'Default' : 'Use' }}
+                    </el-button>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="Remove this renderer" placement="top">
+                    <el-button :disabled="loading || item.is_default" @click="remove" type="danger" round
+                               icon="el-icon-delete"></el-button>
+                </el-tooltip>
+            </div>
+        </div>
+        `,
+        data() {
+            return {
+                loading: false,
+            }
+        },
+        methods: {
+            use() {
+                this.loading = true;
+                this.$http.post('/api/set-renderer', {
+                    renderer: this.item.renderer
+                }).then((response) => {
+                    this.$emit('refresh_plugin');
+                    this.loading = false;
+                }, (response) => {
+                    this.loading = false;
+                });
+            },
+            remove() {
+                this.loading = true;
+                this.$http.post('/api/remove-renderer', {
+                    renderer: this.item.renderer
+                }).then((response) => {
+                    this.$emit('refresh_plugin');
+                    this.loading = false;
+                }, (response) => {
+                    this.loading = false;
+                });
+            },
+        }
+    });
+
+    new Vue({
+        el: '#app',
+        data: {
+            activeIndex: '1',
+            plugins: [],
+            loading: false,
+            connecting: false,
+            textarea: '',
+            repo_url: 'https://github.com/xfangfang/Macast-plugins',
+            macast_log: '',
+            is_json: true,
+        },
+        methods: {
+            handleSelect(key, keyPath) {
+                if (key === '2') {
+                    this.get_config();
+                } else if (key === '3') {
+                    this.get_log();
+                }
+            },
+            refresh_plugin() {
+                this.get_plugin();
+            },
+            get_plugin() {
+                this.loading = true;
+                this.$http.get('/api/renderer').then((response) => {
+                    this.plugins = response.body;
+                    this.loading = false;
+                }, (response) => {
+                    this.loading = false;
+                });
+            },
+            get_config() {
+                this.connecting = true;
+                this.$http.get('/api/launch-params').then((response) => {
+                    this.textarea = response.body;
+                    this.check_json();
+                    this.connecting = false;
+                }, (response) => {
+                    this.connecting = false;
+                });
+            },
+            get_log() {
+                this.connecting = true;
+                this.$http.get('/api/log').then((response) => {
+                    this.macast_log = response.body;
+                    this.connecting = false;
+                }, (response) => {
+                    this.connecting = false;
+                });
+            },
+            save() {
+                this.connecting = true;
+                this.$http.post('/api/set-launch-params', {
+                    params: this.textarea
+                }).then((response) => {
+                    this.connecting = false;
+                }, (response) => {
+                    this.connecting = false;
+                });
+            },
+            check_json() {
+                try {
+                    JSON.parse(this.textarea);
+                    this.is_json = true;
+                } catch (e) {
+                    this.is_json = false;
+                }
+            }
+        },
+        mounted() {
+            this.get_plugin();
+            this.get_config();
+            this.$watch('textarea', function(newVal, oldVal) {
+                this.check_json();
+            });
+        }
+    });
+</script>
+
+<style>
+    body {
+        background-color: #f5f7fa;
+        font-family: 'Noto Sans', sans-serif;
+        margin: 0;
+        padding: 20px;
+    }
+
+    #app {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: #fff;
+        border-radius: 5px;
+        box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+        padding: 20px;
+    }
+
+    .macast-plugins {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .macast-plugin-wrapper {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        border: 1px solid #ebeef5;
+        border-radius: 5px;
+        background-color: #fafafa;
+        transition: all 0.3s;
+    }
+
+    .macast-plugin-wrapper:hover {
+        box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+        background-color: #fff;
+    }
+
+    .macast-plugin-icon {
+        width: 80px;
+        height: 80px;
+        background-size: cover;
+        background-position: center;
+        border-radius: 5px;
+        margin-right: 15px;
+    }
+
+    .macast-plugin-info {
+        flex: 1;
+    }
+
+    .macast-plugin-info h3 {
+        margin: 0 0 5px 0;
+        font-size: 18px;
+        color: #303133;
+    }
+
+    .macast-plugin-info p {
+        margin: 5px 0;
+        color: #606266;
+        font-size: 14px;
+    }
+
+    .macast-plugin-author,
+    .macast-plugin-version,
+    .macast-plugin-platform {
+        font-size: 12px;
+        color: #909399;
+    }
+
+    .macast-plugin-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .macast-plugin-repo {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+    }
+</style>
+</body>
+</html>

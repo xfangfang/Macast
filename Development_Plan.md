@@ -47,12 +47,12 @@ Macast是一款基于Swift语言开发的macOS平台DLNA媒体渲染器应用程
 | 1 | 项目初始化：创建Swift Package项目结构 | 高 | 1天 | 无 | 待开始 |
 | 2 | 配置开发环境：安装SwiftLint、SwiftFormat等工具 | 高 | 1天 | 无 | 待开始 |
 | 3 | 设置版本控制：初始化Git仓库，配置.gitignore | 高 | 1天 | 无 | 待开始 |
-| 4 | 开发GUI模块：菜单栏应用控制器(StatusMenuController) | 高 | 2天 | 1,2,3 | 待开始 |
-| 5 | 开发网络模块：SSDPServer服务发现功能 | 高 | 3天 | 1,2,3 | 待开始 |
-| 6 | 开发网络模块：HTTPServer实现 | 高 | 3天 | 1,2,3,5 | 待开始 |
-| 7 | 开发DLNA协议模块：核心服务实现(ConnectionManager/AVTransport/RenderingControl) | 高 | 5天 | 1,2,3,6 | 待开始 |
-| 8 | 开发播放器模块：MPVController实现 | 高 | 3天 | 1,2,3 | 待开始 |
-| 9 | 实现DLNA媒体渲染功能：连接、播放、暂停、停止等核心操作 | 高 | 5天 | 4,7,8 | 待开始 |
+| 4 | 开发GUI模块：菜单栏应用控制器(StatusMenuController) | 高 | 2天 | 1,2,3 | 已完成 |
+| 5 | 开发网络模块：SSDPServer服务发现功能 | 高 | 3天 | 1,2,3 | 已完成 |
+| 6 | 开发网络模块：HTTPServer实现 | 高 | 3天 | 1,2,3,5 | 已完成 |
+| 7 | 开发DLNA协议模块：核心服务实现(ConnectionManager/AVTransport/RenderingControl) | 高 | 5天 | 1,2,3,6 | 已完成 |
+| 8 | 开发播放器模块：MPVController实现 | 高 | 3天 | 1,2,3 | 已完成 |
+| 9 | 实现DLNA媒体渲染功能：连接、播放、暂停、停止等核心操作 | 高 | 5天 | 4,7,8 | 已完成 |
 
 ### 中优先级任务 (重要的扩展功能)
 
@@ -157,3 +157,96 @@ Macast是一款基于Swift语言开发的macOS平台DLNA媒体渲染器应用程
 ---
 
 本开发计划将根据实际开发情况进行调整和优化，确保项目按时、高质量完成。
+
+## 8. 对照重构基线（Python 原版 → Swift）
+
+### 8.1 目标与原则
+
+- 以 `/Users/zliz/Downloads/Macast/Macast-py` 作为行为基准，实现 Swift 重构版本与原版在 DLNA/UPnP 客户端侧表现一致
+- 优先保证协议兼容性与可验证性：先跑通“发现→描述→控制→播放→状态回读”的最小闭环，再做架构优化与插件扩展
+- HTTP 路由与对外接口优先对齐原版，避免客户端兼容性差异导致排错困难
+
+### 8.2 必须对齐的差异点（按影响优先级）
+
+1. HTTP 路由结构
+   - 原版（Python）：`/description.xml`、`/dlna/*.xml`（SCPD 等静态 XML）、`/<service>/action`（SOAP）、`/<service>/event`（SUBSCRIBE/UNSUBSCRIBE）
+   - Swift：对齐为原版路由表，并按 service 分发到对应处理器
+2. SOAP Action 解析与分发
+   - Swift 需要从请求头/请求体解析出 action，并确保能命中 AVTransport/RenderingControl/ConnectionManager 的动作分支
+3. SSDP 发现/广播一致性
+   - 对齐原版的多 USN 注册（rootdevice、MediaRenderer、三大 Service）与 alive 周期广播
+   - LOCATION 指向局域网可访问地址（非 localhost），并具备合理的多网卡选择策略
+4. mpv 控制与状态同步
+   - Swift 侧采用 mpv JSON IPC + observe_property 进行状态观测（position/duration/volume/mute/pause/speed 等），并将状态回写到 DLNA service
+5. 插件体系边界（后置）
+   - 第一里程碑默认 renderer=mpv、protocol=DLNA，先跑通闭环；插件加载/商店等作为后续阶段实现
+
+### 8.3 第一里程碑（DLNA + mpv 跑通）验收标准
+
+1. 发现层（SSDP）
+   - 手机 DLNA 客户端能发现设备
+   - 对 `ssdp:all` / `upnp:rootdevice` / `MediaRenderer` / 三大 Service 的 ST 查询可得到合理响应
+   - `LOCATION` 为 `http://<LAN-IP>:<port>/description.xml`
+2. 描述层（HTTP GET）
+   - `GET /description.xml` 返回可被客户端解析的 MediaRenderer 描述
+   - `GET /dlna/AVTransport.xml`、`/dlna/RenderingControl.xml`、`/dlna/ConnectionManager.xml` 可访问
+3. 控制层（SOAP POST）
+   - `POST /AVTransport/action`：SetAVTransportURI、Play、Pause、Stop、Seek 均可调用且返回正确 SOAP 响应
+   - `POST /RenderingControl/action`：SetVolume、SetMute 生效
+4. 播放层（mpv）
+   - SetAVTransportURI + Play 后 mpv 实际播放媒体
+   - Pause/Seek/Stop 对播放器生效
+   - GetTransportInfo/GetPositionInfo/GetVolume 的回读状态与播放器一致（事件订阅可作为后续里程碑补齐）
+
+## 9. 里程碑1执行计划（路由对齐 + DLNA+mpv 跑通）
+
+### 9.1 执行目标
+
+- Swift 版本对齐 Python 原版对外接口与核心行为，完成 8.3 的验收标准
+
+### 9.2 任务分解
+
+#### Task 1：建立可验证基线
+
+- [x] 运行 `swift test`，确保当前基线通过
+- [x] 运行 `npx gitnexus analyze`，确保后续能做影响分析（如需保留 embeddings，改用 `npx gitnexus analyze --embeddings`）
+
+#### Task 2：HTTPServer 路由对齐（原版路由表）
+
+- [x] 修改 Swift HTTPServer 路由为：
+  - `GET /description.xml`
+  - `GET /dlna/<name>.xml`（至少包含 AVTransport/RenderingControl/ConnectionManager）
+  - `POST /<service>/action`
+  - `SUBSCRIBE /<service>/event`、`UNSUBSCRIBE /<service>/event`（可先作为里程碑1.5实现）
+- [x] 设备描述中的 URLBase/UDN/服务 URL 路径与上述路由一致，并确保 URLBase 使用 LAN 可访问 IP
+- [x] 通过本地请求验证：
+  - `curl http://<LAN-IP>:<port>/description.xml` 返回 200 且内容为 XML
+  - `curl http://<LAN-IP>:<port>/dlna/AVTransport.xml` 等返回 200
+
+#### Task 3：SOAP Action 解析与分发对齐
+
+- [x] 修正 SOAP Action 解析逻辑：优先读取 `SOAPACTION` 头（去除引号），缺失时从 body 解析 action 元素
+- [x] 修正参数解析逻辑：仅解析 action 元素内的参数键值对，避免误解析 Envelope/Body 等标签
+- [x] 验证 `POST /AVTransport/action` 的 SetAVTransportURI/Play/Pause/Stop/Seek 可被调用并返回 200 + 正确 SOAP 响应
+- [x] 验证 `POST /RenderingControl/action` 的 SetVolume/SetMute 生效
+
+#### Task 4：SSDP 对齐（发现/广播/LOCATION）
+
+- [x] SSDP 响应 LOCATION 指向 `http://<LAN-IP>:<port>/description.xml`
+- [x] 支持原版 USN/ST 组合（rootdevice、MediaRenderer、三大 Service），并对 `ssdp:all` 返回全量响应
+- [x] 基本 alive 周期广播对齐（可先满足能发现与稳定在线）
+
+#### Task 5：mpv IPC 对齐（状态观测驱动）
+
+- [x] Swift MPVController 使用 mpv JSON IPC socket，并实现 observe_property（volume/time-pos/pause/mute/duration/speed/sub 等）
+- [x] 播放器状态通过 DLNAMediaRenderer 回写到 AVTransport/RenderingControl service（至少覆盖 position/duration/transportState/volume/mute）
+
+#### Task 6：集成与验收
+
+- [x] 启动流程：菜单栏启动服务时同时启动 HTTPServer + SSDP + 渲染器（默认 mpv）
+- [x] 按 8.3 验收标准完成端到端验证（发现→描述→控制→播放→状态回读）
+
+### 9.3 验证命令（建议）
+
+- `swift test`
+- `swiftlint`（如项目配置可用）

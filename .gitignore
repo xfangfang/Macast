@@ -156,3 +156,4 @@ dist/
 # Temporary files
 *.tmp
 *.temp
+.gitnexus

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="17150" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <deployment identifier="macosx"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="17150"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="AboutWindowController">
+            <connections>
+                <outlet property="window" destination="QvC-M9-y7g" id="GyC-7Z-7Kq"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <window title="About Macast" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" animationBehavior="default" id="QvC-M9-y7g">
+            <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES"/>
+            <windowPositionMask key="initialPositionMask" centerH="YES" centerV="YES"/>
+            <rect key="contentRect" x="196" y="240" width="400" height="250"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="1680" height="1025"/>
+            <view key="contentView" id="EiT-Mj-1SZ">
+                <rect key="frame" x="0.0" y="0.0" width="400" height="250"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <imageView horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="8VX-5Z-6X0">
+                        <rect key="frame" x="175" y="175" width="50" height="50"/>
+                        <constraints>
+                            <constraint firstAttribute="width" constant="50" id="HqC-7Y-6X0"/>
+                            <constraint firstAttribute="height" constant="50" id="JqC-7Y-6X0"/>
+                        </constraints>
+                        <imageCell key="cell" refusesFirstResponder="YES" alignment="left" image="NSApplicationIcon" id="9VX-5Z-6X0"/>
+                    </imageView>
+                    <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="a1B-3Z-6X0">
+                        <rect key="frame" x="133" y="138" width="135" height="24"/>
+                        <constraints>
+                            <constraint firstAttribute="width" constant="131" id="b1B-3Z-6X0"/>
+                        </constraints>
+                        <textFieldCell key="cell" lineBreakMode="clipping" alignment="center" title="Macast" id="c1B-3Z-6X0">
+                            <font key="font" size="20" name="HelveticaNeue-Bold"/>
+                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                        </textFieldCell>
+                    </textField>
+                    <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="d1B-3Z-6X0">
+                        <rect key="frame" x="153" y="110" width="95" height="16"/>
+                        <textFieldCell key="cell" lineBreakMode="clipping" alignment="center" title="Version 1.0" id="e1B-3Z-6X0">
+                            <font key="font" size="13" name="HelveticaNeue"/>
+                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                        </textFieldCell>
+                    </textField>
+                    <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="f1B-3Z-6X0">
+                        <rect key="frame" x="20" y="60" width="360" height="34"/>
+                        <textFieldCell key="cell" lineBreakMode="clipping" alignment="center" title="A DLNA Media Renderer for macOS" id="g1B-3Z-6X0">
+                            <font key="font" size="14" name="HelveticaNeue"/>
+                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                        </textFieldCell>
+                    </textField>
+                    <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="h1B-3Z-6X0">
+                        <rect key="frame" x="149" y="20" width="103" height="32"/>
+                        <buttonCell key="cell" type="push" title="Close" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="i1B-3Z-6X0">
+                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                            <font key="font" size="13" name="HelveticaNeue"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="closeWindow:" target="-2" id="j1B-3Z-6X0"/>
+                        </connections>
+                    </button>
+                </subviews>
+                <constraints>
+                    <constraint firstItem="8VX-5Z-6X0" firstAttribute="top" secondItem="EiT-Mj-1SZ" secondAttribute="top" constant="25" id="k1B-3Z-6X0"/>
+                    <constraint firstItem="8VX-5Z-6X0" firstAttribute="centerX" secondItem="EiT-Mj-1SZ" secondAttribute="centerX" id="l1B-3Z-6X0"/>
+                    <constraint firstItem="a1B-3Z-6X0" firstAttribute="top" secondItem="8VX-5Z-6X0" secondAttribute="bottom" constant="13" id="m1B-3Z-6X0"/>
+                    <constraint firstItem="a1B-3Z-6X0" firstAttribute="centerX" secondItem="EiT-Mj-1SZ" secondAttribute="centerX" id="n1B-3Z-6X0"/>
+                    <constraint firstItem="d1B-3Z-6X0" firstAttribute="top" secondItem="a1B-3Z-6X0" secondAttribute="bottom" constant="12" id="o1B-3Z-6X0"/>
+                    <constraint firstItem="d1B-3Z-6X0" firstAttribute="centerX" secondItem="EiT-Mj-1SZ" secondAttribute="centerX" id="p1B-3Z-6X0"/>
+                    <constraint firstItem="f1B-3Z-6X0" firstAttribute="top" secondItem="d1B-3Z-6X0" secondAttribute="bottom" constant="20" id="q1B-3Z-6X0"/>
+                    <constraint firstItem="f1B-3Z-6X0" firstAttribute="centerX" secondItem="EiT-Mj-1SZ" secondAttribute="centerX" id="r1B-3Z-6X0"/>
+                    <constraint firstItem="h1B-3Z-6X0" firstAttribute="top" secondItem="f1B-3Z-6X0" secondAttribute="bottom" constant="20" id="s1B-3Z-6X0"/>
+                    <constraint firstItem="h1B-3Z-6X0" firstAttribute="centerX" secondItem="EiT-Mj-1SZ" secondAttribute="centerX" id="t1B-3Z-6X0"/>
+                </constraints>
+            </view>
+            <point key="canvasLocation" x="200" y="185"/>
+        </window>
+    </objects>
+    <resources>
+        <image name="NSApplicationIcon" width="128" height="128"/>
+    </resources>
+</document>

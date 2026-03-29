@@ -1,0 +1,74 @@
+{
+	"name": "cmake-js",
+	"description": "CMake.js - a Node.js native addon build tool",
+	"license": "MIT",
+	"keywords": [
+		"native",
+		"addon",
+		"module",
+		"c",
+		"c++",
+		"bindings",
+		"build",
+		"buildtools",
+		"cmake",
+		"nw.js",
+		"electron",
+		"boost",
+		"nan",
+		"napi",
+		"node-api",
+		"node-addon-api"
+	],
+	"main": "lib",
+	"version": "8.0.0",
+	"author": "Gábor Mező aka unbornchikken",
+	"maintainers": [
+		{
+			"name": "Julian Waller",
+			"email": "git@julusian.co.uk",
+			"url": "https://github.com/julusian/"
+		}
+	],
+	"repository": {
+		"type": "git",
+		"url": "git://github.com/cmake-js/cmake-js.git"
+	},
+	"bin": {
+		"cmake-js": "./bin/cmake-js"
+	},
+	"engines": {
+		"node": "^20.17.0 || >=22.9.0"
+	},
+	"dependencies": {
+		"debug": "^4.4.3",
+		"fs-extra": "^11.3.3",
+		"node-api-headers": "^1.8.0",
+		"rc": "1.2.8",
+		"semver": "^7.7.3",
+		"tar": "^7.5.6",
+		"url-join": "^4.0.1",
+		"which": "^6.0.0",
+		"yargs": "^17.7.2"
+	},
+	"devDependencies": {
+		"eslint": "^8.56.0",
+		"eslint-config-prettier": "^9.1.0",
+		"mocha": "*",
+		"nan": "^2.25.0",
+		"node-addon-api": "^6.1.0",
+		"prettier": "^3.8.1"
+	},
+	"scripts": {
+		"test": "mocha tests",
+		"lint": "eslint lib bin/cmake-js tests"
+	},
+	"files": [
+		"lib",
+		"bin",
+		"*.md",
+		"bindings.js",
+		"bindings.d.ts"
+	],
+	"packageManager": "yarn@1.22.22+sha256.c17d3797fb9a9115bf375e31bfd30058cac6bc9c3b8807a3d8cb2094794b51ca"
+}

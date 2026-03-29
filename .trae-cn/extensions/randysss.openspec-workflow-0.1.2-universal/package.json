@@ -1,0 +1,189 @@
+{
+	"name": "openspec-workflow",
+	"displayName": "OpenSpec",
+	"description": "Visual dashboard and interactive UI for OpenSpec workflows",
+	"version": "0.1.2",
+	"publisher": "randysss",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"keywords": [
+		"openspec",
+		"spec-driven",
+		"workflow",
+		"dashboard",
+		"task management"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/RandyZ/openspec-ext.git"
+	},
+	"activationEvents": [
+		"workspaceContains:openspec/config.yaml"
+	],
+	"main": "./dist/extension.js",
+	"icon": "resources/icon.png",
+	"contributes": {
+		"configuration": {
+			"title": "OpenSpec",
+			"properties": {
+				"openspec.focusSidebarViewWhenOpeningChangeDetail": {
+					"type": "boolean",
+					"default": false,
+					"description": "When opening a change detail in the editor, focus the sidebar on the OpenSpec view."
+				},
+				"openspec.focusSidebarViewWhenOpeningDashboard": {
+					"type": "boolean",
+					"default": false,
+					"description": "When running Open Dashboard command, focus the sidebar on the OpenSpec view."
+				},
+				"openspec.taskExecutionMode": {
+					"type": "string",
+					"enum": [
+						"auto",
+						"fillChat"
+					],
+					"default": "fillChat",
+					"description": "When clicking task execute: auto = run via adapter; fillChat = fill chat or copy to clipboard."
+				},
+				"openspec.preferredAgentAdapter": {
+					"type": "string",
+					"default": "",
+					"description": "Preferred Agent executor adapter id (e.g. cursor, claude-code, clipboard). Empty = use first available."
+				},
+				"openspec.taskDependencyPolicy": {
+					"type": "string",
+					"enum": [
+						"block",
+						"warn"
+					],
+					"default": "block",
+					"description": "When preceding tasks are incomplete: block = prevent execution; warn = show warning and let user proceed."
+				},
+				"openspec.agentModel": {
+					"type": "string",
+					"default": "auto",
+					"description": "Cursor agent CLI model. Default is 'auto' (Cursor chooses; no --model passed). Set a specific name (e.g. composer-1.5, gpt-5.2) only when you want to override, e.g. to avoid a model's usage limit."
+				},
+				"openspec.debug": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable debug: show Verify tab in change detail (to test IDE commands), and print the full prompt sent to Cursor Agent in the output channel when executing tasks."
+				}
+			}
+		},
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "openspec",
+					"title": "OpenSpec",
+					"icon": "resources/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"openspec": [
+				{
+					"id": "openspec.dashboardView",
+					"name": "Dashboard",
+					"type": "webview"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "openspec.openDashboard",
+				"title": "OpenSpec: Open Dashboard",
+				"category": "OpenSpec"
+			},
+			{
+				"command": "openspec.refreshData",
+				"title": "OpenSpec: Refresh Data",
+				"category": "OpenSpec",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "openspec.newChange",
+				"title": "OpenSpec: Create New Change",
+				"category": "OpenSpec"
+			},
+			{
+				"command": "openspec.archiveChange",
+				"title": "OpenSpec: Archive Change",
+				"category": "OpenSpec"
+			},
+			{
+				"command": "openspec.selectAgentAdapter",
+				"title": "OpenSpec: Select Agent Adapter",
+				"category": "OpenSpec"
+			},
+			{
+				"command": "openspec.continueArtifact",
+				"title": "OpenSpec: Create Artifact with AI",
+				"category": "OpenSpec"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "pnpm run build",
+		"compile": "node esbuild.js && pnpm run build:webview",
+		"watch": "node esbuild.js --watch",
+		"build": "pnpm run compile",
+		"build:webview": "vite build",
+		"dev:webview": "vite",
+		"postinstall": "node scripts/link-vitest-pnpm.js",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"package": "node scripts/package-with-marketplace-readme.js",
+		"publish:marketplace": "pnpm exec vsce publish",
+		"publish:openvsx": "node scripts/publish-openvsx.js"
+	},
+	"devDependencies": {
+		"@eslint/js": "^10.0.1",
+		"@resvg/resvg-js": "^2.6.2",
+		"@vscode/vsce": "^3.2.2",
+		"sharp": "^0.33.5",
+		"ovsx": "^0.10.9",
+		"@tailwindcss/postcss": "^4.1.18",
+		"@tailwindcss/vite": "^4.1.18",
+		"@types/node": "^25.2.1",
+		"@types/react": "^19.2.13",
+		"@types/react-dom": "^19.2.3",
+		"@types/vscode": "^1.85.0",
+		"@typescript-eslint/eslint-plugin": "^8.54.0",
+		"@typescript-eslint/parser": "^8.54.0",
+		"@vitejs/plugin-react": "^5.1.3",
+		"autoprefixer": "^10.4.24",
+		"esbuild": "^0.27.3",
+		"eslint": "^10.0.0",
+		"eslint-config-prettier": "^10.1.8",
+		"postcss": "^8.5.6",
+		"prettier": "^3.8.1",
+		"tailwindcss": "^3.4.19",
+		"typescript": "^5.9.3",
+		"vite": "^7.3.1",
+		"vitest": "^4.0.18"
+	},
+	"packageManager": "pnpm@10.14.0",
+	"dependencies": {
+		"yaml": "^2.7.0",
+		"@radix-ui/react-progress": "^1.1.8",
+		"@radix-ui/react-tabs": "^1.1.13",
+		"@radix-ui/react-tooltip": "^1.2.8",
+		"class-variance-authority": "^0.7.1",
+		"highlight.js": "^11.11.1",
+		"marked": "^17.0.1",
+		"mermaid": "^11.12.2",
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4"
+	},
+	"__metadata": {
+		"installedTimestamp": 1772601184124,
+		"targetPlatform": "universal",
+		"size": 4989978
+	}
+}

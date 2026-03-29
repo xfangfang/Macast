@@ -40,7 +40,7 @@ show_help() {
     echo "  -c, --clean      只清理构建目录"
     echo ""
     echo "示例:"
-    echo "  $0 --identity "Your Name (Team ID)" --version 1.1.0 --short 1.1"
+    echo "  $0 --identity \"Your Name (Team ID)\" --version 1.1.0 --short 1.1"
     exit 0
 }
 
@@ -153,6 +153,8 @@ copy_files() {
     <false/>
     <key>LSUIElement</key>
     <true/>
+    <key>CFBundleIconFile</key>
+    <string>icon.icns</string>
 </dict>
 </plist>
 EOF
