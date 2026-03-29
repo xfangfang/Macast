@@ -1,0 +1,44 @@
+{
+  "name": "graphology-indices",
+  "version": "0.17.0",
+  "description": "Miscellaneous indices for graphology.",
+  "main": "index.js",
+  "files": [
+    "*.d.ts",
+    "bfs-queue.js",
+    "dfs-stack.js",
+    "index.js",
+    "louvain.js",
+    "neighborhood.js",
+    "sorted-components.js"
+  ],
+  "scripts": {
+    "prepublishOnly": "npm test",
+    "test": "mocha test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/graphology/graphology.git"
+  },
+  "keywords": [
+    "graph",
+    "graphology",
+    "indices"
+  ],
+  "author": {
+    "name": "Guillaume Plique",
+    "url": "http://github.com/Yomguithereal"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/graphology/graphology/issues"
+  },
+  "homepage": "https://github.com/graphology/graphology#readme",
+  "peerDependencies": {
+    "graphology-types": ">=0.20.0"
+  },
+  "dependencies": {
+    "graphology-utils": "^2.4.2",
+    "mnemonist": "^0.39.0"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "name": "pandemonium",
+  "version": "2.4.1",
+  "description": "Typical random-related functions for JavaScript.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "lint": "eslint *.js",
+    "prepublishOnly": "npm run lint && npm test",
+    "prettier": "prettier --write './**/*.js' './**/*.ts' './**/*.md'",
+    "test": "mocha && npm run test:types",
+    "test:types": "tsc --lib es2015,dom --noEmit --noImplicitAny --noImplicitReturns ./test-types.ts"
+  },
+  "files": [
+    "*.d.ts",
+    "*.js"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yomguithereal/pandemonium.git"
+  },
+  "keywords": [
+    "random",
+    "choice",
+    "sample",
+    "shuffle"
+  ],
+  "author": {
+    "name": "Guillaume Plique",
+    "url": "http://github.com/Yomguithereal"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yomguithereal/pandemonium/issues"
+  },
+  "homepage": "https://github.com/yomguithereal/pandemonium#readme",
+  "dependencies": {
+    "mnemonist": "^0.39.2"
+  },
+  "devDependencies": {
+    "@yomguithereal/eslint-config": "^4.4.0",
+    "@yomguithereal/prettier-config": "^1.2.0",
+    "eslint": "^8.23.0",
+    "eslint-config-prettier": "^8.5.0",
+    "mocha": "^9.2.2",
+    "prettier": "^2.7.1",
+    "seedrandom": "^3.0.5",
+    "typescript": "^4.8.2"
+  },
+  "prettier": "@yomguithereal/prettier-config",
+  "eslintConfig": {
+    "extends": [
+      "@yomguithereal/eslint-config",
+      "eslint-config-prettier"
+    ]
+  }
+}

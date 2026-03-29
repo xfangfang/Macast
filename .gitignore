@@ -130,3 +130,30 @@ dmypy.json
 
 bin
 mpv-latest.tar.gz
+
+# Swift Package Manager
+.build/
+.swiftpm/
+*.xcodeproj/
+*.xcworkspace/
+
+# macOS system files
+.DS_Store
+
+# Editor files
+*.swp
+*.swo
+
+# Linter and formatter cache
+.swiftlint.cache
+.swiftformat.cache
+
+# Build artifacts
+Macast.app/
+dist/
+*.dmg
+
+# Temporary files
+*.tmp
+*.temp
+.gitnexus

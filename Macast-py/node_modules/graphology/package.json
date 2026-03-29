@@ -1,0 +1,86 @@
+{
+  "name": "graphology",
+  "version": "0.25.4",
+  "description": "A robust and multipurpose Graph object for JavaScript.",
+  "main": "dist/graphology.cjs.js",
+  "module": "dist/graphology.esm.js",
+  "browser": "dist/graphology.umd.min.js",
+  "types": "dist/graphology.d.ts",
+  "scripts": {
+    "clean": "rimraf dist specs",
+    "build": "npm run clean && rollup -c && babel tests --out-dir specs && cp src/endpoint.esm.d.ts dist/graphology.d.ts",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test && npm run test:types && npm run build",
+    "test": "mocha -u exports --require @babel/register ./test.js",
+    "test:types": "tsc --lib es2015,dom --noEmit --noImplicitAny --noImplicitReturns --strictNullChecks ./test-types.ts"
+  },
+  "files": [
+    "dist/*.js",
+    "dist/*.mjs",
+    "dist/*.ts",
+    "dist/*.map",
+    "specs"
+  ],
+  "keywords": [
+    "graph",
+    "graph theory",
+    "directed",
+    "undirected",
+    "network"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/graphology/graphology.git"
+  },
+  "contributors": [
+    {
+      "name": "Alexis Jacomy",
+      "url": "http://github.com/jacomyal"
+    },
+    {
+      "name": "Benjamin Ooghe-Tabanou",
+      "url": "http://github.com/boogheta"
+    },
+    {
+      "name": "Guillaume Plique",
+      "url": "http://github.com/Yomguithereal"
+    }
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/graphology/graphology/issues"
+  },
+  "homepage": "https://github.com/graphology/graphology#readme",
+  "dependencies": {
+    "events": "^3.3.0",
+    "obliterator": "^2.0.2"
+  },
+  "peerDependencies": {
+    "graphology-types": ">=0.24.0"
+  },
+  "babel": {
+    "presets": [
+      "@babel/preset-env"
+    ],
+    "plugins": [
+      [
+        "@babel/transform-classes",
+        {
+          "loose": true
+        }
+      ],
+      [
+        "@babel/transform-destructuring",
+        {
+          "loose": true
+        }
+      ],
+      [
+        "@babel/transform-spread",
+        {
+          "loose": true
+        }
+      ]
+    ]
+  }
+}

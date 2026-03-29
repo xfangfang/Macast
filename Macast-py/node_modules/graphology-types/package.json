@@ -1,0 +1,34 @@
+{
+  "name": "graphology-types",
+  "version": "0.24.8",
+  "description": "TypeScript declaration for graphology.",
+  "main": "index.d.ts",
+  "files": [
+    "index.d.ts"
+  ],
+  "scripts": {
+    "prettier": "prettier --write '*.d.ts'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/graphology/graphology.git"
+  },
+  "keywords": [
+    "graph",
+    "graphology",
+    "types",
+    "typescript"
+  ],
+  "contributors": [
+    {
+      "name": "Guillaume Plique",
+      "url": "http://github.com/Yomguithereal"
+    }
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/graphology/graphology/issues"
+  },
+  "homepage": "https://github.com/graphology/graphology#readme",
+  "prettier": "@yomguithereal/prettier-config"
+}
