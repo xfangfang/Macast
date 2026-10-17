@@ -190,70 +190,30 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: install create-dmg
-        run: brew install create-dmg
-
       - name: Install Requirement
         run: |
+          set -euo pipefail
           python3 -V
           file "$(command -v python3)"   # must report arm64
           pip3 install -r requirements/darwin.txt
-          pip3 install py2app
-
-      - name: Fetch mpv
-        run: |
-          set -euo pipefail
-          curl -fsSL -o mpv.zip \
-            "https://github.com/mpv-player/mpv/releases/download/v${MPV_VERSION}/mpv-v${MPV_VERSION}-macos-15-arm.zip"
-          unzip -q mpv.zip
-          # the zip wraps a tarball which holds a full mpv.app
-          tar -xzf mpv.tar.gz
-          mkdir -p bin
-          cp -R mpv.app/Contents/MacOS bin/MacOS
-          lipo -info bin/MacOS/mpv
-          bin/MacOS/mpv --version
+          pip3 install pyinstaller
 
       - name: Build
         id: compile
         run: |
           set -euo pipefail
-          for file in i18n/*; do
-            msgfmt -o "$file/LC_MESSAGES/macast.mo" "$file/LC_MESSAGES/macast.po"
-          done
-          # no --arch: follow the arm64 interpreter of the runner
-          python3 setup_py2app.py py2app
-          cp -R bin dist/Macast.app/Contents/Resources/
-
-          # arm64 refuses to load unsigned Mach-O, so sign every bundled dylib
-          # before signing the bundle itself (mpv ships ~97 of them).
-          # Strip incoming signatures first: re-signing lib/ in place would
-          # otherwise invalidate the seal on the mpv binary itself.
-          find dist/Macast.app \( -name "*.so" -o -name "*.dylib" \) \
-            -exec codesign --remove-signature {} \; || true
-          find dist/Macast.app \( -name "*.so" -o -name "*.dylib" \) -print0 |
-            while IFS= read -r -d '' f; do
-              codesign --force --sign - "$f"
-            done
-          codesign --force --deep --sign - --options runtime dist/Macast.app
-          xattr -cr dist/Macast.app
-
-          # verify the result before shipping it
-          lipo -info dist/Macast.app/Contents/MacOS/python
-          codesign --verify --verbose=2 dist/Macast.app
-          if find dist/Macast.app -name "*.so" -exec lipo -info {} \; | grep -qv arm64; then
-            echo "::error::found non-arm64 .so in bundle"
-            exit 1
-          fi
-          /usr/libexec/PlistBuddy -c "Print :NSLocalNetworkUsageDescription" \
-            dist/Macast.app/Contents/Info.plist
+          # build-macos-arm64.sh does translations, mpv fetch, PyInstaller,
+          # Info.plist, code signing and DMG creation. It is the same script
+          # used for local builds, so CI and local cannot drift apart.
+          BUILD_DIR="$RUNNER_TEMP/macast-build" \
+            MPV_VERSION="${MPV_VERSION}" \
+            ./build-macos-arm64.sh
 
           VERSION=$(cat macast/.version)
-          echo "DIST_DMG=Macast-MacOS-arm64-v${VERSION}.dmg" >> $GITHUB_ENV
+          DMG="Macast-MacOS-arm64-v${VERSION}.dmg"
+          cp "$RUNNER_TEMP/macast-build/$DMG" .
+          echo "DIST_DMG=$DMG" >> $GITHUB_ENV
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
-          create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 \
-            --icon "Macast.app" 200 190 --hide-extension "Macast.app" \
-            --app-drop-link 600 185 --volname "Macast-v${VERSION} Installer" \
-            "$DIST_DMG" "dist/"
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: SSH connection to Actions

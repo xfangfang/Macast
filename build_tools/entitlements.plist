@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    arm64 enforces library validation under the hardened runtime: every image
+    the process loads must carry the same Team ID as the main executable.
+    Ad-hoc signatures have no Team ID, so libpython3.13.dylib and the bundled
+    extension modules get rejected. Turning validation off is what lets an
+    ad-hoc signed Python app load its own interpreter.
+  -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+
+  <!-- CPython's runtime allocates executable memory for its own use. -->
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+</dict>
+</plist>
