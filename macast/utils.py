@@ -10,10 +10,11 @@ import appdirs
 import logging
 import platform
 import locale
+import socket
 import cherrypy
+import psutil
 import subprocess
 from enum import Enum
-import netifaces as ni
 
 if sys.platform == 'darwin':
     from AppKit import NSBundle
@@ -142,28 +143,26 @@ class Setting:
 
     @staticmethod
     def get_ip():
+        """Collect the IPv4 address/netmask pairs of all usable interfaces
+
+        This used to rely on netifaces, a C extension whose project is archived
+        and whose only macOS arm64 wheel targets CPython 3.9. psutil ships a
+        universal2 (arm64 + x86_64) wheel that covers Python 3.6 - 3.14.
+        """
         last_ip = []
-        gateways = ni.gateways()  # {type: [{ip, interface, default},{},...], type: []}
         interfaces = set(Setting.get(SettingProperty.Additional_Interfaces, []))
-        interface_type = [ni.AF_INET, ni.AF_LINK]
-        for t in interface_type:
-            if t in gateways:
-                for i in gateways[t]:
-                    if len(i) > 1:
-                        interfaces.add(i[1])
-        for i in Setting.get(SettingProperty.Blocked_Interfaces, []):
-            if i in interfaces:
-                interfaces.remove(i)
-        logger.debug(interfaces)
-        for i in interfaces:
-            try:
-                iface = ni.ifaddresses(i)
-            except ValueError as e:
+        blocked = set(Setting.get(SettingProperty.Blocked_Interfaces, []))
+        addresses = psutil.net_if_addrs()
+        for name, stat in psutil.net_if_stats().items():
+            if name in blocked:
                 continue
-            if ni.AF_INET in iface:
-                for j in iface[ni.AF_INET]:
-                    if 'addr' in j and 'netmask' in j:
-                        last_ip.append((j['addr'], j['netmask']))
+            # keep explicitly requested interfaces even when they look down,
+            # otherwise only interfaces that are currently up
+            if not stat.isup and name not in interfaces:
+                continue
+            for addr in addresses.get(name, []):
+                if addr.family == socket.AF_INET and addr.address and addr.netmask:
+                    last_ip.append((addr.address, addr.netmask))
         Setting.last_ip = set(last_ip)
         logger.debug(Setting.last_ip)
         return Setting.last_ip

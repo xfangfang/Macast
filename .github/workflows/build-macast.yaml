@@ -6,6 +6,7 @@ name: Build Macast
 on:
   push:
     branches:
+      - main
       - dev_test
       - morelog
   pull_request:
@@ -30,16 +31,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
 
       - name: Version
         run: |
           ls -R
           export VERSION=`cat macast/.version`
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
-          echo "DIST_DMG=Macast-MacOS-v${VERSION}.dmg" >> $GITHUB_ENV
+          echo "DIST_DMG=Macast-MacOS-arm64-v${VERSION}.dmg" >> $GITHUB_ENV
           echo "DIST_EXE=Macast-Windows-v${VERSION}.exe" >> $GITHUB_ENV
           echo "DIST_EXE_DEBUG=Macast-Windows-v${VERSION}-debug.exe" >> $GITHUB_ENV
           echo "DIST_AMD64=Macast-Linux-v${VERSION}-amd64" >> $GITHUB_ENV
@@ -64,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install Requirement
         run: |
@@ -107,7 +108,7 @@ jobs:
           cp app/Macast dist/usr/bin/macast
           cp macast/assets/icon.png dist/usr/share/icons/Macast.png
           dpkg -b dist $DIST_AMD64_DEB
-          echo "::set-output name=status::success"
+          echo "status=success" >> $GITHUB_OUTPUT
 
       - name: SSH connection to Actions
         uses: P3TERX/ssh2actions@v1.0.0
@@ -117,14 +118,14 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
       - name: Upload dist linux x64
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: steps.compile.outputs.status == 'success'
         with:
           name: ${{ env.DIST_AMD64 }}
           path: ${{ env.DIST_AMD64 }}
 
       - name: Upload dist deb
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: steps.compile.outputs.status == 'success'
         with:
           name: ${{ env.DIST_AMD64_DEB }}
@@ -134,7 +135,7 @@ jobs:
     runs-on: windows-2019
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install Requirement
         run: |
@@ -158,54 +159,102 @@ jobs:
           cp dist/Macast.exe Macast-Windows-v${VERSION}.exe
           pyinstaller --noconfirm -F --additional-hooks-dir=. --add-data="macast/.version;." --add-data="macast/xml/*;macast/xml"  --add-data="i18n/zh_CN/LC_MESSAGES/*.mo;i18n/zh_CN/LC_MESSAGES" --add-data="macast/assets/*;macast/assets" --add-data="macast/assets/fonts/*;macast/assets/fonts" --add-binary="bin/mpv.exe;bin" --icon=macast/assets/icon.ico Macast.py
           cp dist/Macast.exe Macast-Windows-v${VERSION}-debug.exe
-          echo "::set-output name=status::success"
+          echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Upload dist
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: steps.compile.outputs.status == 'success'
         with:
           name: ${{ env.DIST_EXE }}
           path: ${{ env.DIST_EXE }}
 
       - name: Upload dist debug
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: steps.compile.outputs.status == 'success'
         with:
           name: ${{ env.DIST_EXE_DEBUG }}
           path: ${{ env.DIST_EXE_DEBUG }}
 
   build-darwin:
-    runs-on: macos-11
+    # Apple Silicon native build. macos-15 runners are arm64, so py2app emits an
+    # arm64 bundle without any --arch flag.
+    runs-on: macos-15
+    env:
+      MPV_VERSION: '0.41.0'
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
 
       - name: install create-dmg
         run: brew install create-dmg
 
-      - name: install universal python
-        run: |
-          wget https://www.python.org/ftp/python/3.9.8/python-3.9.8-macos11.pkg
-          sudo installer -pkg python-3.9.8-macos11.pkg -target /
-
       - name: Install Requirement
         run: |
+          python3 -V
+          file "$(command -v python3)"   # must report arm64
           pip3 install -r requirements/darwin.txt
           pip3 install py2app
-          wget https://laboratory.stolendata.net/~djinn/mpv_osx/mpv-latest.tar.gz
-          mkdir -p bin && tar --strip-components 2 -C bin -xzvf mpv-latest.tar.gz mpv.app/Contents/MacOS
+
+      - name: Fetch mpv
+        run: |
+          set -euo pipefail
+          curl -fsSL -o mpv.zip \
+            "https://github.com/mpv-player/mpv/releases/download/v${MPV_VERSION}/mpv-v${MPV_VERSION}-macos-15-arm.zip"
+          unzip -q mpv.zip
+          # the zip wraps a tarball which holds a full mpv.app
+          tar -xzf mpv.tar.gz
+          mkdir -p bin
+          cp -R mpv.app/Contents/MacOS bin/MacOS
+          lipo -info bin/MacOS/mpv
+          bin/MacOS/mpv --version
 
       - name: Build
         id: compile
         run: |
-          for file in i18n/*; do msgfmt -o $file/LC_MESSAGES/macast.mo $file/LC_MESSAGES/macast.po;echo $file;done
-          python3 setup_py2app.py py2app --arch=x86_64
+          set -euo pipefail
+          for file in i18n/*; do
+            msgfmt -o "$file/LC_MESSAGES/macast.mo" "$file/LC_MESSAGES/macast.po"
+          done
+          # no --arch: follow the arm64 interpreter of the runner
+          python3 setup_py2app.py py2app
           cp -R bin dist/Macast.app/Contents/Resources/
-          export VERSION=`cat macast/.version`
-          echo "DIST_DMG=Macast-MacOS-v${VERSION}.dmg" >> $GITHUB_ENV
+
+          # arm64 refuses to load unsigned Mach-O, so sign every bundled dylib
+          # before signing the bundle itself (mpv ships ~97 of them).
+          # Strip incoming signatures first: re-signing lib/ in place would
+          # otherwise invalidate the seal on the mpv binary itself.
+          find dist/Macast.app \( -name "*.so" -o -name "*.dylib" \) \
+            -exec codesign --remove-signature {} \; || true
+          find dist/Macast.app \( -name "*.so" -o -name "*.dylib" \) -print0 |
+            while IFS= read -r -d '' f; do
+              codesign --force --sign - "$f"
+            done
+          codesign --force --deep --sign - --options runtime dist/Macast.app
+          xattr -cr dist/Macast.app
+
+          # verify the result before shipping it
+          lipo -info dist/Macast.app/Contents/MacOS/python
+          codesign --verify --verbose=2 dist/Macast.app
+          if find dist/Macast.app -name "*.so" -exec lipo -info {} \; | grep -qv arm64; then
+            echo "::error::found non-arm64 .so in bundle"
+            exit 1
+          fi
+          /usr/libexec/PlistBuddy -c "Print :NSLocalNetworkUsageDescription" \
+            dist/Macast.app/Contents/Info.plist
+
+          VERSION=$(cat macast/.version)
+          echo "DIST_DMG=Macast-MacOS-arm64-v${VERSION}.dmg" >> $GITHUB_ENV
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
-          create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 --icon "Macast.app" 200 190  --hide-extension "Macast.app" --app-drop-link 600 185  --volname "Macast-v${VERSION} Installer" Macast-MacOS-v${VERSION}.dmg "dist/"
-          echo "::set-output name=status::success"
+          create-dmg --window-pos 200 120 --window-size 800 400 --icon-size 100 \
+            --icon "Macast.app" 200 190 --hide-extension "Macast.app" \
+            --app-drop-link 600 185 --volname "Macast-v${VERSION} Installer" \
+            "$DIST_DMG" "dist/"
+          echo "status=success" >> $GITHUB_OUTPUT
 
       - name: SSH connection to Actions
         uses: P3TERX/ssh2actions@v1.0.0
@@ -215,7 +264,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
       - name: Upload dist
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: steps.compile.outputs.status == 'success'
         with:
           name: ${{ env.DIST_DMG }}
@@ -225,7 +274,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install Requirement
         run: |
@@ -273,17 +322,17 @@ jobs:
           cp app/Macast dist/usr/bin/macast
           cp macast/assets/icon.png dist/usr/share/icons/Macast.png
           dpkg -b dist $DIST_DEB
-          echo "::set-output name=status::success"
+          echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Upload dist linux
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: steps.compile.outputs.status == 'success'
         with:
           name: ${{ env.DIST }}
           path: ${{ env.DIST }}
 
       - name: Upload dist deb
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: steps.compile.outputs.status == 'success'
         with:
           name: ${{ env.DIST_DEB }}

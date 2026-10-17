@@ -3,6 +3,6 @@ cherrypy
 lxml
 pillow
 requests
-netifaces
+psutil
 git+https://github.com/xfangfang/pystray.git
 git+https://github.com/xfangfang/pyperclip.git
