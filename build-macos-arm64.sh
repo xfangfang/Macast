@@ -27,23 +27,45 @@ echo "    root:  $ROOT"
 echo "    build: $BUILD"
 mkdir -p "$BUILD"
 
-echo "==> [1/7] compiling translations"
+echo "==> [1/8] compiling translations"
 "$PY" "$ROOT/build_tools/po2mo.py"
 
-echo "==> [2/7] fetching mpv $MPV_VERSION (arm64)"
-if [ ! -x "$BUILD/mpv/MacOS/mpv" ]; then
+echo "==> [2/8] fetching mpv $MPV_VERSION (arm64)"
+if [ ! -x "$BUILD/mpv/Contents/MacOS/mpv" ]; then
   cd "$BUILD"
   curl -fsSL -o mpv.zip \
     "https://github.com/mpv-player/mpv/releases/download/v${MPV_VERSION}/mpv-v${MPV_VERSION}-macos-15-arm.zip"
   unzip -q -o mpv.zip            # yields mpv.tar.gz
   tar -xzf mpv.tar.gz           # yields mpv.app/
-  # copy the whole MacOS dir: mpv links 97 dylibs via @executable_path/lib
-  mkdir -p mpv
-  cp -R mpv.app/Contents/MacOS mpv/MacOS
-fi
-lipo -info "$BUILD/mpv/MacOS/mpv"
 
-echo "==> [3/7] running PyInstaller (onedir)"
+  # Keep mpv's own Contents layout intact. Two things break if we only copy
+  # Contents/MacOS:
+  #   * the binary and its 97 dylibs, linked via @executable_path/lib
+  #   * libMoltenVK.dylib plus the Vulkan ICD manifest, without which the
+  #     official build renders nothing:
+  #         [vo/gpu-next] Failed initializing any suitable GPU context!
+  #     DLNA clients still discover Macast and still get a valid
+  #     description.xml, so the only visible symptom is a black screen.
+  #
+  # The manifest is relocated again after PyInstaller runs -- see below.
+  #
+  # mv.app itself becomes $BUILD/mpv with its Contents/ kept verbatim, so paths
+  # inside the bundle stay identical to upstream.
+  rm -rf mpv
+  mv mpv.app mpv
+fi
+lipo -info "$BUILD/mpv/Contents/MacOS/mpv"
+[ -f "$BUILD/mpv/Contents/Frameworks/libMoltenVK.dylib" ] ||
+  { echo "ERROR: libMoltenVK.dylib missing from mpv bundle" >&2; exit 1; }
+[ -f "$BUILD/mpv/Contents/Resources/vulkan/icd.d/MoltenVK_icd.json" ] ||
+  { echo "ERROR: MoltenVK ICD manifest missing from mpv bundle" >&2; exit 1; }
+echo "    MoltenVK present, Vulkan ICD manifest present"
+
+echo "==> [3/8] running PyInstaller (onedir)"
+# mpv lives under Contents/Resources/bin, not Contents/Frameworks. Frameworks
+# is a reserved bundle location: codesign --deep treats everything under it as
+# nested code, walks mpv's whole Contents tree, and fails verification on
+# mpv.conf and icon.icns. Resources is sealed as data instead.
 "$PY" -m PyInstaller --noconfirm --onedir -w \
   --additional-hooks-dir="$ROOT" \
   --add-data="$ROOT/macast/.version:." \
@@ -51,8 +73,9 @@ echo "==> [3/7] running PyInstaller (onedir)"
   --add-data="$ROOT/i18n/zh_CN/LC_MESSAGES/*.mo:i18n/zh_CN/LC_MESSAGES" \
   --add-data="$ROOT/macast/assets/*:macast/assets" \
   --add-data="$ROOT/macast/assets/fonts/*:macast/assets/fonts" \
-  --add-binary="$BUILD/mpv/MacOS/mpv:bin/MacOS" \
-  --add-binary="$BUILD/mpv/MacOS/lib/*:bin/MacOS/lib" \
+  --add-binary="$BUILD/mpv/Contents/MacOS/mpv:mpvbin/MacOS" \
+  --add-binary="$BUILD/mpv/Contents/MacOS/lib/*:mpvbin/MacOS/lib" \
+  --add-binary="$BUILD/mpv/Contents/Frameworks/libMoltenVK.dylib:mpvbin/Frameworks" \
   --exclude-module=tkinter \
   --distpath="$PYDIST" \
   --workpath="$BUILD/work" \
@@ -60,24 +83,77 @@ echo "==> [3/7] running PyInstaller (onedir)"
   --icon="$ROOT/macast/assets/icon.icns" \
   "$ROOT/Macast.py"
 
+# PyInstaller redirects anything named "Resources" into its own Contents/Resources
+# and leaves a symlink behind, which would break mpv's Contents layout. Restore
+# mpv's tree verbatim.
 APP="$PYDIST/Macast.app"
+rm -rf "$APP/Contents/Frameworks/mpvbin" "$APP/Contents/Resources/mpvbin"
+cp -R "$BUILD/mpv/Contents" "$APP/Contents/Frameworks/mpvbin_contents"
+rm -rf "$APP/Contents/Frameworks/mpvbin"
+mv "$APP/Contents/Frameworks/mpvbin_contents" "$APP/Contents/Resources/bin"
+# Upstream ships these read-only; xattr -cr in the signing step would then fail
+# with EPERM on the copied files.
+chmod -R u+w "$APP/Contents/Resources/bin"
 
-echo "==> [4/7] fixing Info.plist"
+# The Vulkan loader does NOT look for ICD manifests next to the binary. With
+# VK_LOADER_DEBUG=all it prints, in order:
+#   DRIVER:  /<bundle>/Contents/Resources/vulkan/icd.d
+#   DRIVER:  ~/.config/vulkan/icd.d ... /etc/vulkan/icd.d ... /usr/share/vulkan/icd.d
+# i.e. it derives <bundle>/Contents/Resources/vulkan/icd.d from the main
+# executable's own path. With mpv parked at Contents/Resources/bin/MacOS/mpv
+# that lands on Contents/Resources/vulkan/icd.d -- NOT the
+# Contents/Resources/bin/Resources/... copy that came in with mpv.app. The
+# bundled manifest is therefore never read, MoltenVK is never loaded, and mpv
+# fails every frame with "Failed initializing any suitable GPU context!" while
+# still starting normally, still answering IPC and still letting the DLNA
+# renderer advertise itself -- which is exactly a device that is discoverable
+# and plays nothing.
+#
+# So publish the manifest where the loader actually looks, and point
+# library_path at the MoltenVK we already ship under Contents/Frameworks.
+mkdir -p "$APP/Contents/Resources/vulkan/icd.d"
+cp "$APP/Contents/Resources/bin/Frameworks/libMoltenVK.dylib" \
+   "$APP/Contents/Frameworks/libMoltenVK.dylib"
+chmod u+w "$APP/Contents/Frameworks/libMoltenVK.dylib"
+cat > "$APP/Contents/Resources/vulkan/icd.d/MoltenVK_icd.json" <<'JSON'
+{
+    "file_format_version": "1.0.0",
+    "ICD": {
+        "library_path": "../../../Frameworks/libMoltenVK.dylib",
+        "api_version": "1.4.0",
+        "is_portability_driver": true
+    }
+}
+JSON
+echo "    published MoltenVK ICD manifest to Contents/Resources/vulkan/icd.d"
+
+# PyInstaller mirrors every dylib it finds into the top level of both
+# Contents/Frameworks and Contents/Resources as a symlink pointing back into
+# the --add-binary destination (mpvbin/...). That destination is gone now, so
+# all 194 of those symlinks dangle. They make `xattr -cr` fail with ENOENT and
+# they would ship as dead entries pointing at a directory that is not in the
+# bundle, so drop every symlink that no longer resolves.
+DANGLING=$(find "$APP/Contents" -type l ! -exec test -e {} \; -print 2>/dev/null | wc -l | tr -d ' ')
+find "$APP/Contents" -type l ! -exec test -e {} \; -delete 2>/dev/null || true
+echo "    removed $DANGLING dangling symlinks left by PyInstaller"
+
+echo "==> [4/8] fixing Info.plist"
 # PyInstaller does not read setup_py2app.py's plist dict, so set the keys here.
 PB=/usr/libexec/PlistBuddy
-set_key() { $PB -c "Set :$1 $2" "$APP/Contents/Info.plist" 2>/dev/null \
-         || $PB -c "Add :$1 $2" "$APP/Contents/Info.plist" 2>/dev/null || true; }
-set_key CFBundleIdentifier "cn.xfangfang.Macast"
-set_key LSMinimumSystemVersion "11.0"
-set_key LSUIElement "true"
-set_key NSHighResolutionCapable "true"
-set_key NSLocalNetworkUsageDescription \
-  "'Macast needs local network access to be discovered and stream media to DLNA devices.'"
+plist="$APP/Contents/Info.plist"
+add() { $PB -c "Add :$1 $2 $3" "$plist" 2>/dev/null || true; }
 
-echo "==> [5/7] signing for arm64"
+add CFBundleIdentifier string cn.xfangfang.Macast
+add LSMinimumSystemVersion string 11.0
+add LSUIElement bool true
+add NSHighResolutionCapable bool true
+add NSLocalNetworkUsageDescription string \
+  'Macast needs local network access to be discovered and stream media to DLNA devices.'
+
+echo "==> [5/8] signing for arm64"
 "$ROOT/build_tools/sign-arm64.sh" "$APP"
 
-echo "==> [6/7] verifying"
+echo "==> [6/8] verifying"
 ARCH=$(lipo -info "$APP/Contents/MacOS/Macast" | sed 's/.*: //')
 echo "    architecture: $ARCH"
 case "$ARCH" in *arm64*) ;; *) echo "ERROR: expected arm64" >&2; exit 1 ;; esac
@@ -91,7 +167,29 @@ if [ "${BAD:-0}" != "0" ]; then
 fi
 echo "    all .so are arm64"
 
-echo "==> [7/7] building DMG"
+# The single most important check. The official mpv arm64 build renders through
+# Vulkan on MoltenVK, and the loader only finds the ICD manifest at
+# Contents/Resources/vulkan/icd.d. If that is wrong, mpv still starts and still
+# answers IPC, so every other check passes -- but it cannot open a GPU context
+# and the user gets a device that is discoverable and plays nothing at all.
+MPV_IN_APP="$APP/Contents/Resources/bin/MacOS/mpv"
+[ -x "$MPV_IN_APP" ] || { echo "ERROR: bundled mpv missing" >&2; exit 1; }
+[ -f "$APP/Contents/Frameworks/libMoltenVK.dylib" ] ||
+  { echo "ERROR: libMoltenVK.dylib not bundled" >&2; exit 1; }
+[ -f "$APP/Contents/Resources/vulkan/icd.d/MoltenVK_icd.json" ] ||
+  { echo "ERROR: MoltenVK ICD manifest not where the loader looks" >&2; exit 1; }
+
+echo "    checking mpv can open a GPU context"
+MPV_OUT="$(cd / && "$MPV_IN_APP" --no-config --vo=gpu-next --frames=1 \
+  "av://lavfi:testsrc=size=320x240:rate=1:duration=1" 2>&1)" || true
+if echo "$MPV_OUT" | grep -q "Failed initializing any suitable GPU context"; then
+  echo "ERROR: bundled mpv cannot create a GPU context:" >&2
+  echo "$MPV_OUT" | sed 's/^/      /' >&2
+  exit 1
+fi
+echo "    mpv GPU context OK"
+
+echo "==> [7/8] building DMG"
 STAGE="$BUILD/stage"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"

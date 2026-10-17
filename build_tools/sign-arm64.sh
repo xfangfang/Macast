@@ -47,6 +47,9 @@ if [ -d "$FW" ]; then
 fi
 
 echo "    signing Mach-O files (deepest first)"
+# mpv and its 97 dylibs live under Contents/Resources, which codesign seals as
+# data rather than nested code, so they are signed here explicitly to satisfy
+# arm64's "no unsigned Mach-O" rule.
 find "$APP/Contents" -type f \( -name "*.so" -o -name "*.dylib" \) 2>/dev/null |
   sort -r |
   while IFS= read -r f; do
@@ -55,8 +58,15 @@ find "$APP/Contents" -type f \( -name "*.so" -o -name "*.dylib" \) 2>/dev/null |
 
 echo "    signing executable and bundle with entitlements"
 codesign --force --sign - --entitlements "$ENT" "$APP/Contents/MacOS/Macast"
-codesign --force --sign - --entitlements "$ENT" --options runtime "$APP"
+# --deep lets codesign reach nested code through the bundle's recorded
+# CodeResources. Everything Mach-O has already been signed above; the data
+# files inside mpv's tree (icon.icns, the Vulkan ICD json) are covered by the
+# resource seal instead of needing individual signatures.
+codesign --force --deep --sign - --entitlements "$ENT" --options runtime "$APP"
 
-xattr -cr "$APP"
+# Quarantine and download-origin flags have to go, but xattr exits non-zero if
+# it meets a single unreadable entry and `set -e` would abort a build whose
+# bundle is otherwise fine. codesign --verify right below is the real gate.
+xattr -cr "$APP" 2>/dev/null || true
 codesign --verify --verbose=1 "$APP"
 echo "    signed: $(codesign -dv "$APP" 2>&1 | grep 'Format=' | sed 's/.*Format=//')"
