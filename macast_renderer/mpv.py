@@ -383,8 +383,21 @@ class MPVRenderer(Renderer):
 
             # set darwin only options
             if sys.platform == 'darwin':
+                # --ontop alone already keeps the window above normal windows.
+                #
+                # Do NOT add --ontop-level=system. With the window backend in
+                # mpv 0.41 on macOS 15 it lands the video window on
+                # kCGDesktopWindowLevel (CG window layer 26), i.e. underneath
+                # the desktop icons and wallpaper. The window still exists and
+                # still reports onscreen=YES with the right size, and playback
+                # runs normally -- vo-configured is true and frames decode --
+                # so nothing in the logs or the DLNA session looks wrong. It is
+                # simply never visible, which looks exactly like a player that
+                # does not start.
+                #
+                # plain --ontop puts the window on layer 0, which is the normal
+                # floating-window level and is what "player on top" should mean.
                 params += [
-                    '--ontop-level=system',
                     '--on-all-workspaces',
                     '--macos-app-activation-policy=accessory',
                 ]

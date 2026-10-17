@@ -189,6 +189,71 @@ if echo "$MPV_OUT" | grep -q "Failed initializing any suitable GPU context"; the
 fi
 echo "    mpv GPU context OK"
 
+# Second-most-important check: the window has to be *visible*.
+#
+# --ontop-level=system puts mpv's window on kCGDesktopWindowLevel (CG layer 26),
+# underneath the desktop icons and wallpaper. Nothing else changes: the window
+# exists, has the right size, reports onscreen=YES, and playback runs with
+# vo-configured=true. Only the user sees nothing at all. So ask the window
+# server where the window ended up, using the exact flags macast_renderer/mpv.py
+# passes, and fail the build if it sank below the normal window layer.
+echo "    checking mpv window is on a visible layer"
+WINDOW_CHECK="$("$PY" - "$MPV_IN_APP" <<'PYEOF'
+import subprocess, sys, time, signal
+mpv = sys.argv[1]
+try:
+    import Quartz
+except ImportError:
+    print("SKIP: pyobjc Quartz unavailable")
+    sys.exit(0)
+p = subprocess.Popen(
+    [mpv, "--no-config", "--idle=yes", "--no-terminal", "--keep-open=yes",
+     "--force-window=yes", "--vo=gpu-next",
+     "--ontop", "--on-all-workspaces",
+     "--macos-app-activation-policy=accessory",
+     "av://lavfi:testsrc=size=320x240:rate=10:duration=2"],
+    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+worst = None
+try:
+    for _ in range(20):
+        time.sleep(0.5)
+        wl = Quartz.CGWindowListCopyWindowInfo(
+            Quartz.kCGWindowListOptionAll, Quartz.kCGNullWindowID)
+        for w in wl:
+            b = w.get("kCGWindowBounds") or {}
+            if w.get("kCGWindowOwnerPID") == p.pid and b.get("Width", 0) > 100:
+                worst = int(w.get("kCGWindowLayer", -1))
+                break
+        if worst is not None:
+            break
+finally:
+    p.send_signal(signal.SIGKILL)
+    p.wait()
+if worst is None:
+    print("NOWINDOW")
+else:
+    print(worst)
+PYEOF
+)"
+WINDOW_LAYER=$(echo "$WINDOW_CHECK" | tail -1)
+case "$WINDOW_CHECK" in
+  SKIP*) echo "    $WINDOW_CHECK" ;;
+  NOWINDOW)
+    echo "ERROR: mpv opened no window at all (video would never be seen)" >&2
+    exit 1 ;;
+  *)
+    # 0 = normal, 3 = floating. Anything >= 24 means desktop-level or lower,
+    # which is behind the wallpaper.
+    if [ "$WINDOW_LAYER" -ge 24 ]; then
+      echo "ERROR: mpv window landed on CG layer $WINDOW_LAYER" >&2
+      echo "       Layers >= 24 sit under the desktop icons and wallpaper, so" >&2
+      echo "       playback runs but the user sees nothing." >&2
+      echo "       Check for --ontop-level=system in macast_renderer/mpv.py." >&2
+      exit 1
+    fi
+    echo "    mpv window on CG layer $WINDOW_LAYER (visible)" ;;
+esac
+
 echo "==> [7/8] building DMG"
 STAGE="$BUILD/stage"
 rm -rf "$STAGE"
