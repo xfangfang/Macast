@@ -28,6 +28,74 @@ logger = logging.getLogger("MPVRenderer")
 logger.setLevel(logging.INFO)
 
 
+def _main_screen_frame():
+    """Return the primary screen as (x, y, width, height), or None.
+
+    Only used on macOS. NSScreen.mainScreen() is asked for specifically rather
+    than taking screens[0]: when a display goes away the system can keep a
+    stale entry in NSScreen.screens(), and that entry can sit outside the
+    primary display. A leftover "3008x1692 at (-596, 1169)" entry -- what a
+    virtual-display remote tool leaves behind, for instance -- is enough.
+    """
+    try:
+        from AppKit import NSScreen
+    except ImportError:
+        return None
+    try:
+        main = NSScreen.mainScreen()
+    except Exception:
+        return None
+    if main is None:
+        return None
+    f = main.frame()
+    return int(f.origin.x), int(f.origin.y), int(f.size.width), int(f.size.height)
+
+
+def _window_geometry(player_position, autofit_percent):
+    """Build an --geometry value that lands on the primary screen.
+
+    Percentages like "98%:5%" are resolved by mpv against the whole desktop
+    Cocoa reports, not against the screen you are looking at. With a stale
+    display entry in that desktop the percentage is applied to a rectangle
+    that extends well past the primary screen, so "98%:5%" comes out as
+    (1763, -1596): the window exists, has the right size, playback runs, and
+    it sits off-screen where nobody can see it. Nothing in the logs mentions
+    a position problem.
+
+    So do the arithmetic here, against the primary screen, and hand mpv plain
+    pixels. Falls back to the old percentage form if the screen cannot be
+    queried, which keeps other platforms and unusual setups working.
+    """
+    player_position_data = [[2, 5], [2, 98], [98, 5], [98, 98], [50, 50]]
+    try:
+        x = player_position_data[player_position][0]
+        y = player_position_data[player_position][1]
+    except IndexError:
+        x, y = 98, 5
+
+    frame = _main_screen_frame()
+    if not frame:
+        return '{}%:{}%'.format(x, y)
+
+    sx, sy, sw, sh = frame
+    # Match the window size mpv would have picked, so the corner we anchor is
+    # the corner the user asked for.
+    try:
+        win_w = max(int(sw * int(autofit_percent) / 100), 160)
+        win_h = max(int(sh * int(autofit_percent) / 100), 90)
+    except (TypeError, ValueError):
+        win_w = int(sw * 0.2)
+        win_h = int(sh * 0.2)
+
+    left = sx + int((sw - win_w) * x / 100)
+    top = sy + int((sh - win_h) * y / 100)
+    # Keep it inside the primary screen even if the requested corner would
+    # push it past an edge.
+    left = max(sx, min(left, sx + sw - win_w))
+    top = max(sy, min(top, sy + sh - win_h))
+    return '{}x{}+{}+{}'.format(win_w, win_h, left, top)
+
+
 class ObserveProperty(Enum):
     volume = 1
     time_pos = 2
@@ -353,13 +421,29 @@ class MPVRenderer(Renderer):
             if ontop:
                 params.append('--ontop')
 
+            # set player size first, because the position has to know how big
+            # the window will be to anchor the right corner
+            player_size = Setting.get(SettingProperty.PlayerSize,
+                                      default=SettingProperty.PlayerSize_Normal.value)
+            autofit_percent = None
+            if player_size <= SettingProperty.PlayerSize_Large.value:
+                autofit_percent = int(15 - 2.5 * player_size + 7.5 * player_size ** 2)
+                params.append('--autofit={}%'.format(autofit_percent))
+            elif player_size == SettingProperty.PlayerSize_Auto.value:
+                params.append('--autofit-larger=90%')
+            elif player_size == SettingProperty.PlayerSize_FullScreen.value:
+                params.append('--fullscreen')
+
             # set player position
             player_position = Setting.get(SettingProperty.PlayerPosition,
                                           default=SettingProperty.PlayerPosition_RightTop.value)
-            player_position_data = [[2, 5], [2, 98], [98, 5], [98, 98], [50, 50]]
-            x = player_position_data[player_position][0]
-            y = player_position_data[player_position][1]
-            params.append('--geometry={}%:{}%'.format(x, y))
+            # Percentages are resolved against the entire desktop Cocoa reports,
+            # so a stale display entry there pushes the window off-screen and
+            # it is never seen. Compute pixels against the primary screen
+            # instead; see _window_geometry().
+            params.append('--geometry=' + _window_geometry(
+                player_position,
+                autofit_percent if autofit_percent is not None else 20))
 
             # set lua scripts
             scripts_path = Setting.get_base_path('scripts')
@@ -369,17 +453,6 @@ class MPVRenderer(Renderer):
                 for script in scripts:
                     path = os.path.join(scripts_path, script)
                     params.append('--script={}'.format(path))
-
-            # set player size
-            player_size = Setting.get(SettingProperty.PlayerSize,
-                                      default=SettingProperty.PlayerSize_Normal.value)
-            if player_size <= SettingProperty.PlayerSize_Large.value:
-                params.append('--autofit={}%'.format(
-                    int(15 - 2.5 * player_size + 7.5 * player_size ** 2)))
-            elif player_size == SettingProperty.PlayerSize_Auto.value:
-                params.append('--autofit-larger=90%')
-            elif player_size == SettingProperty.PlayerSize_FullScreen.value:
-                params.append('--fullscreen')
 
             # set darwin only options
             if sys.platform == 'darwin':

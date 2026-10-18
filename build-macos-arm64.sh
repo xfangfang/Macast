@@ -191,20 +191,29 @@ echo "    mpv GPU context OK"
 
 # Second-most-important check: the window has to be *visible*.
 #
-# --ontop-level=system puts mpv's window on kCGDesktopWindowLevel (CG layer 26),
-# underneath the desktop icons and wallpaper. Nothing else changes: the window
-# exists, has the right size, reports onscreen=YES, and playback runs with
-# vo-configured=true. Only the user sees nothing at all. So ask the window
-# server where the window ended up, using the exact flags macast_renderer/mpv.py
-# passes, and fail the build if it sank below the normal window layer.
-echo "    checking mpv window is on a visible layer"
+# Two ways this fails while everything else looks healthy -- the window exists,
+# has the right size, reports onscreen=YES, and playback runs with
+# vo-configured=true, but the user sees nothing:
+#
+#   1. --ontop-level=system puts it on kCGDesktopWindowLevel (CG layer 26),
+#      underneath the desktop icons and wallpaper.
+#   2. A stale display entry makes mpv resolve --geometry percentages against a
+#      desktop larger than the primary screen, so the window lands off-screen
+#      at e.g. (1763, -1596).
+#
+# Neither shows up in the logs or the DLNA session. So ask the window server
+# where the window actually ended up, using the flags macast_renderer/mpv.py
+# passes, and fail the build if the layer is too low or the position is off the
+# primary screen.
+echo "    checking mpv window is visible and on screen"
 WINDOW_CHECK="$("$PY" - "$MPV_IN_APP" <<'PYEOF'
 import subprocess, sys, time, signal
 mpv = sys.argv[1]
 try:
     import Quartz
+    from AppKit import NSScreen
 except ImportError:
-    print("SKIP: pyobjc Quartz unavailable")
+    print("SKIP: pyobjc unavailable")
     sys.exit(0)
 p = subprocess.Popen(
     [mpv, "--no-config", "--idle=yes", "--no-terminal", "--keep-open=yes",
@@ -213,7 +222,7 @@ p = subprocess.Popen(
      "--macos-app-activation-policy=accessory",
      "av://lavfi:testsrc=size=320x240:rate=10:duration=2"],
     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-worst = None
+layer = pos = None
 try:
     for _ in range(20):
         time.sleep(0.5)
@@ -222,20 +231,29 @@ try:
         for w in wl:
             b = w.get("kCGWindowBounds") or {}
             if w.get("kCGWindowOwnerPID") == p.pid and b.get("Width", 0) > 100:
-                worst = int(w.get("kCGWindowLayer", -1))
+                layer = int(w.get("kCGWindowLayer", -1))
+                pos = (int(b["X"]), int(b["Y"]),
+                       int(b["Width"]), int(b["Height"]))
                 break
-        if worst is not None:
+        if pos:
             break
 finally:
     p.send_signal(signal.SIGKILL)
     p.wait()
-if worst is None:
+if pos is None:
     print("NOWINDOW")
-else:
-    print(worst)
+    sys.exit(0)
+main = NSScreen.mainScreen().frame()
+sx, sy = int(main.origin.x), int(main.origin.y)
+sw, sh = int(main.size.width), int(main.size.height)
+x, y, w, h = pos
+onscreen = (x >= sx and y >= sy and x + w <= sx + sw and y + h <= sy + sh)
+print(f"layer={layer} pos={x},{y} size={w}x{h} screen={sx},{sy} {sw}x{sh} "
+      f"onscreen={'yes' if onscreen else 'no'}")
 PYEOF
 )"
-WINDOW_LAYER=$(echo "$WINDOW_CHECK" | tail -1)
+WINDOW_LAYER=$(echo "$WINDOW_CHECK" | tail -1 | sed -n 's/^layer=\([0-9-]*\).*/\1/p')
+WINDOW_ONSCREEN=$(echo "$WINDOW_CHECK" | tail -1 | sed -n 's/.*onscreen=\([a-z]*\).*/\1/p')
 case "$WINDOW_CHECK" in
   SKIP*) echo "    $WINDOW_CHECK" ;;
   NOWINDOW)
@@ -244,14 +262,26 @@ case "$WINDOW_CHECK" in
   *)
     # 0 = normal, 3 = floating. Anything >= 24 means desktop-level or lower,
     # which is behind the wallpaper.
-    if [ "$WINDOW_LAYER" -ge 24 ]; then
+    if [ -n "$WINDOW_LAYER" ] && [ "$WINDOW_LAYER" -ge 24 ]; then
       echo "ERROR: mpv window landed on CG layer $WINDOW_LAYER" >&2
       echo "       Layers >= 24 sit under the desktop icons and wallpaper, so" >&2
       echo "       playback runs but the user sees nothing." >&2
       echo "       Check for --ontop-level=system in macast_renderer/mpv.py." >&2
       exit 1
     fi
-    echo "    mpv window on CG layer $WINDOW_LAYER (visible)" ;;
+    # A stale display entry in Cocoa's screen list shifts the window off the
+    # primary screen. --geometry percentages get resolved against that larger
+    # desktop, so the fix belongs in macast_renderer/mpv.py, which computes
+    # absolute pixels instead.
+    if [ "$WINDOW_ONSCREEN" = "no" ]; then
+      echo "ERROR: mpv window is off the primary screen" >&2
+      echo "       $WINDOW_CHECK" >&2
+      echo "       The screen list has a stale entry (a virtual-display or" >&2
+      echo "       remote tool), so percentage-based geometry resolves against" >&2
+      echo "       a larger desktop. Use absolute pixels from NSScreen.mainScreen." >&2
+      exit 1
+    fi
+    echo "    mpv window on CG layer ${WINDOW_LAYER:-?}, on screen" ;;
 esac
 
 echo "==> [7/8] building DMG"
