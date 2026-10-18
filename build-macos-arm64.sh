@@ -197,14 +197,13 @@ echo "    mpv GPU context OK"
 #
 #   1. --ontop-level=system puts it on kCGDesktopWindowLevel (CG layer 26),
 #      underneath the desktop icons and wallpaper.
-#   2. A stale display entry makes mpv resolve --geometry percentages against a
-#      desktop larger than the primary screen, so the window lands off-screen
-#      at e.g. (1763, -1596).
+#   2. Position arithmetic against the whole desktop Cocoa reports lands the
+#      window off the primary screen, at e.g. (1763, -1596).
 #
 # Neither shows up in the logs or the DLNA session. So ask the window server
 # where the window actually ended up, using the flags macast_renderer/mpv.py
-# passes, and fail the build if the layer is too low or the position is off the
-# primary screen.
+# passes, and fail the build if the layer is too low or the window is not fully
+# inside the primary screen.
 echo "    checking mpv window is visible and on screen"
 WINDOW_CHECK="$("$PY" - "$MPV_IN_APP" <<'PYEOF'
 import subprocess, sys, time, signal
@@ -215,10 +214,13 @@ try:
 except ImportError:
     print("SKIP: pyobjc unavailable")
     sys.exit(0)
+# No --geometry on purpose: that mirrors macast_renderer/mpv.py, and mpv then
+# centres the window itself. Any --geometry here would test the flag rather
+# than what actually ships.
 p = subprocess.Popen(
     [mpv, "--no-config", "--idle=yes", "--no-terminal", "--keep-open=yes",
      "--force-window=yes", "--vo=gpu-next",
-     "--ontop", "--on-all-workspaces",
+     "--ontop", "--on-all-workspaces", "--autofit=40%",
      "--macos-app-activation-policy=accessory",
      "av://lavfi:testsrc=size=320x240:rate=10:duration=2"],
     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -269,19 +271,19 @@ case "$WINDOW_CHECK" in
       echo "       Check for --ontop-level=system in macast_renderer/mpv.py." >&2
       exit 1
     fi
-    # A stale display entry in Cocoa's screen list shifts the window off the
-    # primary screen. --geometry percentages get resolved against that larger
-    # desktop, so the fix belongs in macast_renderer/mpv.py, which computes
-    # absolute pixels instead.
+    # Left to itself mpv centres on the primary screen, which is what we want.
+    # If the window is not fully inside it, something is passing --geometry
+    # (or autofit is combining with one): mpv resolves those against the whole
+    # desktop Cocoa reports, which can be larger than the screen in front of
+    # you when the screen list still holds an entry with no physical display
+    # behind it.
     if [ "$WINDOW_ONSCREEN" = "no" ]; then
-      echo "ERROR: mpv window is off the primary screen" >&2
+      echo "ERROR: mpv window is not fully inside the primary screen" >&2
       echo "       $WINDOW_CHECK" >&2
-      echo "       The screen list has a stale entry (a virtual-display or" >&2
-      echo "       remote tool), so percentage-based geometry resolves against" >&2
-      echo "       a larger desktop. Use absolute pixels from NSScreen.mainScreen." >&2
+      echo "       Do not pass --geometry; let mpv place the window itself." >&2
       exit 1
     fi
-    echo "    mpv window on CG layer ${WINDOW_LAYER:-?}, on screen" ;;
+    echo "    mpv window on CG layer ${WINDOW_LAYER:-?}, inside the primary screen" ;;
 esac
 
 echo "==> [7/8] building DMG"
