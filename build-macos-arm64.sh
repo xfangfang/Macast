@@ -13,6 +13,13 @@
 # caller: Info.plist keys and code signing.
 #
 # Usage: ./build-macos-arm64.sh
+#
+# Needs PyInstaller, psutil, lxml and pyobjc (Cocoa/Quartz, used by the window
+# checks below) in the interpreter that runs it. Point at a venv that has them:
+#
+#     PYTHON=/path/to/venv/bin/python3 ./build-macos-arm64.sh
+#
+# Failing early with a clear message beats dying 200 lines into PyInstaller.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -23,6 +30,11 @@ PYDIST="$BUILD/dist"
 DMG="$BUILD/Macast-MacOS-arm64-v$(cat "$ROOT/macast/.version").dmg"
 
 echo "==> Macast arm64 build"
+if ! "$PY" -c "import PyInstaller, psutil, lxml" 2>/dev/null; then
+  echo "ERROR: $PY is missing build dependencies (PyInstaller, psutil, lxml)." >&2
+  echo "       Install them, or pass PYTHON=/path/to/venv/bin/python3" >&2
+  exit 1
+fi
 echo "    root:  $ROOT"
 echo "    build: $BUILD"
 mkdir -p "$BUILD"
@@ -284,6 +296,112 @@ case "$WINDOW_CHECK" in
       exit 1
     fi
     echo "    mpv window on CG layer ${WINDOW_LAYER:-?}, inside the primary screen" ;;
+esac
+
+# Third check, and the one that catches the failure that actually shipped:
+# mpv accepts a loadfile command, answers "success", and then plays nothing.
+#
+# loadfile only queues the request. If the URL 403s -- routine for DLNA, since
+# clients hand out time-limited signed CDN links -- mpv prints "Failed to open
+# ..." to stderr, drops back to idle-active=true, and the DLNA session keeps
+# reporting PLAYING the whole time. The app looks perfect and shows nothing.
+#
+# So drive the real binary the way macast_renderer/mpv.py does: --idle=yes plus
+# an IPC socket, feed it a URL over that socket, then require idle-active to go
+# false. Requires network access; skipped rather than failed when offline so a
+# disconnected builder does not block a release.
+echo "    checking mpv plays a remote stream over IPC"
+IPC_CHECK="$("$PY" - "$MPV_IN_APP" <<'PYEOF'
+import json, os, socket, subprocess, sys, tempfile, time
+
+mpv = sys.argv[1]
+# A short public MP4. Any reachable URL works; it only has to make mpv leave
+# idle, which is exactly the transition that silently failed.
+URL = "https://download.samplelib.com/mp4/sample-5s.mp4"
+
+sock_path = os.path.join(tempfile.mkdtemp(), "mpv.sock")
+proc = subprocess.Popen(
+    [mpv, "--no-config", "--idle=yes", "--no-terminal",
+     "--input-ipc-server=" + sock_path],
+    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    stdin=subprocess.DEVNULL)
+try:
+    deadline = time.time() + 15
+    while time.time() < deadline and not os.path.exists(sock_path):
+        if proc.poll() is not None:
+            print("FAIL: mpv exited during startup, rc=%s" % proc.returncode)
+            sys.exit(0)
+        time.sleep(0.2)
+
+    def command(payload):
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(20)
+        s.connect(sock_path)
+        try:
+            s.sendall((json.dumps({"command": payload}) + "\n").encode())
+            buf = b""
+            end = time.time() + 20
+            while time.time() < end:
+                chunk = s.recv(4096)
+                if not chunk:
+                    break
+                buf += chunk
+                for line in buf.decode("utf-8", "replace").split("\n"):
+                    if not line.strip():
+                        continue
+                    try:
+                        msg = json.loads(line)
+                    except ValueError:
+                        continue
+                    if "error" in msg:
+                        return msg
+            return None
+        finally:
+            s.close()
+
+    # Mirror macast_renderer/mpv.py's set_media_url() exactly, including the
+    # index argument. loadfile's signature is
+    #     loadfile <url> [flags] [index] [options]
+    # and omitting the index while passing options makes mpv read the options
+    # string as the index and reject the command ("The loadfile option must be
+    # an integer"), while still answering "success". A check that drops the
+    # index here would pass on a build where casting fails.
+    result = command(["loadfile", URL, "replace", -1, "start=0.0"])
+    # mpv answers every command with {"error": ...}. "success" means the
+    # command was accepted -- and loadfile accepting means the request was
+    # queued, nothing more, so this tells us nothing about whether the stream
+    # opens. Only a non-"success" error is a real rejection here.
+    if result is None or result.get("error") != "success":
+        print("FAIL: loadfile was rejected: %r" % (result,))
+        sys.exit(0)
+    for _ in range(15):
+        time.sleep(1)
+        state = command(["get_property", "idle-active"])
+        # idle-active is a plain bool; "success" here means the property was
+        # read, and data=False means mpv left idle, i.e. it is playing.
+        if state and state.get("error") == "success" and state.get("data") is False:
+            print("OK")
+            sys.exit(0)
+    print("FAIL: loadfile returned success but mpv stayed idle for 15s")
+except Exception as e:
+    print("SKIP: %s" % e)
+finally:
+    proc.kill()
+    proc.wait()
+PYEOF
+)"
+case "$IPC_CHECK" in
+  OK*)
+    echo "    mpv loads and plays over IPC" ;;
+  SKIP*)
+    echo "    skipped: ${IPC_CHECK#SKIP: }" ;;
+  *)
+    echo "ERROR: mpv accepted a loadfile but never started playing." >&2
+    echo "       ${IPC_CHECK}" >&2
+    echo "       A remote stream that will not open looks identical to an idle" >&2
+    echo "       player from the DLNA client's side. Check the bundled ffmpeg" >&2
+    echo "       protocol support and the network here." >&2
+    exit 1 ;;
 esac
 
 echo "==> [7/8] building DMG"

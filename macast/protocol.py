@@ -683,7 +683,18 @@ class DLNAProtocol(Protocol):
         uri = data['CurrentURI'].value
         logger.info(uri)
         self.set_state_url(uri)
-        self.renderer.set_media_url(uri)
+        # Fetch the renderer once and reuse it. The renderer property re-publishes
+        # 'get_renderer' on every access, so calling self.renderer three times
+        # here means three separate lookups; if any of them comes back None the
+        # AttributeError lands in CherryPy's handler, the client still gets a
+        # 200, and the media silently never reaches the player. Grabbing it once
+        # and checking it makes that failure impossible to hide.
+        renderer = self.renderer
+        if renderer is None:
+            logger.error('SetAVTransportURI: no renderer available, media dropped')
+            return {}
+        logger.info('SetAVTransportURI: sending media to %s', type(renderer).__name__)
+        renderer.set_media_url(uri)
         title = Setting.get_friendly_name()
         try:
             meta = etree.fromstring(data['CurrentURIMetaData'].value.encode())
@@ -697,8 +708,8 @@ class DLNAProtocol(Protocol):
             self.set_state('CurrentTrackMetaData', data['CurrentURIMetaData'].value)
         else:
             self.set_state('CurrentTrackMetaData', metadata.decode())
-        self.renderer.set_media_title(title)
-        self.renderer.set_media_resume()
+        renderer.set_media_title(title)
+        renderer.set_media_resume()
         self.set_state('CurrentTrackTitle', title)
         self.set_state('CurrentTrackURI', uri)
         self.set_state('RelativeTimePosition', '00:00:00')

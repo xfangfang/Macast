@@ -25,7 +25,12 @@ if os.name == 'nt':
     from multiprocessing.connection import PipeConnection
 
 logger = logging.getLogger("MPVRenderer")
-logger.setLevel(logging.INFO)
+# DEBUG, not INFO. The send_command() trace and update_state() payloads are the
+# only record of what actually reached mpv; at INFO they were dropped by this
+# logger's own level filter and never reached the file, which made "the command
+# was never sent" look indistinguishable from "the command was sent and mpv
+# ignored it". The root handler still decides what is finally written.
+logger.setLevel(logging.DEBUG)
 
 
 class ObserveProperty(Enum):
@@ -101,13 +106,142 @@ class MPVRenderer(Renderer):
     def set_media_url(self, url, start="0"):
         """ data : string
         """
-        options = {'start': start}
-        player_size = Setting.get(SettingProperty.PlayerSize,
-                                  default=SettingProperty.PlayerSize_Normal.value)
-        if player_size == SettingProperty.PlayerSize_FullScreen.value:
-            options['fullscreen'] = 'yes'
-        self.send_command(['loadfile', url, 'replace',
-                           ','.join([f'{i}={options[i]}' for i in options])])
+        logger.info('set_media_url: %s', url)
+        try:
+            options = {}
+            # "start" is a loadfile option and mpv parses it as a position, so
+            # it has to go over the wire as a number. Passing the string "0"
+            # made mpv reject the whole command:
+            #
+            #   [ipc_0] The loadfile option must be an integer: start=0
+            #   [ipc_0] Command loadfile: argument index can't be parsed
+            #
+            # loadfile answers "success" to a command it then refuses to run,
+            # so nothing played and nothing complained. Normalise to a float
+            # (that is what mpv's position parser accepts, and it also covers
+            # callers that pass a "00:01:30" style position later on).
+            try:
+                options['start'] = float(start)
+            except (TypeError, ValueError):
+                options['start'] = 0.0
+            player_size = Setting.get(SettingProperty.PlayerSize,
+                                      default=SettingProperty.PlayerSize_Normal.value)
+            if player_size == SettingProperty.PlayerSize_FullScreen.value:
+                options['fullscreen'] = 'yes'
+            # The index argument is mandatory once any option is passed:
+            # loadfile's signature is
+            #     loadfile <url> [flags] [index] [options]
+            # so sending the options string in third place makes mpv parse it
+            # as the index and refuse the whole command:
+            #     [ipc_0] The loadfile option must be an integer: start=0.0
+            #     [ipc_0] Command loadfile: argument index can't be parsed
+            # -1 means "append to the end of the playlist", which is what we
+            # want along with the "replace" flag.
+            sent = self.send_command(['loadfile', url, 'replace', -1,
+                                      ','.join([f'{i}={options[i]}' for i in options])])
+            if not sent:
+                logger.error('set_media_url: loadfile was not delivered to mpv')
+            else:
+                # Confirm the file actually opened. loadfile only queues the
+                # request, so a stream the CDN refuses (403 on an expired
+                # signed URL is routine -- DLNA clients hand out time-limited
+                # URLs and the phone happily plays it seconds before it lapses)
+                # is accepted, answered with "success", and then never plays.
+                # The client is told PLAYING either way, so without this check
+                # that failure is completely invisible.
+                #
+                # Runs off-thread: this poll waits up to 10s, and we are being
+                # called from inside the SOAP handler, which is synchronous with
+                # the DLNA client.
+                threading.Thread(target=self.verify_playback_started, args=(url,),
+                                 name='MPV_VERIFY').start()
+        except Exception:
+            # A client gets a 200 from SetAVTransportURI regardless, and the
+            # player just sits idle with no window, so a failure here has to
+            # say so loudly rather than vanish into CherryPy's handler.
+            logger.exception('set_media_url failed')
+            raise
+
+    def verify_playback_started(self, url):
+        """After loadfile, wait briefly and report if nothing is playing.
+
+        mpv reports idle-active=true while it holds an empty playlist and also
+        right after a load that failed to open, so poll until it either starts
+        playing or we give up.
+        """
+        for _ in range(10):
+            time.sleep(1)
+            state = self.query_state()
+            if state is None:
+                continue
+            if not state.get('idle-active', True):
+                logger.info('set_media_url: playback started')
+                return True
+        logger.error('set_media_url: mpv stayed idle for 10s after loadfile, '
+                     'the stream did not open. Check the "mpv:" lines above for '
+                     'the reason (an HTTP 403 or 404 here usually means the '
+                     'client handed out an expired or wrong-signed URL): %s',
+                     url)
+        # Tell the user, not just the log. This is the difference between a
+        # player that is broken and a player that is being fed a dead link, and
+        # from the phone they look identical -- the client reports PLAYING
+        # either way.
+        try:
+            cherrypy.engine.publish('app_notify', 'Macast', _('Cannot play this media'))
+        except Exception:
+            pass
+        return False
+
+    def query_state(self):
+        """Ask mpv for the properties that tell us whether it is playing.
+
+        Runs on its own short-lived connection. The long-lived ipc_sock is
+        serviced by start_ipc's receive loop, which would consume our reply
+        before update_state ever saw it, so it cannot be shared.
+        """
+        import socket as _socket
+        if self.ipc_sock is None:
+            return None
+        if os.name == 'nt':
+            return None
+        sock = None
+        try:
+            sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            sock.settimeout(3)
+            sock.connect(self.mpv_sock)
+            sock.sendall((json.dumps({
+                'command': ['get_property', 'idle-active']}) + '\n').encode())
+            deadline = time.time() + 3
+            buf = b''
+            while time.time() < deadline:
+                try:
+                    chunk = sock.recv(4096)
+                except _socket.timeout:
+                    break
+                if not chunk:
+                    break
+                buf += chunk
+                for line in buf.decode('utf-8', 'replace').split('\n'):
+                    if not line.strip():
+                        continue
+                    try:
+                        msg = json.loads(line)
+                    except ValueError:
+                        continue
+                    if 'error' in msg:
+                        if msg.get('error') == 'success' and 'data' in msg:
+                            return {'idle-active': msg['data']}
+                        return None
+            return None
+        except Exception as e:
+            logger.debug('query_state failed: %s', e)
+            return None
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
 
     def set_media_title(self, data):
         """ data : string
@@ -167,7 +301,7 @@ class MPVRenderer(Renderer):
         res = json.loads(res)
         if 'id' in res:
             if res['id'] == ObserveProperty.volume.value:
-                logger.info(res)
+                logger.debug(res)
                 if 'data' in res and res['data'] is not None:
                     self.set_state_volume(int(res['data']))
             elif res['id'] == ObserveProperty.time_pos.value:
@@ -178,7 +312,7 @@ class MPVRenderer(Renderer):
                     position = '%d:%02d:%02d' % (sec // 3600, (sec % 3600) // 60, sec % 60)
                 self.set_state_position(position)
             elif res['id'] == ObserveProperty.pause.value:
-                logger.info(res)
+                logger.debug(res)
                 if self.playing is False:
                     return
                 if res['data'] and res['data'] is not None:
@@ -214,7 +348,7 @@ class MPVRenderer(Renderer):
                 if data is not None:
                     self.set_state_subtitle(data)
         elif 'event' in res:
-            logger.info(res)
+            logger.debug(res)
             if res['event'] == 'end-file':
                 cherrypy.engine.publish('renderer_av_stop')
                 self.playing = False
@@ -254,7 +388,15 @@ class MPVRenderer(Renderer):
     def send_command(self, command):
         """Sending command to mpv
         """
-        logger.debug("send command: " + str(command))
+        # Log the verb, not the whole argument list: loadfile carries the media
+        # URL, and signed CDN links run to several hundred characters, which
+        # would bury everything else in the log.
+        logger.debug("send command: %s%s", command[0],
+                     ' (%d args)' % (len(command) - 1) if len(command) > 1 else '')
+        if self.ipc_sock is None:
+            logger.error("sendCommand: ipc socket is not connected, dropping %s",
+                         str(command))
+            return False
         data = {"command": command}
         msg = json.dumps(data) + '\n'
         with self.command_lock:
@@ -324,8 +466,41 @@ class MPVRenderer(Renderer):
                     logger.error(f"decode error data list: {msgs}")
                 finally:
                     res = b''
-            self.ipc_sock.close()
+            # ipc_sock stays referenced after close() until the loop reconnects
+            # and replaces it. In that window a SetAVTransportURI from a DLNA
+            # client writes to a closed socket, the exception is swallowed, and
+            # the client still gets a 200 -- so the media silently never reaches
+            # the player. Clearing it makes send_command() refuse loudly instead.
+            try:
+                self.ipc_sock.close()
+            except Exception:
+                pass
+            self.ipc_sock = None
             logger.error("mpv ipc stopped")
+
+    def drain_mpv_output(self):
+        """Copy mpv's terminal output into our log until mpv exits.
+
+        This replaces the blocking proc.communicate() that used to sit here.
+        communicate() only returns once mpv exits, so for the whole life of the
+        player nothing was read from the pipe, and mpv's status line alone
+        ("AV: 00:00:00 / 00:06:39 ...") would have been enough to fill the
+        64 KB pipe buffer and wedge mpv's own writes.
+        """
+        stream = self.proc.stdout
+        if stream is None:
+            self.proc.wait()
+            return
+        with stream:
+            for raw in iter(stream.readline, b''):
+                line = raw.decode('utf-8', 'replace').rstrip()
+                if not line:
+                    continue
+                if line.startswith(('AV:', 'A:')):
+                    # Playback position spam; useless once it is in a file.
+                    continue
+                logger.info('mpv: ' + line)
+        self.proc.wait()
 
     def start_mpv(self):
         """Start mpv thread
@@ -339,7 +514,12 @@ class MPVRenderer(Renderer):
                 '--input-ipc-server={}'.format(self.mpv_sock),
                 '--image-display-duration=inf',
                 '--idle=yes',
-                '--no-terminal',
+                # mpv's diagnostics are the only way to find out why a stream
+                # will not play (403 from an expired CDN URL, an unsupported
+                # codec, a demuxer that gives up). They are captured in
+                # drain_mpv_output(). Keep the per-frame position/status spam
+                # out of the file, it would otherwise be ~10 lines a second.
+                '--msg-level=status=warn,cplayer=warn',
                 '--on-all-workspaces',
                 '--hwdec=yes',
                 '--save-position-on-quit=yes',
@@ -423,11 +603,28 @@ class MPVRenderer(Renderer):
             try:
                 self.proc = subprocess.Popen(
                     params,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
+                    # mpv writes its terminal output to stdout, not stderr, so
+                    # stdout has to be the pipe. Leaving it on DEVNULL is what
+                    # kept "HTTP error 403 Forbidden" out of the log even after
+                    # --no-terminal came off.
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
                     stdin=subprocess.PIPE,
                     env=Setting.get_system_env())
-                self.proc.communicate()
+                # Drain mpv's output continuously instead of letting it sit in
+                # the pipe.
+                #
+                # --no-terminal used to be passed here, which suppresses every
+                # diagnostic mpv writes, so the only thing that ever reached the
+                # log was the "mpv restarting" line below -- and a player that
+                # fails to open its URL looks exactly like a player that is
+                # merely idle. A DLNA stream whose CDN URL has expired answers
+                # "HTTP error 403 Forbidden", mpv prints "Failed to open ...",
+                # and then it sits there with idle-active=true forever while
+                # the DLNA client keeps reporting PLAYING. None of that was
+                # visible anywhere. Let mpv log, and drain the pipe into our log
+                # so it cannot fill up and block mpv.
+                self.drain_mpv_output()
             except Exception as e:
                 logger.error(e)
             logger.info("mpv stopped")

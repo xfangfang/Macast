@@ -80,16 +80,45 @@ def get_lang():
         logger.error("Macast Loading Default Language en_US")
 
 
+def setup_logging():
+    """Send Python logging to a file next to the settings.
+
+    A bundled .app has no terminal, so every logger.error() in the renderer
+    and protocol layers goes nowhere. The DLNA side still answers 200 and the
+    player still starts, which makes a failure between "phone sent the media"
+    and "player received the media" completely invisible. Write it to
+    macast_python.log so those messages survive a restart.
+    """
+    log_path = os.path.join(SETTING_DIR, 'macast_python.log')
+    handler = logging.FileHandler(log_path, encoding='utf-8')
+    handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s %(name)s: %(message)s'))
+    root = logging.getLogger()
+    # CherryPy already writes its own file handler for the access log; adding
+    # ours at the root keeps the existing behaviour and adds to it.
+    if not any(isinstance(h, logging.FileHandler)
+               and getattr(h, 'baseFilename', '').endswith('macast_python.log')
+               for h in root.handlers):
+        root.addHandler(handler)
+    root.setLevel(logging.DEBUG)
+    logger.info('Macast starting, python log at %s', log_path)
+
+
 def clear_env():
     # todo clear pyinstaller file on start
+    # Only truncate the CherryPy access log. Keeping the file (and its handler)
+    # means the previous run's Python-side errors are still readable instead of
+    # vanishing exactly when they are needed.
     log_path = os.path.join(SETTING_DIR, 'macast.log')
     try:
-        os.remove(log_path)
-    except:
+        with open(log_path, 'w'):
+            pass
+    except Exception:
         pass
 
 
 if __name__ == '__main__':
+    setup_logging()
     clear_env()
     get_lang()
     set_mpv_default_path()
