@@ -6,7 +6,7 @@
 [![stars](https://img.shields.io/badge/dynamic/json?label=github%20stars&query=stargazers_count&url=https%3A%2F%2Fapi.github.com%2Frepos%2Fxfangfang%2FMacast)](https://github.com/xfangfang/Macast)
 [![plugins](https://shields-staging.herokuapp.com/github/directory-file-count/xfangfang/Macast-plugins?type=dir&label=plugins)](https://github.com/xfangfang/Macast-plugins)
 [![build](https://img.shields.io/github/workflow/status/xfangfang/Macast/Build%20Macast)](https://github.com/xfangfang/Macast/actions/workflows/build-macast.yaml)
-[![mac](https://img.shields.io/badge/MacOS-10.14%20and%20higher-lightgrey?logo=Apple)](https://github.com/xfangfang/Macast/releases/latest)
+[![mac](https://img.shields.io/badge/MacOS-11.0%20and%20higher-lightgrey?logo=Apple)](https://github.com/xfangfang/Macast/releases/latest)
 [![windows](https://img.shields.io/badge/Windows-10-lightgrey?logo=Windows)](https://github.com/xfangfang/Macast/releases/latest)
 [![linux](https://img.shields.io/badge/Linux-Xorg-lightgrey?logo=Linux)](https://github.com/xfangfang/Macast/releases/latest)
 
@@ -19,6 +19,71 @@ Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以使用�
 
 
 
+## 关于本分支（Apple Silicon / arm64）
+
+这是 [xfangfang/Macast](https://github.com/xfangfang/Macast) 的分支，**原生支持 Apple Silicon**
+（仅 arm64，不使用 Rosetta，也不做 universal2 双架构），并修复了一批 macOS 播放问题。
+上游以 `origin` 保留，仍可正常 fetch。
+
+所有改动均在 macOS 15 / Apple M4 Pro 上构建并验证。
+
+### 改动说明
+
+**arm64 原生适配**
+- 依赖调整：`netifaces`（已停止维护、无 arm64 wheel）替换为 `psutil`，并删除失效的 `lxml` 依赖。
+- 内置 arm64 版 mpv 0.41.0，MoltenVK 的 ICD manifest 发布到 Vulkan loader 真正查找的路径
+  （`Contents/Resources/vulkan/icd.d`）。缺了它 mpv 会退回软件渲染，每一帧都报
+  "Failed initializing any suitable GPU context"。
+- app 通过 `sys.executable` 定位内置 mpv，而不是用工作目录——后者在 PyInstaller 打包后是错的。
+- `build-macos-arm64.sh` 负责构建、签名并打包经过验证的 `.app`/`.dmg`。
+
+**macOS 15 上播放器窗口不可见**（三个独立原因）
+- `--ontop-level=system` 会把窗口放到 `kCGDesktopWindowLevel`（CG layer 26），
+  即桌面图标和壁纸之下。已移除，单独用 `--ontop` 让窗口停在正常的悬浮层。
+- `--geometry` 是按整个虚拟桌面解析的，在存在失效显示器条目的机器上会把窗口放到屏幕外
+  （实测坐标类似 `(1763, -1596)`）。已完全移除——不传时 mpv 自己居中就是对的。
+  代价：macOS 上的「播放器位置」设置不再生效。
+- 即使传入按主屏算好的绝对像素 geometry，mpv 也会**用视频原始尺寸覆盖尺寸再重算位置**，
+  结果依然不对。
+
+**能发现设备但始终不播放**（真正的病根）
+- `set_media_url()` 发送的是 `loadfile <url> replace start=0.0`，**漏了 index 参数**。
+  mpv 的签名是 `loadfile <url> [flags] [index] [options]`，于是它把 options 串当成 index 解析，
+  整条命令被拒绝：
+  ```
+  [ipc_0] The loadfile option must be an integer: start=0.0
+  [ipc_0] Command loadfile: argument index can't be parsed
+  ```
+  `loadfile` 对一条它随后拒绝执行的命令同样回 `success`，而 DLNA 层无论如何都报 `PLAYING`，
+  所以从手机看就像「连上了但不播」。现在显式传入 index。
+
+**静默失败现在会被报出来**
+- mpv 自己的输出会落到 `macast_python.log`（`~/Library/Application Support/Macast/`）。
+  此前这些信息全部丢失：`--no-terminal` 抑制了一切，而 `proc.communicate()` 要等 mpv 退出后才读管道。
+  注意 mpv 的输出走 **stdout**，不是 stderr。
+- `loadfile` 之后通过 `idle-active` 校验是否真的开始播放。若流打不开——DLNA 客户端下发的是
+  带时效签名的链接，过期后 CDN 返回 403 属于常态——会写日志并弹出菜单栏通知，而不是毫无反应。
+- `SetAVTransportURI` 只取一次 renderer 并判空，不再取三次然后让 `None` 的 `AttributeError`
+  被 CherryPy 吞掉、客户端却照样收到 `200`。
+
+**构建期校验**——三道检查，其中第三道是唯一能抓住上面那个投屏 bug 的：
+1. mpv 能创建 GPU context
+2. 播放器窗口位于可见的 CG 层，且完整落在主屏内
+3. mpv 能通过 IPC 真正播放远程流，且使用与 `set_media_url()` 完全一致的参数列表
+
+第 3 道需要联网，无网时跳过而不报错。
+
+### 构建方式
+
+```shell
+python3 -m venv /tmp/macast_v
+/tmp/macast_v/bin/pip install PyInstaller psutil lxml \
+    pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-Quartz
+PYTHON=/tmp/macast_v/bin/python3 ./build-macos-arm64.sh
+```
+
+
+
 ## 安装
 
 进入页面选择对应的操作系统下载即可，应用使用方法及截图见下方。
@@ -28,6 +93,10 @@ Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以使用�
   下载地址1:  [Macast 最新正式版 github下载](https://github.com/xfangfang/Macast/releases/latest)
 
   下载地址2:  [Macast 最新正式版 gitee下载（上面访问无效可使用此备用链接）](https://gitee.com/xfangfang/Macast/releases/)
+
+- ### Apple Silicon（本分支）
+
+  目前还没有预编译的 arm64 安装包，请用上面的 `./build-macos-arm64.sh` 自行构建。
 
 - ### 包管理
   你也可以使用包管理器安装macast  
@@ -121,16 +190,6 @@ Macast是一个跨平台的 **菜单栏\状态栏** 应用，用户可以使用�
     - windows下载debug版应用, 拖入cmd执行，复现问题后，关闭应用，ctrl-a全选复制：[download debug](https://github.com/xfangfang/Macast/releases/latest)  
     - mac 终端输入：`/Applications/Macast.app/Contents/MacOS/Macast` 回车运行，复现问题后，关闭应用，复制log  
     - linux 安装deb后，命令行运行 `macast` \\ 或直接从源码运行 \\ 或包管理安装后命令行运行 `macast-cli`，复现问题后，关闭应用，复制log  
-
-## 用户反馈
-
-点击链接加入群聊【小方的软件工地】：[983730955](https://jq.qq.com/?_wv=1027&k=4ioK8gQs)
-
-当然也可以考虑捐赠 ~~获得贵宾售后服务（开玩笑）~~ 支持Macast和他的开发者们为了这个软件熬过的日日夜夜
-
-<img align="center" width="400" src="sponsorships.png" alt="sponsorships" height="auto"/>
-
-<img align="center" width="400" src="https://service-65diwogz-1252652631.bj.apigw.tencentcs.com/release/sponsor.svg" alt="sponsors" height="auto"/>
 
 ## 使用截图
 *如果系统设置为中文，Macast会自动切换中文界面*  

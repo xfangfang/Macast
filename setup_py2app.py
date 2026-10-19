@@ -20,8 +20,13 @@ OPTIONS = {
     'plist': {
         'LSUIElement': True,
         'NSHighResolutionCapable': True,
-        'LSMinimumSystemVersion': '10.12.0',
+        # arm64 binaries require Big Sur or newer
+        'LSMinimumSystemVersion': '11.0',
         'CFBundleIdentifier': 'cn.xfangfang.Macast',
+        # macOS 15+ local network privacy: without this declaration the app
+        # never receives LAN multicast and DLNA devices cannot discover it
+        'NSLocalNetworkUsageDescription':
+            'Macast needs local network access to be discovered and stream media to DLNA devices.',
         'NSHumanReadableCopyright': copyright,
         'CFBundleShortVersionString': str(VERSION),
         'CFBundleVersion': str(VERSION),
