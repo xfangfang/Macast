@@ -15,17 +15,28 @@ VERSION = "0.0.0"
 with open('macast/.version', 'r') as f:
     VERSION = f.read().strip()
 copyright = 'Copyright {} xfangfang and the Macast contributors.'.format(datetime.datetime.now().year)
+
+# --- M-series (arm64) only, modern macOS ---
+# Build from an arm64 Python (Apple Silicon). Do NOT pass --arch=x86_64;
+# py2app then produces a thin arm64 app with no Intel/Rosetta slice.
+MIN_MACOS = '15.0'  # bump to '26.0' if you want to target only the latest macOS
 OPTIONS = {
     'argv_emulation': True,
     'plist': {
         'LSUIElement': True,
         'NSHighResolutionCapable': True,
-        'LSMinimumSystemVersion': '10.12.0',
+        # Refuse to run under Rosetta — native arm64 only (Apple M-series).
+        'LSRequiresNativeExecution': True,
+        # Require a recent macOS so the app runs on the latest system.
+        'LSMinimumSystemVersion': MIN_MACOS,
         'CFBundleIdentifier': 'cn.xfangfang.Macast',
         'NSHumanReadableCopyright': copyright,
         'CFBundleShortVersionString': str(VERSION),
         'CFBundleVersion': str(VERSION),
     },
+    # Build a thin arm64 binary. Keep the arch selection explicit so a
+    # misconfigured universal/Intel toolchain cannot sneak x86_64 in.
+    'arch': 'arm64',
     'excludes': ['PIL', 'tkinter'],
     'packages': ['rumps', 'macast', 'macast_renderer'],
     'iconfile': os.path.abspath('macast/assets/icon.icns')
