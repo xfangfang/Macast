@@ -65,7 +65,7 @@
                     <relatedStateVariable>CurrentMediaDuration</relatedStateVariable>
                 </argument>
                 <argument>
-                    <name>CurrentURI</name>
+                    <name>CurrentURi</name>
                     <direction>out</direction>
                     <relatedStateVariable>AVTransportURI</relatedStateVariable>
                 </argument>
@@ -75,7 +75,7 @@
                     <relatedStateVariable>AVTransportURIMetaData</relatedStateVariable>
                 </argument>
                 <argument>
-                    <name>NextURI</name>
+                    <name>NextURi</name>
                     <direction>out</direction>
                     <relatedStateVariable>NextAVTransportURI</relatedStateVariable>
                 </argument>
@@ -268,6 +268,11 @@
                     <name>InstanceID</name>
                     <direction>in</direction>
                     <relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+                </argument>
+                <argument>
+                    <name>CurrentURi</name>
+                    <direction>in</direction>
+                    <relatedStateVariable>AVTransportURI</relatedStateVariable>
                 </argument>
                 <argument>
                     <name>CurrentURI</name>

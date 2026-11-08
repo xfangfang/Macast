@@ -345,8 +345,14 @@ class Setting:
     @staticmethod
     def restart():
         if sys.platform == 'darwin' and sys.executable.endswith("Contents/MacOS/python"):
-            # run from py2app build
+            # run from py2app build: stop the service so ALL sockets are
+            # released (SSDP 1900, app HTTP port, mpv IPC), then replace
+            # the process image. The execv'd image inherits open file
+            # descriptors; if the SSDP socket (port 1900) is still held
+            # here, the fresh process's bind(('0.0.0.0', 1900)) fails and
+            # the new instance self-stops its own service at startup.
             Setting.stop_service()
+            time.sleep(1)  # let the listening sockets actually close
             executable = sys.executable[:-6] + 'Macast'
             os.execv(executable, [executable, executable])
         elif sys.platform == 'linux' and getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):

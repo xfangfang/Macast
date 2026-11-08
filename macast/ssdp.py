@@ -12,6 +12,7 @@
 #
 
 import sys
+import time
 import random
 import socket
 import logging
@@ -137,7 +138,24 @@ class SSDPServer:
                 logger.error(e)
 
         try:
-            self.sock.bind(('0.0.0.0', SSDP_PORT))
+            for _attempt in range(3):
+                try:
+                    self.sock.bind(('0.0.0.0', SSDP_PORT))
+                    break
+                except OSError as e:
+                    logger.error(f"SSDP bind {SSDP_PORT} failed (attempt {_attempt + 1}/3): {e}")
+                    time.sleep(1)
+            else:
+                # SSDP discovery degrades without the M-SEARCH listener
+                # (SSDP NOTIFY announcements still work on a separate
+                # socket). Don't kill the whole service: another DLNA app
+                # on this Mac can legitimately hold port 1900, or the
+                # execv'd process can still inherit the old socket.
+                logger.error(f"SSDP cannot bind port {SSDP_PORT}; "
+                             f"M-SEARCH discovery disabled, service continues")
+                cherrypy.engine.publish("app_notify", "Macast",
+                                        f"SSDP port {SSDP_PORT} busy, discovery limited")
+                return
         except Exception as e:
             logger.error(e)
             cherrypy.engine.publish("app_notify", "Macast", "SSDP Can't start")
@@ -148,7 +166,13 @@ class SSDPServer:
         while self.running:
             try:
                 data, addr = self.sock.recvfrom(1024)
-                self.datagram_received(data, addr)
+                try:
+                    self.datagram_received(data, addr)
+                except Exception:
+                    # A malformed SSDP packet must not kill the discovery
+                    # thread: if it dies, the device is invisible to every
+                    # DLNA controller until the service is restarted.
+                    logger.exception("SSDP datagram handler error (ignored)")
             except socket.timeout:
                 continue
         self.shutdown()
@@ -242,11 +266,13 @@ class SSDPServer:
 
         (host, port) = host_port
 
-        logger.info('Discovery request from (%s,%d) for %s' % (host, port,
-                                                               headers['st']))
+        st = headers.get('st')
+        logger.info('Discovery request from (%s,%d) for %s' % (host, port, st))
+        if not st:
+            return
         # Do we know about this service?
         for i in self.known.values():
-            if i['ST'] == headers['st'] or headers['st'] == 'ssdp:all':
+            if i['ST'] == st or st == 'ssdp:all':
                 response = ['HTTP/1.1 200 OK']
 
                 usn = None
@@ -261,7 +287,12 @@ class SSDPServer:
                                                             usegmt=True))
 
                     response.extend(('', ''))
-                    delay = random.randint(0, int(headers['mx']))
+                    mx = headers.get('mx', '2')
+                    try:
+                        mx = int(mx)
+                    except (ValueError, TypeError):
+                        mx = 2
+                    delay = random.randint(0, mx)
                     destination = (host, port)
                     logger.debug('send discovery response delayed by %ds for %s to %r' % (delay, usn, destination))
                     # logger.debug(response)
