@@ -61,6 +61,15 @@ class Protocol:
     @property
     def renderer(self):
         renderers = cherrypy.engine.publish('get_renderer')
+        # The renderer plugin only subscribes 'get_renderer' a few
+        # seconds after service start; a media action arriving in that
+        # window (e.g. the very first cast right after launch) would
+        # otherwise be dropped. Wait for it to come up, bounded.
+        for _ in range(30):
+            if len(renderers) > 0:
+                break
+            time.sleep(0.5)
+            renderers = cherrypy.engine.publish('get_renderer')
         if len(renderers) == 0:
             logger.error("Unable to find an available renderer.")
             return None
@@ -680,7 +689,13 @@ class DLNAProtocol(Protocol):
         return {}
 
     def AVTransport_SetAVTransportURI(self, data):
-        uri = data['CurrentURI'].value
+        # The UPnP spec (and every real DLNA controller) spells the
+        # argument "CurrentURi" (lowercase 'ri' — a spec typo all devices
+        # follow), while some controllers send "CurrentURI". The XML
+        # declares both, so accept whichever one actually arrived.
+        uri = data['CurrentURi'].value
+        if uri is None:
+            uri = data['CurrentURI'].value
         logger.info(uri)
         self.set_state_url(uri)
         self.renderer.set_media_url(uri)
@@ -1082,6 +1097,13 @@ class Handler:
                 url = cast.get('url', '')
                 title = cast.get('title', '')
                 renderers = cherrypy.engine.publish('get_renderer')
+                # Renderer registers a few seconds after service start;
+                # wait for it instead of dropping an early cast action.
+                for _ in range(30):
+                    if len(renderers) > 0:
+                        break
+                    time.sleep(0.5)
+                    renderers = cherrypy.engine.publish('get_renderer')
                 if len(renderers) == 0:
                     res['code'] = 1
                     res['message'] = 'no renderer available'
