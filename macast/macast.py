@@ -215,6 +215,7 @@ class Macast(App):
         icon_path = os.path.join(os.path.dirname(__file__), Macast.ICON_MAP[self.setting_menubar_icon])
         template = None if self.setting_menubar_icon == 0 else True
         self.copy_menuitem = None
+        self.qr_cast_menuitem = None
         super(Macast, self).__init__("Macast",
                                      icon_path,
                                      self.build_app_menu(),
@@ -307,6 +308,7 @@ class Macast(App):
                                                       _("PatternDark"),
                                                   ], self.on_menubar_icon_change_click))
         self.open_config_menuitem = MenuItem(_("Open Config Directory"), self.on_open_config_click)
+        self.qr_cast_menuitem = MenuItem(_("QR Cast Page"), self.on_qr_cast_click)
         self.advanced_menuitem = MenuItem(_("Advanced Setting"),
                                           lambda _: self.open_browser('http://127.0.0.1:{}'.format(Setting.get_port())))
         self.check_update_menuitem = MenuItem(_("Check For Updates"), self.on_check_click)
@@ -323,7 +325,8 @@ class Macast(App):
                [None] + \
                player_settings + \
                [self.menubar_icon_menuitem, self.auto_check_update_menuitem,
-                self.open_config_menuitem, self.advanced_menuitem] + \
+                self.open_config_menuitem, self.qr_cast_menuitem,
+                self.advanced_menuitem] + \
                platform_options + \
                [None, self.check_update_menuitem, self.about_menuitem]
 
@@ -542,6 +545,45 @@ class Macast(App):
 
     def on_open_config_click(self, item):
         self.open_directory(SETTING_DIR)
+
+    def on_qr_cast_click(self, item):
+        """Generate a QR code for the /cast page so a phone (no app needed)
+        can reach the media-cast page in its browser and play a URL via Macast."""
+        ips = [ip for ip, _ in Setting.get_ip() if not ip.startswith("127.")]
+        ip_text = ips[0] if ips else "127.0.0.1"
+        url = "http://{}:{}/cast".format(ip_text, Setting.get_port())
+        try:
+            import qrcode
+            qr = qrcode.QRCode(border=2)
+            qr.add_data(url)
+            qr.make()
+            modules = qr.modules
+            n = qr.modules_count
+            cell = 12
+            grid = n * cell
+            rects = []
+            for r, row in enumerate(modules):
+                for c, on in enumerate(row):
+                    if on:
+                        rects.append('<rect x="{}" y="{}" width="{}" height="{}"/>'.format(
+                            c * cell, r * cell, cell, cell))
+            svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {g} {g}" '
+                   'width="{g}" height="{g}">'
+                   '<rect width="100%" height="100%" fill="#fff"/>'
+                   '<g fill="#000">{cells}</g></svg>').format(g=grid, cells="".join(rects))
+            path = os.path.join(SETTING_DIR, "cast-qr.svg")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(svg)
+            logger.info("QR cast page: %s -> %s", url, path)
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", path],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                self.open_browser(url)
+        except Exception:
+            logger.exception("QR cast page generation failed")
+            # fall back to just opening the URL in the local browser
+            self.open_browser(url)
 
     def on_check_click(self, item):
         threading.Thread(target=self.check_update,
