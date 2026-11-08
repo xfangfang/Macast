@@ -943,6 +943,39 @@ class Handler:
                 Setting.save()
                 Setting.restart()
                 # cherrypy.engine.restart()
+        elif kwargs.get('cast-media', None) is not None:
+            # Forwarded Google Cast action (from the bundled cast-receiver binary):
+            #   {"action": "load", "url": "...", "title": "..."} or {"action": "stop"}
+            try:
+                cast = json.loads(kwargs.get('cast-media', '{}') or '{}')
+                action = cast.get('action', 'load')
+                url = cast.get('url', '')
+                title = cast.get('title', '')
+                renderers = cherrypy.engine.publish('get_renderer')
+                if len(renderers) == 0:
+                    res['code'] = 1
+                    res['message'] = 'no renderer available'
+                else:
+                    renderer = renderers.pop()
+                    if action == 'load':
+                        if not url:
+                            res['code'] = 1
+                            res['message'] = 'missing url'
+                        else:
+                            renderer.set_media_url(url)
+                            if title:
+                                renderer.set_media_title(title)
+                            logger.info("cast-media: load %s" % url)
+                    elif action == 'stop':
+                        renderer.set_media_stop()
+                        logger.info("cast-media: stop")
+                    else:
+                        res['code'] = 1
+                        res['message'] = 'unknown action %s' % action
+            except Exception as e:
+                res['code'] = 1
+                res['message'] = str(e)
+                logger.error("cast-media error: %s" % e)
         elif kwargs.get('install-plugin', None) is not None:
             plugin = kwargs.get('install-plugin', None)
             if self.__downloading:
