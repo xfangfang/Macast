@@ -68,6 +68,11 @@ class MPVRenderer(Renderer):
         self.playing = False  # changed with start and stop
         self.ipc_running = False
         self.ipc_once_connected = False
+        # (url, start, options) pending to be started with mpv as CLI argument.
+        # Used when mpv is not playing: recent mpv builds (>= 0.41, Cocoa main
+        # loop) do not service the IPC socket while idle, so the first media
+        # must be launched as a command-line argument instead of an IPC loadfile.
+        self.pending_url = None
         # As long as IPC has been connected, the ipc_once_connected is True
         # When the ipc_once_connected is True, it shows that there is no error
         # in the starting parameters of MPV, and there is no need to wait for
@@ -106,8 +111,25 @@ class MPVRenderer(Renderer):
                                   default=SettingProperty.PlayerSize_Normal.value)
         if player_size == SettingProperty.PlayerSize_FullScreen.value:
             options['fullscreen'] = 'yes'
-        self.send_command(['loadfile', url, 'replace',
-                           ','.join([f'{i}={options[i]}' for i in options])])
+        if self.playing and self.ipc_once_connected:
+            # player is actually playing: the IPC socket is serviced,
+            # just switch media in place.
+            self.send_command(['loadfile', url, 'replace',
+                               ','.join([f'{i}={options[i]}' for i in options])])
+            return
+        # Not playing (or IPC never connected): recent mpv builds do not
+        # service IPC while idle, so an IPC loadfile would be lost.
+        # Restart mpv with the URL as a command-line argument instead.
+        self.pending_url = (url, start, options)
+        if self.proc is not None:
+            try:
+                self.send_command(['quit'])
+            except Exception:
+                pass
+            try:
+                self.proc.terminate()
+            except Exception:
+                pass
 
     def set_media_title(self, data):
         """ data : string
@@ -328,10 +350,11 @@ class MPVRenderer(Renderer):
             logger.error("mpv ipc stopped")
 
     def start_mpv(self):
-        """Start mpv thread
+        """Start mpv thread (manager loop: keeps mpv alive, relaunches it
+        when a media URL is queued in self.pending_url).
         """
         error_time = 3
-        while self.running and error_time > 0:
+        while self.running:
             self.set_state_speed('1')
             # mpv default params
             params = [
@@ -397,6 +420,19 @@ class MPVRenderer(Renderer):
             elif hw == SettingProperty.PlayerHW_Force.value:
                 params.append('--macos-force-dedicated-gpu=yes')
 
+            # queue a media start: launch mpv with the URL as CLI argument
+            # (idle-mode IPC is not serviced by recent mpv builds on macOS,
+            # so the first media cannot be sent as an IPC loadfile)
+            if self.pending_url is not None:
+                url, start, media_options = self.pending_url
+                self.pending_url = None
+                params.remove('--idle=yes')
+                if media_options.get('fullscreen') == 'yes':
+                    params.append('--fullscreen')
+                if start and start != '0':
+                    params.append('--start={}'.format(start))
+                params.append(url)
+
             # start mpv
             logger.info("mpv starting")
             cherrypy.engine.publish('mpv_start')
@@ -411,16 +447,28 @@ class MPVRenderer(Renderer):
             except Exception as e:
                 logger.error(e)
             logger.info("mpv stopped")
-            if self.running and not self.ipc_once_connected:
+            if not self.running:
+                break
+            if not self.ipc_once_connected:
                 # There should be a problem with the MPV startup parameters
                 time.sleep(1)
                 error_time -= 1
+                if error_time <= 0:
+                    # some thing wrong with mpv
+                    cherrypy.engine.publish("app_notify", "Macast", "MPV Can't start")
+                    logger.error("mpv cannot start")
+                    threading.Thread(target=lambda: Setting.stop_service(), name="MPV_STOP_SERVICE").start()
+                    break
                 logger.error("mpv restarting")
-        if error_time <= 0:
-            # some thing wrong with mpv
-            cherrypy.engine.publish("app_notify", "Macast", "MPV Can't start")
-            logger.error("mpv cannot start")
-            threading.Thread(target=lambda: Setting.stop_service(), name="MPV_STOP_SERVICE").start()
+                continue
+            # healthy session ended: wait for a new media to be queued
+            # (self.pending_url) before respawning mpv
+            error_time = 3
+            while self.running and self.pending_url is None:
+                time.sleep(0.5)
+            if not self.running:
+                break
+            time.sleep(0.5)
 
     def start(self):
         """Start mpv and mpv ipc
@@ -457,24 +505,21 @@ class MPVRenderer(Renderer):
         """
         uri = self.protocol.get_state_url()
 
-        def loadfile():
-            logger.debug("mpv loadfile")
-            protocols = cherrypy.engine.publish('get_protocol')
-            if len(protocols) > 0:
-                protocol = protocols.pop()
-                position = protocol.get_state_position()
-                self.send_command(['loadfile', uri, 'replace', f'start={position}'])
-            else:
-                self.send_command(['loadfile', uri, 'replace'])
-            self.send_command(['set_property', 'title', self.title])
-            cherrypy.engine.unsubscribe('mpvipc_start', loadfile)
-
         def restart():
             self.stop()
-            self.start()
+            if uri and self.protocol.get_state_transport_state() == 'PLAYING':
+                # Resume by restarting mpv with the current media as CLI
+                # argument: recent mpv builds do not service IPC while idle,
+                # so an IPC loadfile after the restart would be lost.
+                self.pending_url = (uri, self.protocol.get_state_position(), {})
 
-        if self.protocol.get_state_transport_state() == 'PLAYING':
-            cherrypy.engine.subscribe('mpvipc_start', loadfile)
+                def loadfile():
+                    logger.debug("mpv loadfile (title restore)")
+                    self.send_command(['set_property', 'title', self.title])
+                    cherrypy.engine.unsubscribe('mpvipc_start', loadfile)
+
+                cherrypy.engine.subscribe('mpvipc_start', loadfile)
+            self.start()
 
         threading.Thread(target=restart, args=()).start()
 

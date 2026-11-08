@@ -12,6 +12,7 @@
 #
 
 import sys
+import time
 import random
 import socket
 import logging
@@ -137,7 +138,24 @@ class SSDPServer:
                 logger.error(e)
 
         try:
-            self.sock.bind(('0.0.0.0', SSDP_PORT))
+            for _attempt in range(3):
+                try:
+                    self.sock.bind(('0.0.0.0', SSDP_PORT))
+                    break
+                except OSError as e:
+                    logger.error(f"SSDP bind {SSDP_PORT} failed (attempt {_attempt + 1}/3): {e}")
+                    time.sleep(1)
+            else:
+                # SSDP discovery degrades without the M-SEARCH listener
+                # (SSDP NOTIFY announcements still work on a separate
+                # socket). Don't kill the whole service: another DLNA app
+                # on this Mac can legitimately hold port 1900, or the
+                # execv'd process can still inherit the old socket.
+                logger.error(f"SSDP cannot bind port {SSDP_PORT}; "
+                             f"M-SEARCH discovery disabled, service continues")
+                cherrypy.engine.publish("app_notify", "Macast",
+                                        f"SSDP port {SSDP_PORT} busy, discovery limited")
+                return
         except Exception as e:
             logger.error(e)
             cherrypy.engine.publish("app_notify", "Macast", "SSDP Can't start")
