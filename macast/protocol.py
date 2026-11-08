@@ -880,6 +880,17 @@ class Handler:
         return protocols.pop()
 
     def reload(self):
+        # Only swap in a fresh (unstarted) httpserver while the engine is
+        # NOT running. Swapping it out while the engine is running breaks
+        # the engine-stop path: ServerAdapter.stop() then calls .stop() on
+        # the unstarted server and crashes with
+        #   AttributeError: 'CPHTTPServer' object has no attribute 'socket'
+        # which used to kill the app during install-plugin / restart.
+        # While running, keep the live server; the next engine start will
+        # rebind (ephemeral) and the port-change handling in
+        # MacastService.run() updates the config again.
+        if cherrypy.engine.state == cherrypy.engine.states.STARTED:
+            return
         cherrypy.server.httpserver = _cpnative_server.CPHTTPServer(cherrypy.server)
 
     def __download_plugin(self, path, url):
@@ -888,10 +899,15 @@ class Handler:
                 f.write(requests.get(url).content)
         except Exception as e:
             logger.error(f"download plugin error: {e}")
-        finally:
+            cherrypy.engine.publish("app_notify", "ERROR",
+                                    f"Plugin download failed: {e}")
             self.__downloading = False
-            Setting.restart()
-            # cherrypy.engine.restart()
+            return
+        # Only restart when the plugin was actually written, so a failed
+        # download doesn't bounce the whole app for nothing.
+        self.__downloading = False
+        Setting.restart()
+        # cherrypy.engine.restart()
 
     def GET(self, param=None, *args, **kwargs):
         if not Setting.is_service_running():
