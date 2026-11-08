@@ -864,7 +864,118 @@ class DLNAProtocol(Protocol):
         return bool(self.get_state('DisplayCurrentSubtitle'))
 
 
+CAST_PAGE_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Cast to Macast</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box;margin:0}
+body{font-family:-apple-system,system-ui,sans-serif;background:#101014;color:#eee;
+display:flex;justify-content:center;padding:24px 16px;min-height:100vh}
+.card{width:100%;max-width:420px}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:#888;font-size:13px;margin-bottom:20px}
+label{font-size:12px;color:#aaa;display:block;margin-bottom:6px}
+input[type=url]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #333;
+background:#1c1c22;color:#fff;font-size:15px;outline:none}
+input[type=url]:focus{border-color:#6c8cff}
+button{width:100%;margin-top:12px;padding:13px;border-radius:10px;border:0;
+background:#6c8cff;color:#fff;font-size:16px;font-weight:600;cursor:pointer}
+button:active{background:#5577ee}
+#status{margin-top:14px;font-size:14px;min-height:20px;text-align:center}
+.ok{color:#4ade80}.err{color:#f87171}
+.recents{margin-top:28px}
+.recents h2{font-size:12px;color:#666;margin-bottom:8px;letter-spacing:.05em}
+.recent{display:block;width:100%;text-align:left;background:#1c1c22;border:1px solid #2a2a32;
+color:#bbb;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:13px;cursor:pointer;
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent:hover{border-color:#6c8cff;color:#fff}
+footer{margin-top:24px;text-align:center;color:#444;font-size:11px}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>&#128249; Cast to Macast</h1>
+<div class="sub">Paste a video URL &#8212; it plays on your Mac via Macast.</div>
+<label for="url">Media URL</label>
+<input type="url" id="url" placeholder="https://example.com/video.mp4"
+       autocomplete="off" spellcheck="false">
+<button id="castBtn" onclick="castMedia()">&#9654; Cast</button>
+<div id="status"></div>
+<div class="recents" id="recents" style="display:none">
+<h2>RECENT</h2>
+<div id="recentList"></div>
+</div>
+<footer>Macast &#183; media cast page</footer>
+</div>
+<script>
+const KEY='macast_recent';
+function recent(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){return[]}}
+function renderRecents(){
+  const r=recent();
+  document.getElementById('recents').style.display=r.length?'block':'none';
+  document.getElementById('recentList').innerHTML=r
+    .map(u=>'<button class="recent" onclick="setURL(this.dataset.u)" data-u="'+
+      u.replace(/"/g,'&quot;')+'" title="'+u.replace(/"/g,'&quot;')+'">'+
+      u.replace(/^https?:\\/\\/|\\.(m4v|mp4|mkv|webm)$/gi,'')+'</button>').join('');
+}
+function setURL(u){document.getElementById('url').value=u;castMedia()}
+function addRecent(u){
+  let r=recent().filter(x=>x!==u);r.unshift(u);r=r.slice(0,8);
+  localStorage.setItem(KEY,JSON.stringify(r));renderRecents();
+}
+async function castMedia(){
+  const url=document.getElementById('url').value.trim();
+  const st=document.getElementById('status');const btn=document.getElementById('castBtn');
+  if(!/^https?:\\/\\/.*\\/.+(m4v|mp4|mkv|webm|mov|avi|ogg|ogv|mp3|m4a|aac|flac|wav|opus|pdf|png|jpg|jpeg)/i.test(url)){
+    st.textContent='Please enter a media URL (video or audio)';st.className='err';return}
+  btn.disabled=true;st.className='';st.textContent='Casting\\u2026';
+  const title=(url.split('/').pop()||'media').replace(/\\.(\\w+)$/i,'');
+  const body='cast-media='+encodeURIComponent(JSON.stringify(
+    {action:'load',url:url,title:title}));
+  try{
+    const r=await fetch('/',{method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body});
+    let j={};try{j=await r.json()}catch(e){}
+    if(j.code===0){st.textContent='Now playing on Macast \\u2713';st.className='ok';
+      addRecent(url);btn.textContent='\\u23F9\\u23F9 Stop';btn.dataset.act='stop'}
+    else{st.textContent='Error: '+(j.message||('HTTP '+r.status));st.className='err'}
+  }catch(e){st.textContent='Error: '+e;st.className='err'}
+  btn.disabled=false;
+}
+// turn Cast into Stop when currently playing
+setInterval(async()=>{try{
+  const r=await fetch('/api?query=play-status');const j=await r.json();
+  const btn=document.getElementById('castBtn');
+  if(j.code===0&&['play','idle'].includes(j.status)){
+    if(j.status==='play'&&btn.dataset.act!=='stop'){btn.dataset.act='stop';
+      btn.innerHTML='\\u23F9\\u23F9 Stop'}
+    else{btn.dataset.act='cast';btn.innerHTML='&#9654; Cast'}
+  }}catch(e){}
+},3000);
+document.getElementById('castBtn').onclick=function(){
+  if(this.dataset.act==='stop'){stopMedia();return}castMedia()};
+async function stopMedia(){
+  const st=document.getElementById('status');
+  st.textContent='Stopping\\u2026';st.className='';
+  try{await fetch('/',{method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'cast-media='+encodeURIComponent(JSON.stringify({action:'stop'}))});
+    st.textContent='Stopped';st.className='ok'}catch(e){st.textContent='Error: '+e;
+    st.className='err'}
+}
+renderRecents();
+</script>
+</body>
+</html>
+"""
+
+
 @cherrypy.expose
+
 class Handler:
 
     def __init__(self):
@@ -938,6 +1049,9 @@ class Handler:
                     'plugins': info
                 }
             return json.dumps(res, indent=4).encode()
+        if param == 'cast':
+            cherrypy.response.headers['Content-Type'] = 'text/html'
+            return CAST_PAGE_HTML
         if param is not None:
             raise cherrypy.HTTPRedirect('/')
         cherrypy.response.headers['Content-Type'] = 'text/html'
