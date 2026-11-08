@@ -27,7 +27,7 @@ OPTIONS = {
         'CFBundleVersion': str(VERSION),
     },
     'excludes': ['PIL', 'tkinter'],
-    'packages': ['rumps', 'macast', 'macast_renderer'],
+    'packages': ['rumps', 'macast', 'macast_renderer', 'qrcode'],
     'iconfile': os.path.abspath('macast/assets/icon.icns')
 }
 

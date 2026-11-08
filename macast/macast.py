@@ -7,6 +7,8 @@ import time
 import json
 import cherrypy
 import logging
+import socket
+import subprocess
 import threading
 import requests
 import pyperclip
@@ -188,6 +190,8 @@ class Macast(App):
         self.open_config_menuitem = None
         self.renderer_menuitem = None
         self.protocol_menuitem = None
+        # Google Cast receiver child process (cast-receiver binary)
+        self.cast_receiver_proc = None
         self.advanced_menuitem = None
 
         self.plugin_manager = MacastPluginManager(
@@ -211,6 +215,7 @@ class Macast(App):
         icon_path = os.path.join(os.path.dirname(__file__), Macast.ICON_MAP[self.setting_menubar_icon])
         template = None if self.setting_menubar_icon == 0 else True
         self.copy_menuitem = None
+        self.qr_cast_menuitem = None
         super(Macast, self).__init__("Macast",
                                      icon_path,
                                      self.build_app_menu(),
@@ -303,6 +308,7 @@ class Macast(App):
                                                       _("PatternDark"),
                                                   ], self.on_menubar_icon_change_click))
         self.open_config_menuitem = MenuItem(_("Open Config Directory"), self.on_open_config_click)
+        self.qr_cast_menuitem = MenuItem(_("QR Cast Page"), self.on_qr_cast_click)
         self.advanced_menuitem = MenuItem(_("Advanced Setting"),
                                           lambda _: self.open_browser('http://127.0.0.1:{}'.format(Setting.get_port())))
         self.check_update_menuitem = MenuItem(_("Check For Updates"), self.on_check_click)
@@ -319,7 +325,8 @@ class Macast(App):
                [None] + \
                player_settings + \
                [self.menubar_icon_menuitem, self.auto_check_update_menuitem,
-                self.open_config_menuitem, self.advanced_menuitem] + \
+                self.open_config_menuitem, self.qr_cast_menuitem,
+                self.advanced_menuitem] + \
                platform_options + \
                [None, self.check_update_menuitem, self.about_menuitem]
 
@@ -371,11 +378,90 @@ class Macast(App):
             self.toggle_menuitem.text = _('Start Cast')
         self.update_menu()
 
+    def start_cast_receiver(self, _retries=0):
+        """Launch the bundled Google Cast receiver (cast-receiver binary,
+        if present) so that Google Cast senders (phones with the Cast /
+        Google Home app, Chrome tabs) discover Macast via mDNS
+        (_googlecast._tcp) and forward media URLs to this app.
+
+        The binary POSTs forwarded actions (load/stop) to Macast's own
+        HTTP server via the ``cast-media`` form field, which is handled
+        in protocol.py -> Handler.POST.
+
+        The Macast HTTP port may not be bound yet when this first runs
+        (called from the 'service_start' bus event), so retry briefly.
+        """
+        if self.cast_receiver_proc is not None and self.cast_receiver_proc.poll() is None:
+            return
+        if not Setting.is_service_running():
+            return
+        # Macast's own HTTP port (for the forwarded media actions)
+        port = 0
+        try:
+            port = cherrypy.server.bound_addr[1]
+        except Exception:
+            port = 0
+        if not port:
+            if _retries < 10:
+                threading.Timer(1.0, self.start_cast_receiver, args=(_retries + 1,)).start()
+            else:
+                logger.error("cast receiver: Macast HTTP port unknown, giving up")
+            return
+        try:
+            import shutil
+            exe = os.path.join(
+                os.path.dirname(os.path.dirname(sys.executable)),
+                'Resources', 'bin', 'cast-receiver')
+            if not os.path.exists(exe):
+                exe = shutil.which('cast-receiver')  # dev build: rely on PATH
+            if exe is None:
+                logger.info("cast-receiver binary not found, Google Cast support disabled")
+                return
+            # pick a free Cast receiver port
+            cast_port = 0
+            for candidate in range(8009, 8021):
+                probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    probe.bind(('0.0.0.0', candidate))
+                    cast_port = candidate
+                    break
+                except OSError:
+                    continue
+                finally:
+                    probe.close()
+            if cast_port == 0:
+                logger.error("no free port for cast receiver")
+                return
+            device_id = str(Setting.get_usn()).replace('uuid:', '')
+            args = [exe,
+                    '-name', Setting.get_friendly_name(),
+                    '-id', device_id,
+                    '-port', str(cast_port),
+                    '-forward-url', 'http://127.0.0.1:%d/' % port]
+            self.cast_receiver_proc = subprocess.Popen(
+                args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                cwd=SETTING_DIR, env=Setting.get_system_env())
+            logger.info("cast receiver started (%s, port %d)", exe, cast_port)
+        except Exception as e:
+            logger.error("cast receiver start failed: %s" % e)
+
+    def stop_cast_receiver(self):
+        """Terminate the Google Cast receiver child process."""
+        if self.cast_receiver_proc is not None:
+            try:
+                self.cast_receiver_proc.terminate()
+                self.cast_receiver_proc.wait(timeout=3)
+            except Exception:
+                pass
+            self.cast_receiver_proc = None
+            logger.info("cast receiver stopped")
+
     def service_start(self):
         """This function is called every time the DLNA service is started.
         Displays a notification reminding the user that the service has started
         """
         logger.info("service_start")
+        self.start_cast_receiver()
         if self.platform is Platform.Win32:
             msg = _("running at task bar")
         elif self.platform is Platform.Darwin:
@@ -397,6 +483,7 @@ class Macast(App):
         """This function is called every time the DLNA service is stopped.
         """
         logger.info("service_stop")
+        self.stop_cast_receiver()
         self.update_service_status()
 
     def update_service_ip(self):
@@ -458,6 +545,45 @@ class Macast(App):
 
     def on_open_config_click(self, item):
         self.open_directory(SETTING_DIR)
+
+    def on_qr_cast_click(self, item):
+        """Generate a QR code for the /cast page so a phone (no app needed)
+        can reach the media-cast page in its browser and play a URL via Macast."""
+        ips = [ip for ip, _ in Setting.get_ip() if not ip.startswith("127.")]
+        ip_text = ips[0] if ips else "127.0.0.1"
+        url = "http://{}:{}/cast".format(ip_text, Setting.get_port())
+        try:
+            import qrcode
+            qr = qrcode.QRCode(border=2)
+            qr.add_data(url)
+            qr.make()
+            modules = qr.modules
+            n = qr.modules_count
+            cell = 12
+            grid = n * cell
+            rects = []
+            for r, row in enumerate(modules):
+                for c, on in enumerate(row):
+                    if on:
+                        rects.append('<rect x="{}" y="{}" width="{}" height="{}"/>'.format(
+                            c * cell, r * cell, cell, cell))
+            svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {g} {g}" '
+                   'width="{g}" height="{g}">'
+                   '<rect width="100%" height="100%" fill="#fff"/>'
+                   '<g fill="#000">{cells}</g></svg>').format(g=grid, cells="".join(rects))
+            path = os.path.join(SETTING_DIR, "cast-qr.svg")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(svg)
+            logger.info("QR cast page: %s -> %s", url, path)
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", path],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                self.open_browser(url)
+        except Exception:
+            logger.exception("QR cast page generation failed")
+            # fall back to just opening the URL in the local browser
+            self.open_browser(url)
 
     def on_check_click(self, item):
         threading.Thread(target=self.check_update,

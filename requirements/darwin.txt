@@ -5,3 +5,4 @@ requests
 rumps
 pyperclip
 netifaces
+qrcode
