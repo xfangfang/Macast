@@ -148,7 +148,13 @@ class SSDPServer:
         while self.running:
             try:
                 data, addr = self.sock.recvfrom(1024)
-                self.datagram_received(data, addr)
+                try:
+                    self.datagram_received(data, addr)
+                except Exception:
+                    # A malformed SSDP packet must not kill the discovery
+                    # thread: if it dies, the device is invisible to every
+                    # DLNA controller until the service is restarted.
+                    logger.exception("SSDP datagram handler error (ignored)")
             except socket.timeout:
                 continue
         self.shutdown()
@@ -242,11 +248,13 @@ class SSDPServer:
 
         (host, port) = host_port
 
-        logger.info('Discovery request from (%s,%d) for %s' % (host, port,
-                                                               headers['st']))
+        st = headers.get('st')
+        logger.info('Discovery request from (%s,%d) for %s' % (host, port, st))
+        if not st:
+            return
         # Do we know about this service?
         for i in self.known.values():
-            if i['ST'] == headers['st'] or headers['st'] == 'ssdp:all':
+            if i['ST'] == st or st == 'ssdp:all':
                 response = ['HTTP/1.1 200 OK']
 
                 usn = None
@@ -261,7 +269,12 @@ class SSDPServer:
                                                             usegmt=True))
 
                     response.extend(('', ''))
-                    delay = random.randint(0, int(headers['mx']))
+                    mx = headers.get('mx', '2')
+                    try:
+                        mx = int(mx)
+                    except (ValueError, TypeError):
+                        mx = 2
+                    delay = random.randint(0, mx)
                     destination = (host, port)
                     logger.debug('send discovery response delayed by %ds for %s to %r' % (delay, usn, destination))
                     # logger.debug(response)
