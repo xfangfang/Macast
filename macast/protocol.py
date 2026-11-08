@@ -680,7 +680,13 @@ class DLNAProtocol(Protocol):
         return {}
 
     def AVTransport_SetAVTransportURI(self, data):
-        uri = data['CurrentURI'].value
+        # The UPnP spec (and every real DLNA controller) spells the
+        # argument "CurrentURi" (lowercase 'ri' — a spec typo all devices
+        # follow), while some controllers send "CurrentURI". The XML
+        # declares both, so accept whichever one actually arrived.
+        uri = data['CurrentURi'].value
+        if uri is None:
+            uri = data['CurrentURI'].value
         logger.info(uri)
         self.set_state_url(uri)
         self.renderer.set_media_url(uri)
