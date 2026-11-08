@@ -7,6 +7,8 @@ import time
 import json
 import cherrypy
 import logging
+import socket
+import subprocess
 import threading
 import requests
 import pyperclip
@@ -188,6 +190,8 @@ class Macast(App):
         self.open_config_menuitem = None
         self.renderer_menuitem = None
         self.protocol_menuitem = None
+        # Google Cast receiver child process (cast-receiver binary)
+        self.cast_receiver_proc = None
         self.advanced_menuitem = None
 
         self.plugin_manager = MacastPluginManager(
@@ -371,11 +375,90 @@ class Macast(App):
             self.toggle_menuitem.text = _('Start Cast')
         self.update_menu()
 
+    def start_cast_receiver(self, _retries=0):
+        """Launch the bundled Google Cast receiver (cast-receiver binary,
+        if present) so that Google Cast senders (phones with the Cast /
+        Google Home app, Chrome tabs) discover Macast via mDNS
+        (_googlecast._tcp) and forward media URLs to this app.
+
+        The binary POSTs forwarded actions (load/stop) to Macast's own
+        HTTP server via the ``cast-media`` form field, which is handled
+        in protocol.py -> Handler.POST.
+
+        The Macast HTTP port may not be bound yet when this first runs
+        (called from the 'service_start' bus event), so retry briefly.
+        """
+        if self.cast_receiver_proc is not None and self.cast_receiver_proc.poll() is None:
+            return
+        if not Setting.is_service_running():
+            return
+        # Macast's own HTTP port (for the forwarded media actions)
+        port = 0
+        try:
+            port = cherrypy.server.bound_addr[1]
+        except Exception:
+            port = 0
+        if not port:
+            if _retries < 10:
+                threading.Timer(1.0, self.start_cast_receiver, args=(_retries + 1,)).start()
+            else:
+                logger.error("cast receiver: Macast HTTP port unknown, giving up")
+            return
+        try:
+            import shutil
+            exe = os.path.join(
+                os.path.dirname(os.path.dirname(sys.executable)),
+                'Resources', 'bin', 'cast-receiver')
+            if not os.path.exists(exe):
+                exe = shutil.which('cast-receiver')  # dev build: rely on PATH
+            if exe is None:
+                logger.info("cast-receiver binary not found, Google Cast support disabled")
+                return
+            # pick a free Cast receiver port
+            cast_port = 0
+            for candidate in range(8009, 8021):
+                probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    probe.bind(('0.0.0.0', candidate))
+                    cast_port = candidate
+                    break
+                except OSError:
+                    continue
+                finally:
+                    probe.close()
+            if cast_port == 0:
+                logger.error("no free port for cast receiver")
+                return
+            device_id = str(Setting.get_usn()).replace('uuid:', '')
+            args = [exe,
+                    '-name', Setting.get_friendly_name(),
+                    '-id', device_id,
+                    '-port', str(cast_port),
+                    '-forward-url', 'http://127.0.0.1:%d/' % port]
+            self.cast_receiver_proc = subprocess.Popen(
+                args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                cwd=SETTING_DIR, env=Setting.get_system_env())
+            logger.info("cast receiver started (%s, port %d)", exe, cast_port)
+        except Exception as e:
+            logger.error("cast receiver start failed: %s" % e)
+
+    def stop_cast_receiver(self):
+        """Terminate the Google Cast receiver child process."""
+        if self.cast_receiver_proc is not None:
+            try:
+                self.cast_receiver_proc.terminate()
+                self.cast_receiver_proc.wait(timeout=3)
+            except Exception:
+                pass
+            self.cast_receiver_proc = None
+            logger.info("cast receiver stopped")
+
     def service_start(self):
         """This function is called every time the DLNA service is started.
         Displays a notification reminding the user that the service has started
         """
         logger.info("service_start")
+        self.start_cast_receiver()
         if self.platform is Platform.Win32:
             msg = _("running at task bar")
         elif self.platform is Platform.Darwin:
@@ -397,6 +480,7 @@ class Macast(App):
         """This function is called every time the DLNA service is stopped.
         """
         logger.info("service_stop")
+        self.stop_cast_receiver()
         self.update_service_status()
 
     def update_service_ip(self):
