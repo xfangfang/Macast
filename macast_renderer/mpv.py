@@ -120,8 +120,10 @@ class MPVRenderer(Renderer):
         # Not playing (or IPC never connected): recent mpv builds do not
         # service IPC while idle, so an IPC loadfile would be lost.
         # Restart mpv with the URL as a command-line argument instead.
-        self.pending_url = (url, start, options)
-        if self.proc is not None:
+        if self.proc is not None and self.proc.poll() is None:
+            # mpv is running (idle or warming up): terminate it and let
+            # the manager loop respawn with the URL.
+            self.pending_url = (url, start, options)
             try:
                 self.send_command(['quit'])
             except Exception:
@@ -130,6 +132,25 @@ class MPVRenderer(Renderer):
                 self.proc.terminate()
             except Exception:
                 pass
+        else:
+            # Cold path: the renderer has not started mpv yet (slow cold
+            # start, or not even 'started' yet). Start it now with the
+            # URL as CLI argument so the first media action is never
+            # lost. The manager loop sees the live proc and waits on it
+            # instead of starting a second one.
+            logger.info("starting mpv directly for early media action")
+            try:
+                params = self._mpv_params(url, start, options)
+                self.proc = subprocess.Popen(
+                    params,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.PIPE,
+                    env=Setting.get_system_env())
+            except Exception as e:
+                logger.error(e)
+                self.proc = None
+                self.pending_url = (url, start, options)
 
     def set_media_title(self, data):
         """ data : string
@@ -349,6 +370,86 @@ class MPVRenderer(Renderer):
             self.ipc_sock.close()
             logger.error("mpv ipc stopped")
 
+    def _mpv_params(self, url=None, start="0", media_options=None):
+        """Build the mpv command-line parameters.
+
+        :param url: media URL to start with as a CLI argument (None for
+        an idle instance; recent mpv builds on macOS do not service
+        IPC while idle, so the first media must be a CLI argument)
+        """
+        media_options = media_options or {}
+        params = [
+            self.path,
+            '--input-ipc-server={}'.format(self.mpv_sock),
+            '--image-display-duration=inf',
+            '--idle=yes',
+            '--no-terminal',
+            '--on-all-workspaces',
+            '--hwdec=yes',
+            '--save-position-on-quit=yes',
+            '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
+            'osc-title=${title},osc-showwindowed=yes,' +
+            'osc-seekbarstyle=bar,osc-visibility=auto'
+        ]
+
+        ontop = Setting.get(SettingProperty.PlayerOntop,
+                            default=SettingProperty.PlayerOntop_True.value)
+        if ontop:
+            params.append('--ontop')
+
+        # set player position
+        player_position = Setting.get(SettingProperty.PlayerPosition,
+                                      default=SettingProperty.PlayerPosition_RightTop.value)
+        player_position_data = [[2, 5], [2, 98], [98, 5], [98, 98], [50, 50]]
+        x = player_position_data[player_position][0]
+        y = player_position_data[player_position][1]
+        params.append('--geometry={}%:{}%'.format(x, y))
+
+        # set lua scripts
+        scripts_path = Setting.get_base_path('scripts')
+        if os.path.exists(scripts_path):
+            scripts = os.listdir(scripts_path)
+            scripts = filter(lambda s: s.endswith('.lua'), scripts)
+            for script in scripts:
+                path = os.path.join(scripts_path, script)
+                params.append('--script={}'.format(path))
+
+        # set player size
+        player_size = Setting.get(SettingProperty.PlayerSize,
+                                  default=SettingProperty.PlayerSize_Normal.value)
+        if player_size <= SettingProperty.PlayerSize_Large.value:
+            params.append('--autofit={}%'.format(
+                int(15 - 2.5 * player_size + 7.5 * player_size ** 2)))
+        elif player_size == SettingProperty.PlayerSize_Auto.value:
+            params.append('--autofit-larger=90%')
+        elif player_size == SettingProperty.PlayerSize_FullScreen.value:
+            params.append('--fullscreen')
+
+        # set darwin only options
+        if sys.platform == 'darwin':
+            params += [
+                '--ontop-level=system',
+                '--on-all-workspaces',
+                '--macos-app-activation-policy=accessory',
+            ]
+
+        # set hardware
+        hw = Setting.get(SettingProperty.PlayerHW,
+                         default=SettingProperty.PlayerHW_Enable.value)
+        if hw == SettingProperty.PlayerHW_Disable.value:
+            params.remove('--hwdec=yes')
+        elif hw == SettingProperty.PlayerHW_Force.value:
+            params.append('--macos-force-dedicated-gpu=yes')
+
+        if url is not None:
+            params.remove('--idle=yes')
+            if media_options.get('fullscreen') == 'yes':
+                params.append('--fullscreen')
+            if start and start != '0':
+                params.append('--start={}'.format(start))
+            params.append(url)
+        return params
+
     def start_mpv(self):
         """Start mpv thread (manager loop: keeps mpv alive, relaunches it
         when a media URL is queued in self.pending_url).
@@ -356,96 +457,41 @@ class MPVRenderer(Renderer):
         error_time = 3
         while self.running:
             self.set_state_speed('1')
-            # mpv default params
-            params = [
-                self.path,
-                '--input-ipc-server={}'.format(self.mpv_sock),
-                '--image-display-duration=inf',
-                '--idle=yes',
-                '--no-terminal',
-                '--on-all-workspaces',
-                '--hwdec=yes',
-                '--save-position-on-quit=yes',
-                '--script-opts=osc-timetotal=yes,osc-layout=bottombar,' +
-                'osc-title=${title},osc-showwindowed=yes,' +
-                'osc-seekbarstyle=bar,osc-visibility=auto'
-            ]
-
-            ontop = Setting.get(SettingProperty.PlayerOntop,
-                                default=SettingProperty.PlayerOntop_True.value)
-            if ontop:
-                params.append('--ontop')
-
-            # set player position
-            player_position = Setting.get(SettingProperty.PlayerPosition,
-                                          default=SettingProperty.PlayerPosition_RightTop.value)
-            player_position_data = [[2, 5], [2, 98], [98, 5], [98, 98], [50, 50]]
-            x = player_position_data[player_position][0]
-            y = player_position_data[player_position][1]
-            params.append('--geometry={}%:{}%'.format(x, y))
-
-            # set lua scripts
-            scripts_path = Setting.get_base_path('scripts')
-            if os.path.exists(scripts_path):
-                scripts = os.listdir(scripts_path)
-                scripts = filter(lambda s: s.endswith('.lua'), scripts)
-                for script in scripts:
-                    path = os.path.join(scripts_path, script)
-                    params.append('--script={}'.format(path))
-
-            # set player size
-            player_size = Setting.get(SettingProperty.PlayerSize,
-                                      default=SettingProperty.PlayerSize_Normal.value)
-            if player_size <= SettingProperty.PlayerSize_Large.value:
-                params.append('--autofit={}%'.format(
-                    int(15 - 2.5 * player_size + 7.5 * player_size ** 2)))
-            elif player_size == SettingProperty.PlayerSize_Auto.value:
-                params.append('--autofit-larger=90%')
-            elif player_size == SettingProperty.PlayerSize_FullScreen.value:
-                params.append('--fullscreen')
-
-            # set darwin only options
-            if sys.platform == 'darwin':
-                params += [
-                    '--ontop-level=system',
-                    '--on-all-workspaces',
-                    '--macos-app-activation-policy=accessory',
-                ]
-
-            # set hardware
-            hw = Setting.get(SettingProperty.PlayerHW,
-                             default=SettingProperty.PlayerHW_Enable.value)
-            if hw == SettingProperty.PlayerHW_Disable.value:
-                params.remove('--hwdec=yes')
-            elif hw == SettingProperty.PlayerHW_Force.value:
-                params.append('--macos-force-dedicated-gpu=yes')
-
             # queue a media start: launch mpv with the URL as CLI argument
             # (idle-mode IPC is not serviced by recent mpv builds on macOS,
             # so the first media cannot be sent as an IPC loadfile)
+            url, start, media_options = None, "0", {}
             if self.pending_url is not None:
                 url, start, media_options = self.pending_url
                 self.pending_url = None
-                params.remove('--idle=yes')
-                if media_options.get('fullscreen') == 'yes':
-                    params.append('--fullscreen')
-                if start and start != '0':
-                    params.append('--start={}'.format(start))
-                params.append(url)
+            params = self._mpv_params(url, start, media_options)
 
-            # start mpv
-            logger.info("mpv starting")
-            cherrypy.engine.publish('mpv_start')
-            try:
-                self.proc = subprocess.Popen(
-                    params,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
-                    stdin=subprocess.PIPE,
-                    env=Setting.get_system_env())
-                self.proc.communicate()
-            except Exception as e:
-                logger.error(e)
+            # start mpv — unless an early media action already launched
+            # one outside this loop (set_media_url cold path); then wait
+            # for that session to end instead of starting a second one.
+            if self.proc is None or self.proc.poll() is not None:
+                # start mpv
+                logger.info("mpv starting")
+                cherrypy.engine.publish('mpv_start')
+                try:
+                    self.proc = subprocess.Popen(
+                        params,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
+                        stdin=subprocess.PIPE,
+                        env=Setting.get_system_env())
+                    self.proc.communicate()
+                except Exception as e:
+                    logger.error(e)
+            else:
+                # mpv was started by an early set_media_url; its
+                # lifecycle is owned by that launch (stderr is drained
+                # by mpv itself with --no-terminal, output is minimal).
+                logger.info("mpv already started by early media action; waiting")
+                try:
+                    self.proc.wait()
+                except Exception:
+                    pass
             logger.info("mpv stopped")
             if not self.running:
                 break
