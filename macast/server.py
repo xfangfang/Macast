@@ -17,6 +17,46 @@ logger = logging.getLogger("server")
 logger.setLevel(logging.DEBUG)
 
 
+# ---------------------------------------------------------------------------
+# Stop-time safety net
+#
+# Handler.reload() (and a plugin's handler.reload(), e.g. the NVA plugin's
+# NVAHandler.reload()) can swap ``cherrypy.server.httpserver`` for a brand
+# new, *unstarted* CPHTTPServer/NVAHTTPServer while the engine is running.
+# cherrypy's ServerAdapter.stop() then unconditionally calls .stop() on that
+# unstarted server and crashes:
+#
+#     AttributeError: 'CPHTTPServer' object has no attribute 'socket'
+#
+# which aborts the install-plugin / restart flow (the app can die right
+# after "installing" a plugin, so the plugin never actually loads).
+#
+# A not-started server has no live socket (cheroot only creates ``.socket``
+# in start()), so there is nothing to stop on it. Wrap ServerAdapter.stop()
+# to skip that case instead of crashing the whole engine. This is applied
+# at module import time, i.e. before cherrypy.server is (un)subscribed in
+# Service.__init__, so the wrapped method is the one the engine will call.
+# ---------------------------------------------------------------------------
+import cherrypy.process.servers as _cherrypy_server_mod
+
+_orig_server_adapter_stop = _cherrypy_server_mod.ServerAdapter.stop
+
+
+def _safe_server_adapter_stop(self):
+    httpserver = getattr(self, 'httpserver', None)
+    if httpserver is None or not hasattr(httpserver, 'socket'):
+        # Unstarted replacement server (swapped in by Handler.reload()):
+        # no live socket to release, nothing to stop. Just mark it stopped
+        # so the engine can shut down cleanly instead of raising.
+        self.running = False
+        self.bus.log('HTTP server not started (no socket); skipping stop')
+        return
+    _orig_server_adapter_stop(self)
+
+
+_cherrypy_server_mod.ServerAdapter.stop = _safe_server_adapter_stop
+
+
 def auto_change_port(fun):
     """See AutoPortServer"""
 
